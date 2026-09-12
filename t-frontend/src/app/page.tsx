@@ -12,7 +12,7 @@ export default function HomePage() {
     <>
       <Navbar />
       <div className="min-h-screen flex flex-col bg-bg-primary dark:bg-dark-bg text-text-primary dark:text-dark-text pt-14">
-        <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 text-center">
+        <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 text-center max-w-6xl mx-auto w-full">
           <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tighter mb-6 max-w-3xl leading-tight">
             The ultimate starting point.
           </h1>

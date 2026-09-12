@@ -1,14 +1,13 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../lib/jwt';
 import { User } from '../models/User';
-import { AuthRequest } from '../types';
 
 /**
  * Auth middleware - reads the access token from the httpOnly cookie,
  * verifies it, and attaches the user to the request.
  */
 export async function requireAuth(
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {

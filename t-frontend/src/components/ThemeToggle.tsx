@@ -16,7 +16,7 @@ export default function ThemeToggle() {
         duration={750}
         onClick={toggleTheme}
         className="text-text-primary dark:text-dark-text cursor-pointer"
-        style={{ fontSize: "1.5rem" }}
+        style={{ fontSize: "1.1rem" }}
       />
     </div>
   );

@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Navbar from "@/components/Navbar";
+import DashboardLayout from "@/components/DashboardLayout";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
+import BackButton from "@/components/ui/BackButton";
 
 function ProfileContent() {
   const { user, logout, refreshUser } = useAuth();
@@ -129,24 +130,15 @@ function ProfileContent() {
   });
 
   return (
-    <>
-      <Navbar />
-      <div className="min-h-screen pt-20 bg-bg-primary dark:bg-dark-bg selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
-        <div className="max-w-3xl mx-auto px-6 pb-24 space-y-12">
+    <DashboardLayout>
+      <div className="w-full max-w-4xl mx-auto space-y-12 pb-24">
           
           {/* Top navigation / header */}
-          <div className="flex flex-col gap-6">
-            <Link href="/" className="text-xs font-bold tracking-widest uppercase text-text-secondary hover:text-text-primary dark:text-dark-text-secondary dark:hover:text-dark-text transition-colors flex items-center gap-2 w-fit">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-              Back to Home
-            </Link>
-            <div>
-              <h1 className="text-4xl font-extrabold tracking-tighter text-text-primary dark:text-dark-text uppercase">
-                Profile
-              </h1>
-            </div>
+          <div className="flex items-center gap-4">
+            <BackButton size="md" className="-ml-2" />
+            <h1 className="text-4xl font-extrabold tracking-tighter text-text-primary dark:text-dark-text uppercase">
+              Profile
+            </h1>
           </div>
 
           {/* Unverified banner */}
@@ -339,8 +331,7 @@ function ProfileContent() {
             </Button>
           </div>
         </div>
-      </div>
-    </>
+    </DashboardLayout>
   );
 }
 

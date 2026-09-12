@@ -34,7 +34,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       toast.success("Signed in. Taking you to your profile.");
-      router.push("/profile");
+      router.push("/dashboard");
     } catch (err) {
       toast.error(
         err instanceof ApiError

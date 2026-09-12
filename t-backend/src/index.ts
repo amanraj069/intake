@@ -9,6 +9,8 @@ import passport from 'passport';
 
 import { configurePassport } from './lib/passport';
 import authRoutes from './routes/auth';
+import goalRoutes from './routes/goals';
+import foodEntryRoutes from './routes/foodEntries';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -38,6 +40,8 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/auth', authRoutes);
+app.use('/api/goals', goalRoutes);
+app.use('/api/food-entries', foodEntryRoutes);
 
 // --- Error handling ---
 

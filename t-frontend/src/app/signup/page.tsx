@@ -53,7 +53,7 @@ export default function SignupPage() {
     try {
       await signup(email, password);
       toast.success("Account created. Check your inbox to verify your email.");
-      router.push("/profile");
+      router.push("/dashboard");
     } catch (err) {
       if (err instanceof ApiError) {
         toast.error(err.message);
