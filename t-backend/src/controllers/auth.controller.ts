@@ -9,6 +9,7 @@ import {
 } from '../lib/email';
 import { AuthRequest } from '../types';
 import { AppError } from '../middleware/errorHandler';
+import { toUserResponse } from '../lib/userResponse';
 
 const SALT_ROUNDS = 12;
 
@@ -45,13 +46,7 @@ export async function register(req: Request, res: Response, next: NextFunction):
       success: true,
       message: 'Account created successfully. Please check your email to verify your address.',
       data: {
-        user: {
-          id: user._id,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          authProvider: user.authProvider,
-          createdAt: user.createdAt,
-        },
+        user: toUserResponse(user),
       },
     });
   } catch (error) {
@@ -90,13 +85,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
       success: true,
       message: 'Logged in successfully',
       data: {
-        user: {
-          id: user._id,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          authProvider: user.authProvider,
-          createdAt: user.createdAt,
-        },
+        user: toUserResponse(user),
       },
     });
   } catch (error) {
@@ -150,11 +139,16 @@ export async function refresh(req: Request, res: Response, next: NextFunction): 
  * Returns the currently authenticated user.
  */
 export async function me(req: AuthRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Authentication required' });
+    return;
+  }
+
   res.json({
     success: true,
     message: 'User retrieved',
     data: {
-      user: req.user,
+      user: toUserResponse(req.user),
     },
   });
 }

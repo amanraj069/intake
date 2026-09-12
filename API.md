@@ -13,6 +13,17 @@ All responses share one envelope:
 ```
 
 `errors` is present only on validation failures (HTTP 400), keyed by field name.
+
+List endpoints add pagination metadata beside `data`, which holds the page of records:
+
+```jsonc
+{ "success": true, "message": "...", "data": [ /* records */ ],
+  "page": 1, "limit": 20, "total": 57, "totalPages": 3 }
+```
+
+This envelope is the standard for every list endpoint in the app. `page` and `limit` default
+to `1` and `20`; `limit` is capped at `100`. An empty result still reports `totalPages: 1`, so
+a client never has to render "page 1 of 0".
 Authenticated routes read the `access_token` httpOnly cookie and return `401` when it is
 missing, expired or invalid. Every request body is validated with zod before any business
 logic runs, so a handler never sees an unchecked payload and a stack trace is never returned.
@@ -35,8 +46,27 @@ logic runs, so a handler never sees an unchecked payload and a stack trace is ne
 | `PATCH` | `/auth/change-password` | yes | Body: `{ currentPassword, newPassword }`. |
 | `POST` | `/auth/request-otp` | yes | Body: `{ purpose, newEmail? }`. Emails an OTP for an email or password change. |
 | `POST` | `/auth/verify-otp` | yes | Body: `{ purpose, otp, newPassword? }`. Applies the pending change. |
+| `POST` | `/auth/avatar` | yes | Upload a profile picture. `multipart/form-data` with one file field `avatar` (JPEG/PNG/WebP, max 5MB). Returns `{ user }`. |
+| `DELETE` | `/auth/avatar` | yes | Remove the profile picture and destroy the stored asset. Returns `{ user }`. |
 | `GET` | `/auth/google` | - | Start the Google OAuth redirect. |
 | `GET` | `/auth/google/callback` | - | OAuth callback. Sets cookies and redirects to the frontend. |
+
+Every endpoint that returns `{ user }` returns the same shape:
+
+```json
+{
+  "id": "6aa50aeb...",
+  "email": "ada@example.com",
+  "emailVerified": true,
+  "authProvider": "local",
+  "avatarUrl": "https://res.cloudinary.com/.../intake/avatars/6aa50aeb....jpg",
+  "createdAt": "2026-09-12T08:18:52.000Z"
+}
+```
+
+`avatarUrl` is `null` when no picture is set. Avatar-specific failures: `400` no file, wrong
+type, oversized, or nothing to remove; `502` Cloudinary rejected the upload; `503` Cloudinary
+is not configured on the server.
 
 ---
 
@@ -126,6 +156,58 @@ Log a food entry for the current user.
   "updatedAt": "2026-09-12T05:16:32.138Z"
 }
 ```
+
+### `GET /api/food-entries` (authenticated)
+
+List the current user's entries, newest day first.
+
+- Query params (all optional):
+
+  | Param | Type | Default | Notes |
+  |---|---|---|---|
+  | `startDate` | `YYYY-MM-DD` | 6 days before `endDate` | inclusive lower bound |
+  | `endDate` | `YYYY-MM-DD` | today (UTC) | inclusive upper bound |
+  | `mealType` | `"breakfast" \| "lunch" \| "dinner" \| "snack"` | all | exact match |
+  | `page` | integer >= 1 | `1` | |
+  | `limit` | integer 1 - 100 | `20` | page size |
+
+- Response `200`: the pagination envelope above, with `data` holding `FoodEntry[]`.
+- Omitting both dates therefore covers the last 7 days. Each bound falls back independently,
+  so `?startDate=2026-09-01` alone means "1 September through today".
+- `400` when a date is not a real calendar day (`2026-02-31` is rejected), when `startDate` is
+  after `endDate`, or when `page`/`limit` fall outside their bounds.
+- Sorted by `date` descending, then `createdAt` and `_id` descending. Entries logged for the
+  same day share a timestamp, so those tie-breakers give the sort a total order: without them a
+  record could appear on two pages, or on none.
+
+### `GET /api/food-entries/summary` (authenticated)
+
+One day's totals next to the current user's goal, so an "actual vs target" widget renders
+without a second round trip.
+
+- Query params: `date` (`YYYY-MM-DD`, optional, defaults to today in UTC).
+- Response `200`:
+
+```jsonc
+{
+  "data": {
+    "date": "2026-09-12",
+    "totals": { "calories": 1195, "proteinG": 67.5, "carbG": 116, "fatG": 41.5, "entryCount": 5 },
+    "goal": { /* Goal, or null when the user has not set one */ }
+  }
+}
+```
+
+- Totals are summed across every entry on that day and rounded to one decimal place. A day with
+  no entries returns zeros rather than a `404`.
+
+### `GET /api/food-entries/:id` (authenticated)
+
+Fetch one of the current user's entries, used to open the edit form pre-filled.
+
+- Params: `id` - a 24-character Mongo ObjectId.
+- Response `200`: `{ data: { foodEntry: FoodEntry } }`.
+- `404` if no entry has that id, `403` if it belongs to another user.
 
 ### `PATCH /api/food-entries/:id` (authenticated)
 

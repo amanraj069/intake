@@ -46,7 +46,11 @@ lib/           shared helpers (jwt, cookies, email, authenticated-user lookup)
 app/            routes, thin: they compose a shell, a hook and a form
 components/ui/  reusable primitives (Button, Input, Card, AmountInput, SegmentedControl, ...)
 components/<feature>/  feature components (GoalForm, MealEntryForm, MicronutrientRows)
-hooks/          data-fetching and form state (useGoal, useCreateFoodEntry, useMicronutrientRows)
+components/layout/     app shell: DashboardLayout, SidebarHeader, SidebarNav,
+                       SidebarProfile, ProfileMenu, BrandMark, nav definitions
+components/icons.tsx   the project's inline SVG icon set
+hooks/          data-fetching and list/form state (useGoal, useFoodEntries, useMealFilters,
+                useDailyIntake, useFoodEntry, useCreateFoodEntry, useMicronutrientRows)
 lib/            api client, per-domain API modules, client-side validation, formatters
 types/          shared domain types
 ```
@@ -59,7 +63,16 @@ types/          shared domain types
 - **Goals** - one active daily target per user: calories, protein/carb/fat, optional goal weight
 - **Meal logging** - meal type, food, quantity + unit, calories, macros, and free-form
   micronutrient name/amount pairs, with backdating support
-- **Dark mode** - system-preference-aware theme toggle persisted to localStorage
+- **Meals log** - a filterable, paginated list of every entry with inline edit and a
+  confirmed delete, filtered by date range and meal type
+- **Today summary** - the dashboard's actual-vs-target widget for calories and each macro,
+  served by a single summary request
+- **Profile pictures** - uploaded to Cloudinary from the profile page, with the user's
+  initials as the fallback when none is set
+- **Collapsible sidebar** - from `lg` up it expands to labelled navigation or retracts to a
+  64px icon rail, with the choice persisted to localStorage; below that it stays a drawer
+- **Dark mode** - system-preference-aware theme toggle persisted to localStorage. Light mode
+  uses a warm ivory ground rather than pure white.
 
 ## Prerequisites
 
@@ -97,6 +110,9 @@ npm install
 | `JWT_ACCESS_SECRET` | Secret for access tokens - generate with `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"` |
 | `JWT_REFRESH_SECRET` | Secret for refresh tokens (use a different value) |
 | `JWT_EMAIL_SECRET` | Secret for email verification/reset tokens (use a different value) |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name - required for profile picture uploads |
+| `CLOUDINARY_API_KEY` | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `GOOGLE_CALLBACK_URL` | `http://localhost:9000/auth/google/callback` |
@@ -167,8 +183,11 @@ cd t-frontend && npm run lint                 # eslint
 | `/` | - | Landing page |
 | `/login`, `/signup`, `/forgot-password`, `/verify-email` | - | Auth flows |
 | `/profile` | yes | Account details, change email/password, resend verification |
+| `/dashboard` | yes | Today's calories and macros against the active goal |
 | `/goals` | yes | View and update the active goal. Pre-filled when one exists. |
-| `/meals/new` | yes | Log a food entry, including add/remove micronutrient rows |
+| `/log-meal` | yes | Log a food entry, including add/remove micronutrient rows |
+| `/meals` | yes | Filter, page through, edit and delete logged entries |
+| `/meals/:id/edit` | yes | The meal form pre-filled with a saved entry |
 
 ## API Routes
 
@@ -188,10 +207,15 @@ Full parameter and response shapes are in [API.md](./API.md).
 | `PATCH` | `/auth/change-password` | yes | Change password |
 | `POST` | `/auth/request-otp` | yes | Request an email/password change OTP |
 | `POST` | `/auth/verify-otp` | yes | Apply a pending email/password change |
+| `POST` | `/auth/avatar` | yes | Upload a profile picture (multipart, field `avatar`) |
+| `DELETE` | `/auth/avatar` | yes | Remove the profile picture |
 | `GET` | `/auth/google` | - | Start Google OAuth |
 | `GET` | `/auth/google/callback` | - | Google OAuth callback |
 | `GET` | `/api/goals` | yes | Fetch the current user's goal (`null` if unset) |
 | `POST` | `/api/goals` | yes | Create or overwrite the current user's goal |
+| `GET` | `/api/food-entries` | yes | List entries: date range, meal type, paginated |
+| `GET` | `/api/food-entries/summary` | yes | One day's totals plus the active goal |
+| `GET` | `/api/food-entries/:id` | yes | Fetch one entry the user owns |
 | `POST` | `/api/food-entries` | yes | Create a food entry |
 | `PATCH` | `/api/food-entries/:id` | yes | Edit an entry the user owns |
 | `DELETE` | `/api/food-entries/:id` | yes | Delete an entry the user owns |
@@ -238,7 +262,8 @@ source:        'manual' | 'ai-image' (default 'manual')
 createdAt, updatedAt: Date
 ```
 
-Compound index on `{ userId, date }` for "what did I eat on this day" reads.
+Compound index on `{ userId, date }` for "what did I eat on this day" reads, which also
+serves the date-range list query and the daily summary aggregation.
 
 ---
 
@@ -280,6 +305,54 @@ Decisions made where the spec left room for interpretation:
 - **Ownership failures distinguish 404 from 403.** A non-existent entry is `404`; an entry that
   exists but belongs to someone else is `403`. A malformed id fails zod validation with `400`
   before reaching the database.
+- **Day boundaries are compared in UTC.** The client sends a bare `YYYY-MM-DD`, which is
+  stored as midnight UTC, so the list's range filter and the daily summary both bound the day
+  as `[midnight UTC, next midnight UTC)`. Every date shown in the UI is likewise formatted in
+  UTC, otherwise a viewer west of Greenwich would see the previous day against each entry.
+- **The default list range is the last 7 days, ending today.** Each bound falls back
+  independently: `endDate` defaults to today and `startDate` to six days before whichever
+  `endDate` applies, so supplying only one bound still yields a sensible window.
+- **The list sort is given a total order.** Entries share a timestamp whenever they fall on the
+  same day, so `date` descending is broken by `createdAt` and then `_id`. Without that, the
+  same record could surface on two pages of a paginated walk, or on none.
+- **Pagination is offset-based**, which is what `page`/`limit` in the spec implies. It is the
+  right call at this scale; a cursor would be the change if an account ever holds enough
+  entries for deep offsets to hurt.
+- **An empty page still reports `totalPages: 1`.** The envelope is always renderable, so no
+  client has to special-case "page 1 of 0".
+- **Deleting reloads the current page** rather than removing the row locally, so `total` and
+  `totalPages` stay truthful and the vacated slot fills from the next page.
+- **The two date filters clamp each other.** Picking a start after the current end drags the
+  end along with it, so the UI cannot request the range the API would reject, and the user
+  never has to read an error to fix it.
+- **Editing is a route, not a modal.** `/meals/:id/edit` re-mounts the same `MealEntryForm`
+  used for logging, pre-filled from `GET /api/food-entries/:id`. That endpoint is not in the
+  stage spec but completes the REST resource and makes the edit view deep-linkable and
+  refresh-safe, which a modal fed from list state would not be.
+- **Profile pictures are keyed on the user id in Cloudinary.** Each avatar is uploaded to
+  `intake/avatars/<userId>` with `overwrite: true`, so a user has at most one stored asset and
+  a re-upload replaces the previous one with no separate cleanup step. A square 512x512
+  face-aware crop is applied at upload time, so every avatar slot in the UI renders the stored
+  URL directly with no per-view transformation.
+- **Missing Cloudinary configuration degrades rather than crashes.** Without
+  `CLOUDINARY_CLOUD_NAME` the avatar endpoints return `503` with a plain message; nothing else
+  in the API depends on Cloudinary.
+- **Initials are derived from the email, since accounts have no name field.** The local part is
+  split on `.`, `-`, `_` and `+`, so `ada.lovelace@...` shows `AL` and a single-word local part
+  falls back to its first two letters. If real first/last name fields are added later, only
+  `t-frontend/src/lib/userIdentity.ts` changes.
+- **Removing an avatar clears the profile even if Cloudinary's delete fails.** The user asked
+  for the picture to be gone, so the local record is cleared first and a failed remote destroy
+  is logged rather than surfaced, leaving at most an orphaned asset.
+- **Every user payload goes through one serializer.** `toUserResponse` whitelists the fields a
+  client may see, which keeps `password`, OTP state and `pendingEmail` off responses by
+  construction rather than by each handler remembering to omit them.
+- **Retracting the sidebar is a desktop-only idea.** Below `lg` the sidebar is already a drawer
+  that is hidden until summoned, so it always opens with labels and the rail preference is
+  neither read nor written at that width.
+- **Account actions live behind one menu.** The sidebar's three-dot trigger owns Profile
+  Settings, the theme switch and Log Out, so the sidebar header is free to carry the
+  expand/retract control and there is no second log-out affordance to keep in sync.
 - **Client-side validation mirrors the backend zod rules by hand.** The frontend has no zod
   dependency, so the bounds live in `t-frontend/src/lib/validation/amount.ts` and must be kept
   in sync with `t-backend/src/schemas/`. The backend remains the authority; the client copy
@@ -287,8 +360,10 @@ Decisions made where the spec left room for interpretation:
 
 ## Known gaps
 
-- There is no list/read endpoint for food entries yet, so `/meals/new` confirms a saved entry
-  inline but there is no daily log view. `PATCH` and `DELETE` are implemented and tested but
-  are not yet wired to a UI.
-- No automated test suite. The API was verified end to end manually (register, goal upsert,
-  entry create/patch/delete, and the 401/403/404/400 paths).
+- No automated test suite. The API was verified end to end manually: register, goal upsert,
+  entry create/read/patch/delete, a 29-entry paginated walk at `limit=6` confirming every
+  record is visited exactly once, date-range and meal-type filters, the daily summary with and
+  without a goal, and the 400/401/403/404 paths.
+- The meals list filters on the server on every change. There is no debounce, which is fine for
+  native date and select inputs but would need one if a free-text search were added.
+- `source: 'ai-image'` is accepted by the API but nothing in the UI produces it yet.

@@ -1,17 +1,16 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import DashboardLayout from "@/components/DashboardLayout";
-import Card from "@/components/ui/Card";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import BackButton from "@/components/ui/BackButton";
+import AvatarPanel from "@/components/profile/AvatarPanel";
 
 function ProfileContent() {
   const { user, logout, refreshUser } = useAuth();
@@ -131,7 +130,7 @@ function ProfileContent() {
 
   return (
     <DashboardLayout>
-      <div className="w-full max-w-4xl mx-auto space-y-12 pb-24">
+      <div className="w-full max-w-5xl mx-auto space-y-12 pb-24">
           
           {/* Top navigation / header */}
           <div className="flex items-center gap-4">
@@ -162,6 +161,8 @@ function ProfileContent() {
               </Button>
             </div>
           )}
+
+          <AvatarPanel user={user} />
 
           {/* Account info */}
           <div className="space-y-6">

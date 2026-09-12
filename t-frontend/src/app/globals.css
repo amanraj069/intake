@@ -5,13 +5,14 @@
 
 /* Tailwind v4: Custom theme tokens */
 @theme {
-  /* Colors */
-  --color-bg-primary: #FFFFFF;
-  --color-bg-surface: #FAFAFA;
+  /* Colors - light mode is a warm ivory rather than pure white, which reads
+     softer and more premium while keeping the stark near-black type contrast. */
+  --color-bg-primary: #FCF8EF;
+  --color-bg-surface: #F7F2E5;
   --color-text-primary: #0A0A0A;
-  --color-text-secondary: #6B7280;
-  --color-border: #E5E7EB;
-  --color-input-border: #D1D5DB;
+  --color-text-secondary: #6B6659;
+  --color-border: #E6E0D1;
+  --color-input-border: #D8D0BC;
   --color-accent: #3B7A57;
   --color-accent-hover: #2F6246;
   --color-accent-dark: #468E66;

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import BrandMark from "./layout/BrandMark";
 import ThemeToggle from "./ThemeToggle";
 
 const LINK_CLASSES =
@@ -39,14 +40,7 @@ export default function Navbar() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-black/10 dark:border-white/10 bg-bg-primary/90 dark:bg-dark-bg/90 backdrop-blur-md">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-        <Link
-          href="/"
-          className="flex items-center gap-3 text-sm font-bold uppercase tracking-[0.2em] text-text-primary dark:text-dark-text hover:text-accent dark:hover:text-accent-dark transition-colors"
-        >
-          <img src="/icon/intake-l.png" alt="Intake Logo" className="w-6 h-6 object-contain block dark:hidden" />
-          <img src="/icon/intake-d.png" alt="Intake Logo" className="w-6 h-6 object-contain hidden dark:block" />
-          INTAKE
-        </Link>
+        <BrandMark size="sm" className="text-sm text-text-primary dark:text-dark-text" />
 
         <div className="flex items-center gap-6">
           <ThemeToggle />
@@ -57,7 +51,7 @@ export default function Navbar() {
                 <>
                   <Link 
                     href="/dashboard" 
-                    className="text-sm font-bold text-text-primary dark:text-dark-text hover:text-accent dark:hover:text-accent-dark transition-colors"
+                    className="text-[10px] sm:text-xs font-bold uppercase tracking-widest px-5 py-2.5 bg-accent text-white hover:bg-accent-hover dark:bg-accent-dark dark:hover:bg-accent-dark-hover transition-all duration-150 active:scale-[0.97]"
                   >
                     Dashboard
                   </Link>
@@ -69,10 +63,10 @@ export default function Navbar() {
                   >
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
-                      className="w-4 h-4"
+                      className="w-5 h-5"
                       fill="none" 
                       stroke="currentColor" 
-                      strokeWidth="3" 
+                      strokeWidth="2.5" 
                       strokeLinecap="square" 
                       strokeLinejoin="miter"
                       viewBox="0 0 24 24"

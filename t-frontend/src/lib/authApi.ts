@@ -5,6 +5,7 @@ export interface User {
   email: string;
   emailVerified: boolean;
   authProvider: "local" | "google";
+  avatarUrl: string | null;
   createdAt: string;
 }
 
@@ -65,6 +66,14 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ purpose, otp, newPassword }),
     }),
+
+  uploadAvatar: (image: File) => {
+    const form = new FormData();
+    form.append("avatar", image);
+    return request<AuthData>("/auth/avatar", { method: "POST", body: form });
+  },
+
+  removeAvatar: () => request<AuthData>("/auth/avatar", { method: "DELETE" }),
 
   // Google OAuth is a full-page redirect, so this returns the URL to navigate to.
   googleAuthUrl: () => `${API_URL}/auth/google`,

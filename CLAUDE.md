@@ -34,6 +34,16 @@ Every piece of code produced for this project, backend or frontend, must satisfy
    - Every non-trivial API endpoint gets a one-line description of what it does, its params, and its response shape, either in the README or a short `API.md`.
 
 4. **Error Handling**
+   - Implement proper error handling and input validation to ensure robustness and a good user experience. Never silently swallow errors.
+   - Handle:
+     - Invalid requests
+     - Authentication failures
+     - Authorization failures
+     - Missing resources
+     - Database failures
+     - External API failures
+     - AI failures
+     - File processing failures
    - Every API route validates its input (zod) before touching business logic, and returns a consistent error shape (e.g., `{ error: { message, code } }`) on failure, never a raw stack trace.
    - Every async operation that can fail (DB calls, external API calls, file/image processing) is wrapped in proper try/catch, with a meaningful error surfaced to the caller, not swallowed silently.
    - The frontend never leaves the user looking at a blank screen or an unhandled console error on failure: every fetch has a loading state, an error state, and a way to retry or recover.

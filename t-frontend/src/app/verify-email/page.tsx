@@ -16,8 +16,11 @@ function VerifyEmailContent() {
   );
   const [message, setMessage] = useState("");
 
+  // The token lives in the URL, so verification can only start after mount.
   useEffect(() => {
     if (!token) {
+      // Renders the same error panel a failed request would, one render later.
+      /* eslint-disable-next-line react-hooks/set-state-in-effect */
       setStatus("error");
       setMessage("No verification token provided");
       return;

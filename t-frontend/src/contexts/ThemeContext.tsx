@@ -25,7 +25,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
-  // Initialize theme from localStorage or system preference
+  // Initialize theme from localStorage or system preference. Neither is
+  // readable on the server, so the stored choice can only be applied after
+  // mount; the rule's "derive it during render" advice does not apply here.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const stored = localStorage.getItem("theme") as Theme | null;
     if (stored === "light" || stored === "dark") {
@@ -38,6 +41,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
     setMounted(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Sync dark class on <html> and persist to localStorage
   useEffect(() => {

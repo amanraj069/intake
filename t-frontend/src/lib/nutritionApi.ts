@@ -1,5 +1,13 @@
-import { request } from "./apiClient";
-import type { FoodEntry, FoodEntryInput, Goal, GoalInput } from "@/types/nutrition";
+import { request, requestPage } from "./apiClient";
+import { toQueryString } from "./queryString";
+import type {
+  DailyIntakeSummary,
+  FoodEntry,
+  FoodEntryInput,
+  FoodEntryQuery,
+  Goal,
+  GoalInput,
+} from "@/types/nutrition";
 
 interface GoalData {
   /** Null until the user has set a goal for the first time. */
@@ -18,6 +26,14 @@ export const nutritionApi = {
       method: "POST",
       body: JSON.stringify(goal),
     }),
+
+  listFoodEntries: (query: FoodEntryQuery) =>
+    requestPage<FoodEntry>(`/api/food-entries${toQueryString({ ...query })}`),
+
+  getDailyIntakeSummary: (date?: string) =>
+    request<DailyIntakeSummary>(`/api/food-entries/summary${toQueryString({ date })}`),
+
+  getFoodEntry: (id: string) => request<FoodEntryData>(`/api/food-entries/${id}`),
 
   createFoodEntry: (entry: FoodEntryInput) =>
     request<FoodEntryData>("/api/food-entries", {

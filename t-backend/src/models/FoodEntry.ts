@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+export const MEAL_TYPES = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
 export type MealType = (typeof MEAL_TYPES)[number];
 
 export const FOOD_ENTRY_SOURCES = ['manual', 'ai-image'] as const;
@@ -19,7 +19,7 @@ export interface IFoodEntryDocument extends Document {
     carbG: number;
     fatG: number;
   };
-  micros: Map<string, number>;
+  micros: Map<string, { amount: number; unit: string }>;
   date: Date;
   source: FoodEntrySource;
   createdAt: Date;
@@ -31,6 +31,14 @@ const macrosSchema = new Schema(
     proteinG: { type: Number, required: true, min: 0 },
     carbG: { type: Number, required: true, min: 0 },
     fatG: { type: Number, required: true, min: 0 },
+  },
+  { _id: false }
+);
+
+const microsSchema = new Schema(
+  {
+    amount: { type: Number, required: true, min: 0 },
+    unit: { type: String, required: true, trim: true },
   },
   { _id: false }
 );
@@ -77,8 +85,8 @@ const foodEntrySchema = new Schema<IFoodEntryDocument>(
     // food, and an AI-image source may return an arbitrary subset.
     micros: {
       type: Map,
-      of: Number,
-      default: () => new Map<string, number>(),
+      of: microsSchema,
+      default: () => new Map<string, { amount: number; unit: string }>(),
     },
     // The day the food was eaten, kept separate from createdAt so entries can
     // be backdated without distorting when the record was written.

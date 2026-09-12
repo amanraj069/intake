@@ -8,6 +8,8 @@ export interface IUser {
   emailVerified: boolean;
   authProvider: 'local' | 'google';
   googleId?: string;
+  avatarUrl?: string;
+  avatarPublicId?: string;
   createdAt: Date;
 }
 
