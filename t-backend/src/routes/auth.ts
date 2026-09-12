@@ -1,133 +1,87 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import passport from 'passport';
-import { z } from 'zod';
 import { validate } from '../middleware/validate';
 import { requireAuth } from '../middleware/auth';
 import { setAuthCookies } from '../lib/cookies';
 import { IUserDocument } from '../models/User';
 import * as authController from '../controllers/auth.controller';
+import * as emailVerificationController from '../controllers/emailVerification.controller';
+import * as passwordRecoveryController from '../controllers/passwordRecovery.controller';
+import * as accountSecurityController from '../controllers/accountSecurity.controller';
 import * as avatarController from '../controllers/avatar.controller';
 import { uploadAvatarFile } from '../middleware/upload';
+import {
+  changePasswordSchema,
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  requestAccountOtpSchema,
+  resetPasswordSchema,
+  verifyAccountOtpSchema,
+} from '../schemas/auth.schema';
 
 const router = Router();
 
-// --- Validation schemas ---
+// `requireAuth` and the authenticated controllers are typed against AuthRequest,
+// which Express's RequestHandler does not know about. One shared cast keeps that
+// noise out of every route line below.
+const handler = (fn: unknown) => fn as import('express').RequestHandler;
 
-const registerSchema = z.object({
-  body: z.object({
-    email: z.string().email('Invalid email address'),
-    password: z
-      .string()
-      .min(8, 'Password must be at least 8 characters')
-      .max(128, 'Password must be at most 128 characters'),
-  }),
-});
-
-const loginSchema = z.object({
-  body: z.object({
-    email: z.string().email('Invalid email address'),
-    password: z.string().min(1, 'Password is required'),
-  }),
-});
-
-const forgotPasswordSchema = z.object({
-  body: z.object({
-    email: z.string().email('Invalid email address'),
-  }),
-});
-
-const resetPasswordSchema = z.object({
-  body: z.object({
-    email: z.string().email('Invalid email address'),
-    otp: z.string().length(6, 'OTP must be exactly 6 digits'),
-    newPassword: z
-      .string()
-      .min(8, 'Password must be at least 8 characters')
-      .max(128, 'Password must be at most 128 characters'),
-  }),
-});
-
-const changePasswordSchema = z.object({
-  body: z.object({
-    currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z
-      .string()
-      .min(8, 'New password must be at least 8 characters')
-      .max(128, 'New password must be at most 128 characters'),
-  }),
-});
-
-const requestOtpSchema = z.object({
-  body: z.object({
-    purpose: z.enum(['change-email', 'change-password']),
-    newEmail: z.string().email('Invalid email address').optional(),
-  }),
-});
-
-const verifyOtpSchema = z.object({
-  body: z.object({
-    purpose: z.enum(['change-email', 'change-password']),
-    otp: z.string().length(6, 'OTP must be 6 digits'),
-    newPassword: z
-      .string()
-      .min(8, 'Password must be at least 8 characters')
-      .max(128, 'Password must be at most 128 characters')
-      .optional(),
-  }),
-});
-
-// --- Core auth routes ---
+// --- Core auth ---
 
 router.post('/register', validate(registerSchema), authController.register);
 router.post('/login', validate(loginSchema), authController.login);
 router.post('/logout', authController.logout);
 router.post('/refresh', authController.refresh);
-router.get('/me', requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void, authController.me as unknown as (req: Request, res: Response) => void);
+router.get('/me', handler(requireAuth), handler(authController.me));
 
 // --- Email verification ---
 
-router.get('/verify-email', authController.verifyEmail);
-router.post('/resend-verification', requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void, authController.resendVerification as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void);
+router.get('/verify-email', emailVerificationController.verifyEmail);
+router.post(
+  '/resend-verification',
+  handler(requireAuth),
+  handler(emailVerificationController.resendVerification)
+);
 
-// --- Password reset ---
+// --- Password reset (signed out) ---
 
-router.post('/forgot-password', validate(forgotPasswordSchema), authController.forgotPassword);
-router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
+router.post('/forgot-password', validate(forgotPasswordSchema), passwordRecoveryController.forgotPassword);
+router.post('/reset-password', validate(resetPasswordSchema), passwordRecoveryController.resetPassword);
+
+// --- Account security (signed in) ---
+
 router.patch(
   '/change-password',
-  requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void,
+  handler(requireAuth),
   validate(changePasswordSchema),
-  authController.changePassword as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void
+  handler(passwordRecoveryController.changePassword)
 );
 
 router.post(
   '/request-otp',
-  requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void,
-  validate(requestOtpSchema),
-  authController.requestOtp as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void
+  handler(requireAuth),
+  validate(requestAccountOtpSchema),
+  handler(accountSecurityController.requestOtp)
 );
 
 router.post(
   '/verify-otp',
-  requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void,
-  validate(verifyOtpSchema),
-  authController.verifyOtp as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void
+  handler(requireAuth),
+  validate(verifyAccountOtpSchema),
+  handler(accountSecurityController.verifyOtp)
 );
 
 // --- Profile picture ---
 
 router.post(
   '/avatar',
-  requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void,
+  handler(requireAuth),
   uploadAvatarFile,
   avatarController.uploadAvatar
 );
 
-router.delete(
-  '/avatar',
-  requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void,
-  avatarController.deleteAvatar
-);
+router.delete('/avatar', handler(requireAuth), avatarController.deleteAvatar);
 
 // --- Google OAuth ---
 

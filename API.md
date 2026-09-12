@@ -43,9 +43,9 @@ logic runs, so a handler never sees an unchecked payload and a stack trace is ne
 | `POST` | `/auth/resend-verification` | yes | Re-send the verification email. |
 | `POST` | `/auth/forgot-password` | - | Body: `{ email }`. Emails a 6-digit OTP. |
 | `POST` | `/auth/reset-password` | - | Body: `{ email, otp, newPassword }`. |
-| `PATCH` | `/auth/change-password` | yes | Body: `{ currentPassword, newPassword }`. |
-| `POST` | `/auth/request-otp` | yes | Body: `{ purpose, newEmail? }`. Emails an OTP for an email or password change. |
-| `POST` | `/auth/verify-otp` | yes | Body: `{ purpose, otp, newPassword? }`. Applies the pending change. |
+| `PATCH` | `/auth/change-password` | yes | Body: `{ currentPassword, newPassword }`. Rotates the password using the old one instead of an OTP. |
+| `POST` | `/auth/request-otp` | yes | Start an OTP-gated account change. See below. |
+| `POST` | `/auth/verify-otp` | yes | Redeem the code and commit the change. See below. |
 | `POST` | `/auth/avatar` | yes | Upload a profile picture. `multipart/form-data` with one file field `avatar` (JPEG/PNG/WebP, max 5MB). Returns `{ user }`. |
 | `DELETE` | `/auth/avatar` | yes | Remove the profile picture and destroy the stored asset. Returns `{ user }`. |
 | `GET` | `/auth/google` | - | Start the Google OAuth redirect. |
@@ -67,6 +67,53 @@ Every endpoint that returns `{ user }` returns the same shape:
 `avatarUrl` is `null` when no picture is set. Avatar-specific failures: `400` no file, wrong
 type, oversized, or nothing to remove; `502` Cloudinary rejected the upload; `503` Cloudinary
 is not configured on the server.
+
+### OTP-gated account changes
+
+Changing the sign-in email or the password takes two requests: ask for a code, then redeem
+it. Nothing is written until the code comes back, and each request replaces any code already
+in flight - which is also how a user recovers from one that was lost or has expired.
+
+#### `POST /auth/request-otp` (authenticated)
+
+The body is a discriminated union on `purpose`, so a payload the purpose does not accept is
+rejected by validation rather than ignored:
+
+```jsonc
+{ "purpose": "change-email", "newEmail": "new@example.com" }  // newEmail required
+{ "purpose": "change-password" }                              // no other fields
+```
+
+The code goes to the **new** address for `change-email` - that is the address whose ownership
+is unproven - and to the address **on file** for `change-password`. The response names the
+destination so the client can show it:
+
+```json
+{ "success": true, "message": "Verification code sent to new@example.com",
+  "data": { "sentTo": "new@example.com" } }
+```
+
+Failures: `400` invalid payload, an address that is already the account's own, or a Google
+account (its credentials belong to Google); `409` the address is already in use; `502` the
+mail provider refused the message - the code is stored either way, so a retry re-sends.
+
+#### `POST /auth/verify-otp` (authenticated)
+
+```jsonc
+{ "purpose": "change-email", "otp": "123456" }
+{ "purpose": "change-password", "otp": "123456", "newPassword": "..." }  // 8-128 chars
+```
+
+On success the change is committed, the code is discarded, auth cookies are reissued (the
+access token carries the email, so an email change would otherwise leave a stale session),
+and the updated `{ user }` is returned. A verified `change-email` also sets
+`emailVerified: true`: delivering the code to that inbox is itself proof of control.
+
+Failures: `400` no code pending, an expired code, a wrong code, or a new password identical
+to the current one; `409` the address was claimed by someone else while the code was in
+flight; `429` more than 5 wrong guesses, after which the code is discarded and a new one must
+be requested. Codes expire 10 minutes after they are issued and are stored bcrypt-hashed, so
+a database dump never yields a live code.
 
 ---
 
@@ -200,6 +247,32 @@ without a second round trip.
 
 - Totals are summed across every entry on that day and rounded to one decimal place. A day with
   no entries returns zeros rather than a `404`.
+
+### `GET /api/food-entries/series` (authenticated)
+
+Day-by-day totals across a date range with the current user's goal, for the dashboard's
+trend view. Every calendar day in the range is present, so the client plots the series
+without reconstructing missing dates.
+
+- Query params: `startDate` and `endDate` (both `YYYY-MM-DD`, both required).
+- Response `200`:
+
+```jsonc
+{
+  "data": {
+    "startDate": "2026-09-06",
+    "endDate": "2026-09-12",
+    "days": [
+      { "date": "2026-09-06", "totals": { "calories": 0, "proteinG": 0, "carbG": 0, "fatG": 0, "entryCount": 0 } },
+      { "date": "2026-09-12", "totals": { "calories": 420, "proteinG": 38, "carbG": 18, "fatG": 21, "entryCount": 1 } }
+    ],
+    "goal": { /* Goal, or null when the user has not set one */ }
+  }
+}
+```
+
+- Days with no entries return zeroed totals rather than being omitted.
+- `400` when `startDate` is after `endDate`, or when the range spans more than 92 days.
 
 ### `GET /api/food-entries/:id` (authenticated)
 

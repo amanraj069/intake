@@ -28,16 +28,21 @@ export default function Select({
     <div className="w-full">
       <label
         htmlFor={selectId}
-        className="block text-xs font-semibold uppercase tracking-widest text-text-secondary dark:text-dark-text-secondary mb-2"
+        className="block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary mb-2"
       >
         {label}
+        {props.required && (
+          <span className="text-red-500 ml-1 font-bold" aria-hidden="true">
+            *
+          </span>
+        )}
       </label>
 
       <div className="relative">
         <select
           id={selectId}
           className={`
-            w-full appearance-none px-4 py-3 pr-10 text-sm
+            w-full appearance-none px-4 py-3 pr-10 text-sm rounded-xl
             bg-transparent border border-input-border
             text-text-primary
             transition-colors duration-150

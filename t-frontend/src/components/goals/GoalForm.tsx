@@ -96,7 +96,7 @@ export default function GoalForm({ goal, saving, onSave }: GoalFormProps) {
       {submitError && <FormError message={submitError} />}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 border-t border-black/10 dark:border-white/10 pt-8">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-secondary dark:text-dark-text-secondary">
+        <p className="text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
           {goal ? `Last updated ${formatLongDate(goal.updatedAt)}` : "No goal set yet"}
         </p>
         <Button type="submit" loading={saving} className="w-full sm:w-auto">

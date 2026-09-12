@@ -77,6 +77,24 @@ export interface DailyIntakeSummary {
   goal: Goal | null;
 }
 
+/** One day of a series: that day's totals, with the goal carried by the series. */
+export interface DailyIntakePoint {
+  date: string;
+  totals: DailyNutritionTotals;
+}
+
+/**
+ * Consecutive days of intake with the goal they are measured against. Days with
+ * no entries arrive with zeroed totals, so the range is always complete.
+ */
+export interface DailyIntakeSeries {
+  startDate: string;
+  endDate: string;
+  days: DailyIntakePoint[];
+  /** Null until the user has set a goal. */
+  goal: Goal | null;
+}
+
 /** Everything the meals list sends to the API: the filters plus the page wanted. */
 export interface FoodEntryQuery {
   startDate?: string;
@@ -93,3 +111,32 @@ export interface PageMeta {
   total: number;
   totalPages: number;
 }
+
+// ---------------------------------------------------------------------------
+// Report types — returned by /api/reports/*
+// ---------------------------------------------------------------------------
+
+export interface WeeklyCaloriePoint {
+  date: string;
+  totalCalories: number;
+}
+
+export interface MacroBreakdownPoint {
+  period: string;
+  proteinG: number;
+  carbG: number;
+  fatG: number;
+}
+
+export interface MicroSummaryPoint {
+  nutrient: string;
+  amount: number;
+  unit: string;
+}
+
+export interface GoalComparisonPoint {
+  date: string;
+  actualCalories: number;
+  targetCalories: number | null;
+}
+

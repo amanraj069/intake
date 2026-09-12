@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTheme } from "@/contexts/ThemeContext";
-import { LogoutIcon, MoonIcon, SettingsIcon, SunIcon } from "@/components/icons";
+import { LogoutIcon, MoonIcon, SettingsIcon, SunIcon, UserIcon } from "@/components/icons";
 
 interface ProfileMenuProps {
   /** Anchors the panel beside the rail instead of above a full-width row. */
@@ -13,16 +13,19 @@ interface ProfileMenuProps {
 }
 
 const ITEM_CLASSES =
-  "flex w-full items-center gap-3 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.15em] transition-colors duration-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
+  "flex w-full items-center gap-3 px-4 py-3 text-[11px] font-bold   transition-colors duration-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
 
 const NEUTRAL_ITEM = `${ITEM_CLASSES} text-text-primary hover:bg-text-primary hover:text-bg-primary dark:text-dark-text dark:hover:bg-dark-text dark:hover:text-dark-bg`;
 
 const DANGER_ITEM = `${ITEM_CLASSES} text-error hover:bg-error hover:text-white dark:text-error-dark dark:hover:bg-error-dark dark:hover:text-dark-bg`;
 
+const DIVIDED_ITEM = "border-t border-border dark:border-dark-border";
+
 /**
  * Actions for the signed-in account, opened from the three-dot trigger in the
- * sidebar's profile block. The theme switch lives here because the sidebar
- * header now carries the collapse control in its place.
+ * sidebar's profile block. Profile and Settings are separate destinations: one
+ * shows who the account is, the other changes how it is signed in to. The theme
+ * switch stays here as a shortcut for the control on the settings page.
  */
 export default function ProfileMenu({
   expanded,
@@ -42,15 +45,25 @@ export default function ProfileMenu({
       }`}
     >
       <Link href="/profile" role="menuitem" onClick={onSelect} className={NEUTRAL_ITEM}>
+        <UserIcon className="h-4 w-4 shrink-0" />
+        Profile
+      </Link>
+
+      <Link
+        href="/settings"
+        role="menuitem"
+        onClick={onSelect}
+        className={`${NEUTRAL_ITEM} ${DIVIDED_ITEM}`}
+      >
         <SettingsIcon className="h-4 w-4 shrink-0" />
-        Profile Settings
+        Settings
       </Link>
 
       <button
         type="button"
         role="menuitem"
         onClick={toggleTheme}
-        className={`${NEUTRAL_ITEM} border-t border-border dark:border-dark-border`}
+        className={`${NEUTRAL_ITEM} ${DIVIDED_ITEM}`}
       >
         {goingDark ? (
           <MoonIcon className="h-4 w-4 shrink-0" />
@@ -65,7 +78,7 @@ export default function ProfileMenu({
         role="menuitem"
         onClick={onLogout}
         disabled={loggingOut}
-        className={`${DANGER_ITEM} border-t border-border dark:border-dark-border`}
+        className={`${DANGER_ITEM} ${DIVIDED_ITEM}`}
       >
         <LogoutIcon className="h-4 w-4 shrink-0" />
         {loggingOut ? "Signing out" : "Log Out"}

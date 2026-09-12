@@ -1,50 +1,13 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { type ReactNode } from "react";
-import { formatShortDate } from "@/lib/formatDate";
+import { formatNumericDate } from "@/lib/formatDate";
 import type { FoodEntry } from "@/types/nutrition";
 
-/**
- * Column track shared by the header and every row, so the two stay aligned.
- * Below `lg` the tracks collapse and each cell carries its own label instead.
- */
-export const ENTRY_GRID_COLUMNS =
-  "gap-x-6 gap-y-4 lg:grid-cols-[7rem_6rem_minmax(0,1fr)_6rem_9rem_8rem] lg:items-center";
-
-const ACTION_CLASSES = [
-  "px-3 py-1.5 border border-black/10 dark:border-white/10",
-  "text-[10px] font-bold uppercase tracking-[0.2em]",
-  "transition-colors duration-100 cursor-pointer",
-  "disabled:opacity-40 disabled:cursor-not-allowed",
-].join(" ");
-
-const EDIT_CLASSES = [
-  ACTION_CLASSES,
-  "text-text-primary dark:text-dark-text",
-  "hover:bg-text-primary hover:text-bg-primary hover:border-text-primary",
-  "dark:hover:bg-dark-text dark:hover:text-dark-bg dark:hover:border-dark-text",
-].join(" ");
-
-const DELETE_CLASSES = [
-  ACTION_CLASSES,
-  "text-error dark:text-error-dark",
-  "hover:bg-error hover:text-white hover:border-error",
-  "dark:hover:bg-error-dark dark:hover:border-error-dark",
-  "disabled:hover:bg-transparent disabled:hover:text-error",
-].join(" ");
-
-/** Turns a cell into a label-value pair on small screens, where the header is hidden. */
-function Cell({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 lg:block">
-      <span className="lg:hidden text-[10px] font-bold uppercase tracking-[0.2em] text-text-secondary dark:text-dark-text-secondary">
-        {label}
-      </span>
-      {children}
-    </div>
-  );
-}
+/** Column track shared by header and every row so values stay aligned down the list. */
+export const ENTRY_GRID_CLASSES =
+  "grid grid-cols-[6.5rem_5.5rem_minmax(130px,1fr)_7rem_4.5rem_4.5rem_4.5rem_5.5rem_6rem] items-center gap-x-4";
 
 interface FoodEntryRowProps {
   entry: FoodEntry;
@@ -54,61 +17,214 @@ interface FoodEntryRowProps {
   onDelete: () => void;
 }
 
+/** Formats quantity and unit cleanly, e.g. "1 × 150g" or "150g" or "2 slices". */
+export function formatQuantity(quantity: number, unit: string): string {
+  const trimmedUnit = (unit || "").trim();
+
+  // If unit is purely numeric (e.g. "150"), treat it as grams: "150g"
+  const normalizedUnit =
+    trimmedUnit && !/[a-zA-Z]/.test(trimmedUnit) ? `${trimmedUnit}g` : trimmedUnit;
+
+  // If unit has numbers in it (like "150g"): "1 × 150g"
+  if (/\d/.test(normalizedUnit)) {
+    return `${quantity} × ${normalizedUnit}`;
+  }
+
+  // If unit is a standard metric symbol: "150g", "250ml"
+  if (["g", "mg", "mcg", "kg", "ml", "l", "oz", "lb"].includes(normalizedUnit.toLowerCase())) {
+    return `${quantity}${normalizedUnit}`;
+  }
+
+  // If unit is a descriptive word like "serving", "slice", "piece"
+  if (normalizedUnit) {
+    return `${quantity} ${normalizedUnit}`;
+  }
+
+  return `${quantity}`;
+}
+
 export default function FoodEntryRow({ entry, deleting, disabled, onDelete }: FoodEntryRowProps) {
   const { proteinG, carbG, fatG } = entry.macros;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
 
   return (
     <article
-      className={`grid ${ENTRY_GRID_COLUMNS} border-b border-black/10 dark:border-white/10 px-5 py-5 lg:py-4 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]`}
+      className={`${ENTRY_GRID_CLASSES} border-b border-black/5 dark:border-white/5 last:border-b-0 px-5 sm:px-6 py-3.5 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02] ${
+        menuOpen ? "relative z-30" : "relative z-auto"
+      }`}
     >
-      <Cell label="Date">
-        <p className="text-xs font-medium uppercase tracking-widest text-text-secondary dark:text-dark-text-secondary">
-          {formatShortDate(entry.date)}
+      <div>
+        <p className="text-xs font-medium text-text-secondary dark:text-dark-text-secondary whitespace-nowrap">
+          {formatNumericDate(entry.date)}
         </p>
-      </Cell>
+      </div>
 
-      <Cell label="Meal">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-primary dark:text-dark-text">
+      <div>
+        <p className="text-xs font-semibold text-text-primary dark:text-dark-text capitalize">
           {entry.mealType}
         </p>
-      </Cell>
+      </div>
 
-      <Cell label="Food">
-        <div className="text-right lg:text-left min-w-0">
-          <p className="text-sm font-medium text-text-primary dark:text-dark-text truncate">
-            {entry.foodName}
-          </p>
-          <p className="text-xs font-light text-text-secondary dark:text-dark-text-secondary">
-            {entry.quantity} {entry.quantityUnit}
-          </p>
-        </div>
-      </Cell>
-
-      <Cell label="Calories">
-        <p className="text-sm font-medium text-text-primary dark:text-dark-text whitespace-nowrap">
-          {entry.calories} kcal
+      <div className="min-w-0 pr-2">
+        <p className="text-sm font-semibold text-text-primary dark:text-dark-text truncate">
+          {entry.foodName}
         </p>
-      </Cell>
+      </div>
 
-      <Cell label="Protein / Carbs / Fat">
-        <p className="text-sm font-light text-text-secondary dark:text-dark-text-secondary whitespace-nowrap">
-          {proteinG} / {carbG} / {fatG} g
+      <div>
+        <p className="text-xs font-medium text-text-secondary dark:text-dark-text-secondary whitespace-nowrap">
+          {formatQuantity(entry.quantity, entry.quantityUnit)}
         </p>
-      </Cell>
+      </div>
 
-      <div className="flex items-center gap-2 lg:justify-end pt-2 lg:pt-0">
-        <Link href={`/meals/${entry._id}/edit`} className={EDIT_CLASSES}>
-          Edit
-        </Link>
+      <div>
+        <p className="text-xs font-semibold tabular-nums text-text-primary dark:text-dark-text">
+          {proteinG}
+          <span className="text-[10px] font-normal text-text-secondary dark:text-dark-text-secondary ml-0.5">
+            g
+          </span>
+        </p>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold tabular-nums text-text-primary dark:text-dark-text">
+          {carbG}
+          <span className="text-[10px] font-normal text-text-secondary dark:text-dark-text-secondary ml-0.5">
+            g
+          </span>
+        </p>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold tabular-nums text-text-primary dark:text-dark-text">
+          {fatG}
+          <span className="text-[10px] font-normal text-text-secondary dark:text-dark-text-secondary ml-0.5">
+            g
+          </span>
+        </p>
+      </div>
+
+      <div className="text-right flex items-baseline justify-end gap-1">
+        <span className="text-sm font-semibold tabular-nums text-text-primary dark:text-dark-text">
+          {entry.calories}
+        </span>
+        <span className="text-[10px] font-medium text-text-secondary dark:text-dark-text-secondary">
+          kcal
+        </span>
+      </div>
+
+      <div ref={menuRef} className="relative flex items-center justify-end">
         <button
           type="button"
-          onClick={onDelete}
-          disabled={disabled}
-          className={DELETE_CLASSES}
-          aria-label={`Delete ${entry.foodName}`}
+          onClick={() => setMenuOpen((prev) => !prev)}
+          className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary dark:text-dark-text-secondary hover:text-text-primary dark:hover:text-dark-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+          aria-label="Actions"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
         >
-          {deleting ? "..." : "Delete"}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="1.5" />
+            <circle cx="12" cy="5" r="1.5" />
+            <circle cx="12" cy="19" r="1.5" />
+          </svg>
         </button>
+
+        {menuOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 top-full mt-1.5 z-50 w-32 rounded-xl bg-white dark:bg-[#1E222B] border border-black/10 dark:border-white/15 shadow-2xl py-1 backdrop-blur-md"
+          >
+            <Link
+              href={`/meals/${entry._id}/edit`}
+              onClick={() => setMenuOpen(false)}
+              role="menuitem"
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-text-primary dark:text-dark-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+              <span>Edit</span>
+            </Link>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false);
+                onDelete();
+              }}
+              disabled={disabled}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-40"
+            >
+              {deleting ? (
+                <span className="text-xs">Deleting...</span>
+              ) : (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  <span>Delete</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );

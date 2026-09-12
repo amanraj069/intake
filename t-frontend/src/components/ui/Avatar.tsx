@@ -46,7 +46,7 @@ export default function Avatar({ src, initials, size = "sm", className = "" }: A
   return (
     <span
       aria-hidden="true"
-      className={`${box} bg-text-primary text-bg-primary dark:bg-dark-text dark:text-dark-bg font-bold uppercase tracking-wider`}
+      className={`${box} bg-text-primary text-bg-primary dark:bg-dark-text dark:text-dark-bg font-bold  tracking-wider`}
     >
       {initials}
     </span>

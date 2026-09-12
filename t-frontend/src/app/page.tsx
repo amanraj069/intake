@@ -13,7 +13,7 @@ export default function HomePage() {
       <Navbar />
       <div className="min-h-screen flex flex-col bg-bg-primary dark:bg-dark-bg text-text-primary dark:text-dark-text pt-14">
         <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 text-center max-w-6xl mx-auto w-full">
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tighter mb-6 max-w-3xl leading-tight">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold  mb-6 max-w-3xl leading-tight">
             The ultimate starting point.
           </h1>
           <p className="text-base sm:text-lg md:text-xl text-text-secondary dark:text-dark-text-secondary max-w-xl mb-12 px-4">
@@ -21,7 +21,7 @@ export default function HomePage() {
           </p>
           {!loading && !user && (
             <Link href="/signup">
-              <Button size="lg" className="px-8 sm:px-10 text-xs sm:text-sm tracking-widest uppercase w-full sm:w-auto">
+              <Button size="lg" className="px-8 sm:px-10 text-xs sm:text-sm   w-full sm:w-auto">
                 Get Started
               </Button>
             </Link>

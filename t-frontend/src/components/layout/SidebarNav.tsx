@@ -6,13 +6,13 @@ import { NAV_ITEMS, isNavItemActive } from "./navItems";
 import SidebarTooltip from "./SidebarTooltip";
 
 const BASE_LINK_CLASSES =
-  "flex items-center h-12 text-sm transition-all duration-150 border-l-[3px] active:scale-[0.98]";
+  "flex items-center h-11 mx-3 text-sm transition-all duration-150 rounded-lg active:scale-[0.98]";
 
 const ACTIVE_LINK_CLASSES =
-  "bg-accent/5 dark:bg-accent-dark/10 text-accent dark:text-accent-dark font-bold border-accent dark:border-accent-dark";
+  "bg-accent/10 dark:bg-accent-dark/20 text-accent dark:text-accent-dark font-semibold";
 
 const INACTIVE_LINK_CLASSES =
-  "text-text-secondary dark:text-dark-text-secondary font-medium border-transparent hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-primary dark:hover:text-dark-text";
+  "text-text-secondary dark:text-dark-text-secondary font-medium hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-primary dark:hover:text-dark-text";
 
 interface SidebarNavProps {
   /** When false the rail shows icons only, with the label moved to a hover tooltip. */

@@ -25,6 +25,15 @@ export function formatShortDate(isoDate: string): string {
   });
 }
 
+/** Formats an ISO date into DD/MM/YY format, e.g. "12/09/26". */
+export function formatNumericDate(isoDate: string): string {
+  const d = new Date(isoDate);
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const year = String(d.getUTCFullYear()).slice(-2);
+  return `${day}/${month}/${year}`;
+}
+
 /** Today as `YYYY-MM-DD` in the user's own timezone, for a native date input. */
 export function todayAsInputValue(): string {
   const now = new Date();
@@ -42,4 +51,21 @@ export function daysBefore(day: string, dayCount: number): string {
   const shifted = new Date(`${day}T00:00:00.000Z`);
   shifted.setUTCDate(shifted.getUTCDate() - dayCount);
   return shifted.toISOString().slice(0, 10);
+}
+
+/** The weekday a stored day falls on, e.g. "Sat", for a trend axis. */
+export function formatWeekday(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString("en-US", {
+    weekday: "short",
+    timeZone: UTC,
+  });
+}
+
+/** Day and month without the year, e.g. "12 Sep", where the year is implied. */
+export function formatDayAndMonth(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: UTC,
+  });
 }

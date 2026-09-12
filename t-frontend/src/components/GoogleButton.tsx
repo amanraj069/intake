@@ -36,7 +36,7 @@ export default function GoogleButton() {
           w-full inline-flex items-center justify-center gap-3
           px-6 py-3
           border border-border
-          text-sm font-semibold uppercase tracking-wide
+          text-sm font-semibold  
           text-text-primary
           hover:bg-bg-surface
           transition-colors duration-150

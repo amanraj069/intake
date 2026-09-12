@@ -4,6 +4,7 @@ import { validate } from '../middleware/validate';
 import {
   createFoodEntrySchema,
   foodEntryIdSchema,
+  foodEntrySeriesSchema,
   foodEntrySummarySchema,
   listFoodEntriesSchema,
   updateFoodEntrySchema,
@@ -21,6 +22,7 @@ router.get(
   validate(foodEntrySummarySchema),
   foodEntryController.getDailyIntakeSummary
 );
+router.get('/series', validate(foodEntrySeriesSchema), foodEntryController.getDailyIntakeSeries);
 router.get('/:id', validate(foodEntryIdSchema), foodEntryController.getFoodEntry);
 
 router.post('/', validate(createFoodEntrySchema), foodEntryController.createFoodEntry);

@@ -1,30 +1,46 @@
 "use client";
 
+import { useState } from "react";
 import Input from "@/components/ui/Input";
-import Select from "@/components/ui/Select";
-import { MICRO_UNIT_OPTIONS } from "@/constants/units";
+import {
+  MICRONUTRIENT_OPTIONS,
+  POPULAR_MICRONUTRIENTS,
+  matchStandardNutrient,
+} from "@/lib/micronutrients";
 import { LIMITS } from "@/lib/validation/amount";
 import type { MicronutrientRow } from "@/lib/validation/mealForm";
 
 const REMOVE_BUTTON_CLASSES = [
-  "h-[46px] px-5 shrink-0 border border-input-border dark:border-dark-input-border",
-  "text-[10px] font-bold uppercase tracking-[0.2em]",
-  "text-text-secondary dark:text-dark-text-secondary",
-  "transition-colors duration-100 cursor-pointer",
-  "hover:bg-text-primary hover:text-bg-primary hover:border-text-primary",
-  "dark:hover:bg-dark-text dark:hover:text-dark-bg dark:hover:border-dark-text",
-  "disabled:opacity-50 disabled:cursor-not-allowed",
+  "h-[46px] px-4 sm:px-5 shrink-0 rounded-xl",
+  "border border-red-500/20 dark:border-red-500/30",
+  "bg-red-500/10 dark:bg-red-500/15",
+  "text-red-600 dark:text-red-400",
+  "hover:bg-red-500/20 dark:hover:bg-red-500/25 hover:border-red-500/40",
+  "text-xs sm:text-sm font-semibold",
+  "flex items-center justify-center gap-1.5",
+  "transition-all duration-150 cursor-pointer active:scale-[0.98]",
+  "disabled:opacity-40 disabled:cursor-not-allowed",
 ].join(" ");
 
 const ADD_BUTTON_CLASSES = [
-  "w-full sm:w-auto px-6 py-3",
+  "w-full sm:w-auto px-6 py-3 rounded-xl",
   "border border-dashed border-input-border dark:border-dark-input-border",
-  "text-[10px] font-bold uppercase tracking-[0.2em]",
+  "text-[10px] font-bold",
   "text-text-secondary dark:text-dark-text-secondary",
   "transition-colors duration-100 cursor-pointer",
   "hover:border-text-primary hover:text-text-primary",
   "dark:hover:border-dark-text dark:hover:text-dark-text",
   "disabled:opacity-50 disabled:cursor-not-allowed",
+].join(" ");
+
+const SELECT_CLASSES = [
+  "w-full appearance-none px-4 py-3 pr-10 text-sm rounded-xl",
+  "bg-transparent border border-input-border dark:border-dark-input-border",
+  "text-text-primary dark:text-dark-text",
+  "transition-colors duration-150",
+  "focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent",
+  "dark:focus:border-accent-dark dark:focus:ring-accent-dark",
+  "disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer",
 ].join(" ");
 
 interface SingleRowProps {
@@ -36,25 +52,123 @@ interface SingleRowProps {
 }
 
 function MicronutrientRowFields({ row, error, disabled, onRemove, onChange }: SingleRowProps) {
+  const matched = matchStandardNutrient(row.name);
+  const [isCustomMode, setIsCustomMode] = useState<boolean>(() => !matched && Boolean(row.name.trim()));
+
+  const selectedValue = matched || (isCustomMode ? "custom" : "");
+
+  function handleSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const nextVal = e.target.value;
+    if (nextVal === "custom") {
+      setIsCustomMode(true);
+      onChange({ name: "" });
+    } else {
+      setIsCustomMode(false);
+      onChange({ name: nextVal });
+    }
+  }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3 p-4 sm:p-5 rounded-2xl border border-input-border dark:border-dark-input-border bg-black/[0.015] dark:bg-[#11141D]/60">
       <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
-        <div className="flex-1">
-          <Input
-            id={`${row.id}-name`}
-            label="Nutrient"
-            placeholder="vitaminC"
-            value={row.name}
-            disabled={disabled}
-            maxLength={LIMITS.nutrientNameLength}
-            onChange={(event) => onChange({ name: event.target.value })}
-          />
+        {/* Nutrient Selector */}
+        <div className="flex-1 space-y-2">
+          <label
+            htmlFor={`${row.id}-select`}
+            className="block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary"
+          >
+            Nutrient
+            <span className="text-red-500 ml-1 font-bold" aria-hidden="true">
+              *
+            </span>
+          </label>
+
+          <div className="relative">
+            <select
+              id={`${row.id}-select`}
+              value={selectedValue}
+              disabled={disabled}
+              onChange={handleSelectChange}
+              className={SELECT_CLASSES}
+            >
+              <option value="" disabled className="bg-bg-primary dark:bg-dark-bg text-text-secondary">
+                Select a nutrient...
+              </option>
+
+              <optgroup label="Popular Tracked" className="bg-bg-primary dark:bg-dark-bg font-bold">
+                {POPULAR_MICRONUTRIENTS.map((name) => (
+                  <option key={`pop-${name}`} value={name} className="font-normal">
+                    {name}
+                  </option>
+                ))}
+              </optgroup>
+
+              <optgroup label="Vitamins" className="bg-bg-primary dark:bg-dark-bg font-bold">
+                {MICRONUTRIENT_OPTIONS.filter((o) => o.category === "Vitamins").map((o) => (
+                  <option key={o.value} value={o.value} className="font-normal">
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
+
+              <optgroup label="Minerals & Electrolytes" className="bg-bg-primary dark:bg-dark-bg font-bold">
+                {MICRONUTRIENT_OPTIONS.filter((o) => o.category === "Minerals").map((o) => (
+                  <option key={o.value} value={o.value} className="font-normal">
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
+
+              <optgroup label="Other Compounds" className="bg-bg-primary dark:bg-dark-bg font-bold">
+                {MICRONUTRIENT_OPTIONS.filter((o) => o.category === "Other").map((o) => (
+                  <option key={o.value} value={o.value} className="font-normal">
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
+
+              <optgroup label="Custom" className="bg-bg-primary dark:bg-dark-bg font-bold">
+                <option value="custom" className="font-normal">
+                  Other / Custom nutrient...
+                </option>
+              </optgroup>
+            </select>
+
+            <svg
+              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-3 w-3 text-text-secondary dark:text-dark-text-secondary"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="square"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
+
+          {/* Custom Name Input if "Custom" option is chosen */}
+          {isCustomMode && (
+            <div className="pt-1 animate-in fade-in duration-150">
+              <Input
+                id={`${row.id}-name`}
+                label="Custom Nutrient Name"
+                placeholder="e.g. Ashwagandha, L-Theanine..."
+                value={row.name}
+                disabled={disabled}
+                required
+                maxLength={LIMITS.nutrientNameLength}
+                onChange={(event) => onChange({ name: event.target.value })}
+              />
+            </div>
+          )}
         </div>
 
-        <div className="w-full sm:w-32">
+        {/* Amount Input */}
+        <div className="w-full sm:w-48">
           <Input
             id={`${row.id}-amount`}
-            label="Amount"
+            label="Amount (in mg)"
             type="number"
             inputMode="decimal"
             min={0}
@@ -63,29 +177,31 @@ function MicronutrientRowFields({ row, error, disabled, onRemove, onChange }: Si
             placeholder="0"
             value={row.amount}
             disabled={disabled}
-            onChange={(event) => onChange({ amount: event.target.value })}
+            required
+            onChange={(event) => onChange({ amount: event.target.value, unit: "mg" })}
           />
         </div>
 
-        <div className="w-full sm:w-32">
-          <Select
-            id={`${row.id}-unit`}
-            label="Unit"
-            options={MICRO_UNIT_OPTIONS}
-            value={row.unit}
-            disabled={disabled}
-            onChange={(event) => onChange({ unit: event.target.value })}
-          />
-        </div>
-
+        {/* Remove Button */}
         <button
           type="button"
           onClick={onRemove}
           disabled={disabled}
           aria-label={`Remove ${row.name.trim() || "micronutrient"}`}
-          className={`${REMOVE_BUTTON_CLASSES} self-start sm:mt-[26px]`}
+          className={`${REMOVE_BUTTON_CLASSES} self-start sm:mt-[24px]`}
         >
-          Remove
+          <svg
+            className="w-3.5 h-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+          </svg>
+          <span>Remove</span>
         </button>
       </div>
 
@@ -101,17 +217,18 @@ interface MicronutrientRowsProps {
   summaryError?: string;
   disabled: boolean;
   onAddRow: () => void;
+  onAddNutrientRow: (name: string) => void;
   onRemoveRow: (id: string) => void;
   onUpdateRow: (id: string, changes: Partial<Omit<MicronutrientRow, "id">>) => void;
 }
 
-/** Free-form nutrient name-amount pairs: the tracked set differs per food. */
 export default function MicronutrientRows({
   rows,
   errors,
   summaryError,
   disabled,
   onAddRow,
+  onAddNutrientRow,
   onRemoveRow,
   onUpdateRow,
 }: MicronutrientRowsProps) {
@@ -119,7 +236,32 @@ export default function MicronutrientRows({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-6">
+      {/* Quick Add Pills */}
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          {POPULAR_MICRONUTRIENTS.map((name) => {
+            const isAlreadyAdded = rows.some((r) => matchStandardNutrient(r.name) === name);
+            return (
+              <button
+                key={name}
+                type="button"
+                disabled={disabled || isAlreadyAdded || !canAddRow}
+                onClick={() => onAddNutrientRow(name)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-150 cursor-pointer ${
+                  isAlreadyAdded
+                    ? "bg-black/[0.02] dark:bg-white/[0.02] border-black/5 dark:border-white/5 text-text-secondary/40 dark:text-dark-text-secondary/40 cursor-default line-through opacity-60"
+                    : "bg-black/[0.03] dark:bg-[#141824] hover:bg-black/[0.06] dark:hover:bg-[#1E2436] hover:border-text-primary/30 dark:hover:border-white/20 border-input-border dark:border-dark-input-border text-text-primary dark:text-dark-text shadow-sm active:scale-[0.97]"
+                }`}
+              >
+                + {name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Rows List */}
+      <div className="space-y-4">
         {rows.map((row) => (
           <MicronutrientRowFields
             key={row.id}
@@ -134,13 +276,14 @@ export default function MicronutrientRows({
 
       {summaryError && <p className="text-xs text-error dark:text-error-dark">{summaryError}</p>}
 
+      {/* Manual Add Button */}
       <button
         type="button"
         onClick={onAddRow}
         disabled={disabled || !canAddRow}
         className={ADD_BUTTON_CLASSES}
       >
-        {canAddRow ? "+ Add Micronutrient" : `Limit of ${LIMITS.micronutrientRows} reached`}
+        {canAddRow ? "+ Add Another Micronutrient" : `Limit of ${LIMITS.micronutrientRows} reached`}
       </button>
     </div>
   );

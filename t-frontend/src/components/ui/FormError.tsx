@@ -13,7 +13,7 @@ export default function FormError({ message }: FormErrorProps) {
     >
       <div className="w-[3px] shrink-0 bg-accent dark:bg-accent-dark" aria-hidden="true" />
       <div className="px-5 py-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent dark:text-accent-dark">
+        <p className="text-[10px] font-bold   text-accent dark:text-accent-dark">
           Not saved
         </p>
         <p className="mt-2 text-sm font-light text-text-primary dark:text-dark-text">{message}</p>

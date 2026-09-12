@@ -62,7 +62,7 @@ export default function ConfirmDialog({
         <div className="px-6 py-6 sm:px-8 sm:py-8">
           <h2
             id="confirm-dialog-title"
-            className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent dark:text-accent-dark"
+            className="text-[10px] font-bold   text-accent dark:text-accent-dark"
           >
             {title}
           </h2>

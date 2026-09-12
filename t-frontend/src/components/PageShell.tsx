@@ -28,7 +28,7 @@ export default function PageShell({
           <div className="flex flex-col gap-6">
             <Link
               href={backHref}
-              className="text-xs font-bold tracking-widest uppercase text-text-secondary hover:text-text-primary dark:text-dark-text-secondary dark:hover:text-dark-text transition-colors flex items-center gap-2 w-fit"
+              className="text-xs font-bold   text-text-secondary hover:text-text-primary dark:text-dark-text-secondary dark:hover:text-dark-text transition-colors flex items-center gap-2 w-fit"
             >
               <svg
                 width="12"
@@ -46,7 +46,7 @@ export default function PageShell({
             </Link>
 
             <div>
-              <h1 className="text-4xl font-extrabold tracking-tighter uppercase text-text-primary dark:text-dark-text">
+              <h1 className="text-4xl font-extrabold   text-text-primary dark:text-dark-text">
                 {title}
               </h1>
               {description && (

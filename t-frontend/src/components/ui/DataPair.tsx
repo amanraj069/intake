@@ -11,7 +11,7 @@ interface DataPairProps {
 export default function DataPair({ label, value }: DataPairProps) {
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-secondary dark:text-dark-text-secondary">
+      <p className="text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
         {label}
       </p>
       <p className="mt-2 text-xl font-medium text-text-primary dark:text-dark-text">{value}</p>

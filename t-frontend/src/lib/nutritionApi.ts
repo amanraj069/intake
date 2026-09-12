@@ -1,6 +1,7 @@
 import { request, requestPage } from "./apiClient";
 import { toQueryString } from "./queryString";
 import type {
+  DailyIntakeSeries,
   DailyIntakeSummary,
   FoodEntry,
   FoodEntryInput,
@@ -32,6 +33,11 @@ export const nutritionApi = {
 
   getDailyIntakeSummary: (date?: string) =>
     request<DailyIntakeSummary>(`/api/food-entries/summary${toQueryString({ date })}`),
+
+  getDailyIntakeSeries: (startDate: string, endDate: string) =>
+    request<DailyIntakeSeries>(
+      `/api/food-entries/series${toQueryString({ startDate, endDate })}`
+    ),
 
   getFoodEntry: (id: string) => request<FoodEntryData>(`/api/food-entries/${id}`),
 

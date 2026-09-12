@@ -26,14 +26,14 @@ export default function SegmentedControl<TValue extends string>({
 }: SegmentedControlProps<TValue>) {
   return (
     <div className="w-full">
-      <span className="block text-xs font-semibold uppercase tracking-widest text-text-secondary dark:text-dark-text-secondary mb-2">
+      <span className="block text-xs font-semibold   text-text-secondary dark:text-dark-text-secondary mb-2">
         {label}
       </span>
 
       <div
         role="radiogroup"
         aria-label={label}
-        className="grid grid-cols-2 sm:grid-cols-4 border border-input-border dark:border-dark-input-border"
+        className="grid grid-cols-2 sm:grid-cols-4 border border-input-border dark:border-dark-input-border rounded-xl overflow-hidden"
       >
         {options.map((option, index) => {
           const isSelected = option.value === value;
@@ -47,7 +47,7 @@ export default function SegmentedControl<TValue extends string>({
               disabled={disabled}
               onClick={() => onChange(option.value)}
               className={[
-                "px-4 py-3 text-xs font-bold uppercase tracking-widest",
+                "px-4 py-3 text-xs font-bold  ",
                 "transition-colors duration-100 cursor-pointer",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
                 // Cell separators only, so the strip reads as one bordered block.

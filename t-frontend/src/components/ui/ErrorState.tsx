@@ -15,7 +15,7 @@ export default function ErrorState({ message, onRetry }: ErrorStateProps) {
       className="border border-black/10 dark:border-white/10 p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6"
     >
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent dark:text-accent-dark">
+        <p className="text-[10px] font-bold   text-accent dark:text-accent-dark">
           Could not load
         </p>
         <p className="mt-2 text-sm font-light text-text-primary dark:text-dark-text">{message}</p>

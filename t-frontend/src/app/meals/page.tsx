@@ -18,7 +18,7 @@ export default function MealsPage() {
             showBackButton
             action={
               <Link href="/log-meal">
-                <Button size="sm">Log Meal</Button>
+                <Button>Log Meal</Button>
               </Link>
             }
           />

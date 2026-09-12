@@ -6,6 +6,8 @@ import BackButton from "./BackButton";
 interface PageHeaderProps {
   title: string;
   description?: string;
+  /** Tiny line above the title, e.g. the date the dashboard is showing. */
+  eyebrow?: string;
   /** Shown when the page is a detail view the user navigated into. */
   showBackButton?: boolean;
   /** Page-level action, e.g. a "Log Meal" link on the list view. */
@@ -16,15 +18,21 @@ interface PageHeaderProps {
 export default function PageHeader({
   title,
   description,
+  eyebrow,
   showBackButton = false,
   action,
 }: PageHeaderProps) {
   return (
     <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
       <div>
+        {eyebrow && (
+          <p className="mb-3 text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
+            {eyebrow}
+          </p>
+        )}
         <div className="flex items-center gap-4">
           {showBackButton && <BackButton size="md" className="-ml-2" />}
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tighter uppercase text-text-primary dark:text-dark-text">
+          <h1 className="text-3xl sm:text-4xl font-extrabold   text-text-primary dark:text-dark-text">
             {title}
           </h1>
         </div>

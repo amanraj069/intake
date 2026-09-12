@@ -6,11 +6,10 @@ import Button from "@/components/ui/Button";
 import FormError from "@/components/ui/FormError";
 import FormSection from "@/components/ui/FormSection";
 import Input from "@/components/ui/Input";
-import Select from "@/components/ui/Select";
-import SegmentedControl, { type SegmentedOption } from "@/components/ui/SegmentedControl";
+import OptionPills, { type PillOption } from "@/components/ui/OptionPills";
 import MicronutrientRows from "./MicronutrientRows";
+import FillWithJson from "./FillWithJson";
 import { useMicronutrientRows } from "@/hooks/useMicronutrientRows";
-import { FOOD_UNIT_OPTIONS } from "@/constants/units";
 import { toErrorMessage } from "@/lib/errorMessage";
 import { todayAsInputValue } from "@/lib/formatDate";
 import { LIMITS } from "@/lib/validation/amount";
@@ -24,13 +23,14 @@ import {
 } from "@/lib/validation/mealForm";
 import { MEAL_TYPES, type FoodEntry, type FoodEntryInput, type MealType } from "@/types/nutrition";
 
-const MEAL_TYPE_OPTIONS: readonly SegmentedOption<MealType>[] = MEAL_TYPES.map((mealType) => ({
+const MEAL_TYPE_OPTIONS: readonly PillOption<MealType>[] = MEAL_TYPES.map((mealType) => ({
   value: mealType,
-  label: mealType,
+  label: mealType.charAt(0).toUpperCase() + mealType.slice(1),
 }));
 
 const MEAL_FIELD_UNITS: Record<MealAmountField, string | undefined> = {
   quantity: undefined,
+  servingSize: undefined,
   calories: "kcal",
   proteinG: "g",
   carbG: "g",
@@ -40,8 +40,8 @@ const MEAL_FIELD_UNITS: Record<MealAmountField, string | undefined> = {
 const EMPTY_MEAL_FORM: MealFormValues = {
   mealType: "breakfast",
   foodName: "",
-  quantity: "",
-  quantityUnit: "g",
+  quantity: "1",
+  servingSize: "100",
   calories: "",
   proteinG: "",
   carbG: "",
@@ -56,6 +56,8 @@ interface MealEntryFormProps {
   entry?: FoodEntry;
   submitting: boolean;
   submitLabel: string;
+  jsonMode?: boolean;
+  onCloseJsonMode?: () => void;
   onSubmit: (input: FoodEntryInput) => Promise<void>;
 }
 
@@ -71,6 +73,8 @@ export default function MealEntryForm({
   entry,
   submitting,
   submitLabel,
+  jsonMode = false,
+  onCloseJsonMode,
   onSubmit,
 }: MealEntryFormProps) {
   const [values, setValues] = useState<MealFormValues>(() =>
@@ -78,7 +82,8 @@ export default function MealEntryForm({
   );
   const [errors, setErrors] = useState<MealFormErrors>(NO_ERRORS);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const { rows, addRow, updateRow, removeRow } = useMicronutrientRows(entry?.micros);
+  const { rows, addRow, addNutrientRow, updateRow, removeRow, setAllRows } =
+    useMicronutrientRows(entry?.micros);
 
   useEffect(() => {
     // Defaulting to today has to happen after mount: the server renders in its
@@ -95,8 +100,7 @@ export default function MealEntryForm({
     setErrors((current) => ({ ...current, fields: { ...current.fields, [field]: undefined } }));
   }
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function triggerSubmit() {
     setSubmitError(null);
 
     const { errors: nextErrors, payload } = validateMealForm(values, rows);
@@ -112,6 +116,11 @@ export default function MealEntryForm({
     }
   }
 
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    await triggerSubmit();
+  }
+
   function renderAmountField(field: MealAmountField) {
     return (
       <AmountInput
@@ -125,53 +134,73 @@ export default function MealEntryForm({
     );
   }
 
+  if (jsonMode) {
+    return (
+      <div className="space-y-6">
+        <FillWithJson
+          values={values}
+          rows={rows}
+          submitting={submitting}
+          submitLabel={submitLabel}
+          onUpdateValues={setValues}
+          onUpdateRows={setAllRows}
+          onClose={onCloseJsonMode ?? (() => {})}
+          onSubmit={triggerSubmit}
+        />
+        {submitError && <FormError message={submitError} />}
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-12">
-      <FormSection title="Meal" description="What you ate, and how much of it.">
-        <SegmentedControl
-          label="Meal type"
-          options={MEAL_TYPE_OPTIONS}
-          value={values.mealType}
-          disabled={submitting}
-          onChange={(mealType) => updateField("mealType", mealType)}
-        />
-
-        <Input
-          id="foodName"
-          label="Food name"
-          placeholder="Greek yogurt"
-          value={values.foodName}
-          error={errors.fields.foodName}
-          disabled={submitting}
-          maxLength={LIMITS.foodNameLength}
-          onChange={(event) => updateField("foodName", event.target.value)}
-        />
-
-        <div className="grid gap-6 sm:grid-cols-3">
-          <div className="sm:col-span-2">{renderAmountField("quantity")}</div>
-          <Select
-            id="quantityUnit"
-            label="Unit"
-            options={FOOD_UNIT_OPTIONS}
-            value={values.quantityUnit}
-            error={errors.fields.quantityUnit}
+      <FormSection
+        title="Meal"
+        description="What you ate, and how much of it."
+        action={
+          <OptionPills
+            label="Meal type"
+            options={MEAL_TYPE_OPTIONS}
+            value={values.mealType}
             disabled={submitting}
-            onChange={(event) => updateField("quantityUnit", event.target.value)}
+            size="md"
+            className="w-full sm:w-auto"
+            onChange={(mealType) => updateField("mealType", mealType)}
+          />
+        }
+      >
+
+        <div className="grid gap-6 sm:grid-cols-2">
+          <Input
+            id="foodName"
+            label="Food name"
+            placeholder="Greek yogurt"
+            value={values.foodName}
+            error={errors.fields.foodName}
+            disabled={submitting}
+            required
+            maxLength={LIMITS.foodNameLength}
+            onChange={(event) => updateField("foodName", event.target.value)}
+          />
+          <Input
+            id="date"
+            label="Date eaten"
+            type="date"
+            value={values.date}
+            error={errors.fields.date}
+            disabled={submitting}
+            required
+            onChange={(event) => updateField("date", event.target.value)}
           />
         </div>
 
-        <Input
-          id="date"
-          label="Date eaten"
-          type="date"
-          value={values.date}
-          error={errors.fields.date}
-          disabled={submitting}
-          onChange={(event) => updateField("date", event.target.value)}
-        />
+        <div className="grid gap-6 sm:grid-cols-2">
+          {renderAmountField("quantity")}
+          {renderAmountField("servingSize")}
+        </div>
       </FormSection>
 
-      <FormSection title="Calories and Macros" description="Totals for the quantity above.">
+      <FormSection title="Calories and Macros" description="Totals for the quantity above. Macro weights in grams (g).">
         {renderAmountField("calories")}
         <div className="grid gap-6 sm:grid-cols-3">
           {renderAmountField("proteinG")}
@@ -182,7 +211,7 @@ export default function MealEntryForm({
 
       <FormSection
         title="Micronutrients"
-        description="Optional. Add any nutrient you track: name and amount."
+        description="Optional. Add any nutrient you track (all weights in mg)."
       >
         <MicronutrientRows
           rows={rows}
@@ -190,6 +219,7 @@ export default function MealEntryForm({
           summaryError={errors.microsSummary}
           disabled={submitting}
           onAddRow={addRow}
+          onAddNutrientRow={addNutrientRow}
           onRemoveRow={removeRow}
           onUpdateRow={updateRow}
         />

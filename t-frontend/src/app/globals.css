@@ -5,14 +5,15 @@
 
 /* Tailwind v4: Custom theme tokens */
 @theme {
-  /* Colors - light mode is a warm ivory rather than pure white, which reads
-     softer and more premium while keeping the stark near-black type contrast. */
-  --color-bg-primary: #FCF8EF;
-  --color-bg-surface: #F7F2E5;
-  --color-text-primary: #0A0A0A;
-  --color-text-secondary: #6B6659;
-  --color-border: #E6E0D1;
-  --color-input-border: #D8D0BC;
+  /* Colors - Light Mode */
+  --color-bg-app: #F9FAFB;     /* Soft gray application background */
+  --color-bg-card: #FFFFFF;    /* Pure white for cards */
+  --color-bg-primary: #FFFFFF; /* Fallbacks */
+  --color-bg-surface: #F9FAFB;
+  --color-text-primary: #111827; /* Softer near-black */
+  --color-text-secondary: #6B7280; /* Neutral gray */
+  --color-border: #E5E7EB;     /* Soft border */
+  --color-input-border: #D1D5DB;
   --color-accent: #3B7A57;
   --color-accent-hover: #2F6246;
   --color-accent-dark: #468E66;
@@ -22,13 +23,43 @@
   --color-success: #16A34A;
   --color-success-dark: #22C55E;
 
+  /* Semantic macro/nutrient colours — light mode */
+  --color-protein: #E05555;
+  --color-protein-muted: #F5A3A3;
+  --color-protein-bg: #FFF0F0;
+  --color-carbs: #D4930D;
+  --color-carbs-muted: #F5CC6A;
+  --color-carbs-bg: #FFF8EB;
+  --color-fat: #8B6FC0;
+  --color-fat-muted: #C4AAEF;
+  --color-fat-bg: #F5F0FF;
+  --color-calories: #0EA57A;
+  --color-calories-muted: #6FD9B5;
+  --color-calories-bg: #EDFDF6;
+
   /* Dark mode surface colors */
-  --color-dark-bg: #0A0A0A;
-  --color-dark-surface: #1A1A1A;
-  --color-dark-text: #F5F5F5;
+  --color-dark-bg-app: #0B0F19;     /* Deep slate background */
+  --color-dark-bg-card: #181B21;    /* Slightly lighter for cards */
+  --color-dark-bg: #181B21;
+  --color-dark-surface: #0B0F19;
+  --color-dark-text: #F9FAFB;
   --color-dark-text-secondary: #9CA3AF;
-  --color-dark-border: #2A2A2A;
-  --color-dark-input-border: #3A3A3A;
+  --color-dark-border: #374151;
+  --color-dark-input-border: #4B5563;
+
+  /* Semantic macro/nutrient colours — dark mode */
+  --color-dark-protein: #FF8787;
+  --color-dark-protein-muted: #9E4444;
+  --color-dark-protein-bg: #2A1717;
+  --color-dark-carbs: #FFC97A;
+  --color-dark-carbs-muted: #8E6A1E;
+  --color-dark-carbs-bg: #2A2110;
+  --color-dark-fat: #B4A0FF;
+  --color-dark-fat-muted: #5E4A8A;
+  --color-dark-fat-bg: #1E172A;
+  --color-dark-calories: #34D399;
+  --color-dark-calories-muted: #1A7A52;
+  --color-dark-calories-bg: #0D2A1E;
 
   /* Font family */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -37,12 +68,12 @@
 /* Base styles */
 @layer base {
   body {
-    @apply bg-bg-primary text-text-primary font-sans antialiased;
+    @apply bg-bg-app text-text-primary font-sans antialiased;
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   .dark body {
-    background-color: var(--color-dark-bg);
+    background-color: var(--color-dark-bg-app);
     color: var(--color-dark-text);
   }
 

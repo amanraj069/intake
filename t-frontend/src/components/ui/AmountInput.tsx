@@ -41,6 +41,7 @@ export default function AmountInput<TField extends string>({
       value={value}
       error={error}
       disabled={disabled}
+      required={rule.required}
       onChange={(event) => onChange(event.target.value)}
     />
   );

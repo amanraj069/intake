@@ -23,7 +23,7 @@ export default function AvatarPanel({ user }: { user: User }) {
 
   return (
     <section className="space-y-6">
-      <h2 className="border-b border-black/10 pb-4 text-xs font-bold uppercase tracking-[0.2em] text-text-secondary dark:border-white/10 dark:text-dark-text-secondary">
+      <h2 className="border-b border-black/10 pb-4 text-xs font-bold   text-text-secondary dark:border-white/10 dark:text-dark-text-secondary">
         Profile Picture
       </h2>
 

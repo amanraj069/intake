@@ -77,20 +77,41 @@ export async function sendVerificationEmail(user: IUserDocument): Promise<void> 
 }
 
 
+type OtpPurpose = 'change-email' | 'change-password' | 'forgot-password';
+
 /**
- * Sends a 6-digit OTP for changing email or password.
+ * Each purpose reads differently to the recipient: a reset is something they
+ * asked for while locked out, whereas a change-password code lands in the inbox
+ * of someone already signed in - where identical wording would look like a
+ * phishing attempt rather than the action they just took.
  */
+const OTP_COPY: Record<OtpPurpose, { subject: string; title: string; description: string }> = {
+  'change-email': {
+    subject: 'Verify your new email address',
+    title: 'Verify your new email',
+    description:
+      'Use the code below to confirm this address for your INTAKE account. It expires in 10 minutes.',
+  },
+  'change-password': {
+    subject: 'Confirm your password change',
+    title: 'Confirm your password change',
+    description:
+      'Use the code below to finish setting a new password. It expires in 10 minutes.',
+  },
+  'forgot-password': {
+    subject: 'Reset your password',
+    title: 'Reset your password',
+    description: 'Use the code below to reset your password. It expires in 10 minutes.',
+  },
+};
+
+/** Sends a 6-digit OTP for a password reset or an OTP-gated account change. */
 export async function sendOtpEmail(
   toEmail: string,
   otpCode: string,
-  purpose: 'change-email' | 'change-password' | 'forgot-password'
+  purpose: OtpPurpose
 ): Promise<void> {
-  const subject = purpose === 'change-email' ? 'Verify your new email' : 'Reset your password';
-  const title = purpose === 'change-email' ? 'Verify your new email' : 'Reset your password';
-  const description =
-    purpose === 'change-email'
-      ? 'Use the code below to verify your new email address. This code expires in 10 minutes.'
-      : 'Use the code below to reset your password. This code expires in 10 minutes.';
+  const { subject, title, description } = OTP_COPY[purpose];
 
   await send({
     to: toEmail,
@@ -105,10 +126,9 @@ export async function sendOtpEmail(
           ${otpCode}
         </div>
         <p style="font-size: 13px; color: #9CA3AF; margin-top: 32px; line-height: 1.5;">
-          If you didn't request this code, you can safely ignore this email.
+          If you didn't request this code, you can safely ignore this email - no change has been made.
         </p>
       </div>
     `,
   });
 }
-
