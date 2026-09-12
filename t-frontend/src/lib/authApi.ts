@@ -13,6 +13,11 @@ interface AuthData {
   user: User;
 }
 
+/** Where a requested verification code was actually sent. */
+interface OtpDestination {
+  sentTo: string;
+}
+
 export const authApi = {
   register: (email: string, password: string) =>
     request<AuthData>("/auth/register", {
@@ -49,22 +54,34 @@ export const authApi = {
       body: JSON.stringify({ email, otp, newPassword }),
     }),
 
-  changePassword: (currentPassword: string, newPassword: string) =>
-    request("/auth/change-password", {
-      method: "PATCH",
-      body: JSON.stringify({ currentPassword, newPassword }),
+  // --- OTP-gated account changes ---
+  //
+  // Both changes are a pair of calls: request a code, then redeem it. They are
+  // exposed as four named methods rather than one `requestOtp(purpose, ...)`
+  // helper so a call site cannot pass a payload the purpose does not accept.
+
+  requestEmailChangeOtp: (newEmail: string) =>
+    request<OtpDestination>("/auth/request-otp", {
+      method: "POST",
+      body: JSON.stringify({ purpose: "change-email", newEmail }),
     }),
 
-  requestOtp: (purpose: "change-email" | "change-password", newEmail?: string) =>
-    request("/auth/request-otp", {
+  confirmEmailChange: (otp: string) =>
+    request<AuthData>("/auth/verify-otp", {
       method: "POST",
-      body: JSON.stringify({ purpose, newEmail }),
+      body: JSON.stringify({ purpose: "change-email", otp }),
     }),
 
-  verifyOtp: (purpose: "change-email" | "change-password", otp: string, newPassword?: string) =>
-    request("/auth/verify-otp", {
+  requestPasswordChangeOtp: () =>
+    request<OtpDestination>("/auth/request-otp", {
       method: "POST",
-      body: JSON.stringify({ purpose, otp, newPassword }),
+      body: JSON.stringify({ purpose: "change-password" }),
+    }),
+
+  confirmPasswordChange: (otp: string, newPassword: string) =>
+    request<AuthData>("/auth/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ purpose: "change-password", otp, newPassword }),
     }),
 
   uploadAvatar: (image: File) => {

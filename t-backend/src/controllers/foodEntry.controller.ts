@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { getAuthenticatedUserId } from '../lib/authenticatedUser';
 import { getValidatedInput } from '../middleware/validate';
 import {
+  foodEntrySeriesSchema,
   foodEntrySummarySchema,
   listFoodEntriesSchema,
 } from '../schemas/foodEntry.schema';
@@ -121,6 +122,34 @@ export async function getDailyIntakeSummary(
       success: true,
       message: 'Daily summary retrieved successfully',
       data: summary,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/food-entries/series
+ * Day-by-day totals across a date range, with the current user's goal.
+ */
+export async function getDailyIntakeSeries(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const { query } = getValidatedInput(req, foodEntrySeriesSchema);
+    const series = await dailyIntakeService.getDailyIntakeSeries(
+      userId,
+      query.startDate,
+      query.endDate
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Daily series retrieved successfully',
+      data: series,
     });
   } catch (error) {
     next(error);

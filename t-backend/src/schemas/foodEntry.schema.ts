@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MEAL_TYPES, FOOD_ENTRY_SOURCES } from '../models/FoodEntry';
+import { countCalendarDays } from '../lib/calendarDay';
 import {
   calendarDaySchema,
   dateStringSchema,
@@ -13,6 +14,8 @@ const MAX_MACRO_GRAMS = 2000;
 const MAX_QUANTITY = 100000;
 const MAX_MICRO_AMOUNT = 100000;
 const MAX_MICRONUTRIENTS = 50;
+/** Bounds the day-by-day series so one request cannot ask for years of rows. */
+const MAX_SERIES_DAYS = 92;
 
 const mealTypeSchema = z.enum(MEAL_TYPES, {
   errorMap: () => ({ message: `Meal type must be one of: ${MEAL_TYPES.join(', ')}` }),
@@ -97,6 +100,23 @@ export const foodEntrySummarySchema = z.object({
   query: z.object({ date: calendarDaySchema.optional() }),
 });
 
+export const foodEntrySeriesSchema = z.object({
+  query: z
+    .object({
+      startDate: calendarDaySchema,
+      endDate: calendarDaySchema,
+    })
+    .refine((query) => query.startDate <= query.endDate, {
+      message: 'Start date must not be after end date',
+      path: ['startDate'],
+    })
+    .refine((query) => countCalendarDays(query.startDate, query.endDate) <= MAX_SERIES_DAYS, {
+      message: `A range may span at most ${MAX_SERIES_DAYS} days`,
+      path: ['endDate'],
+    }),
+});
+
 export type CreateFoodEntryInput = z.infer<typeof createFoodEntrySchema>['body'];
 export type UpdateFoodEntryInput = z.infer<typeof updateFoodEntrySchema>['body'];
 export type ListFoodEntriesQuery = z.infer<typeof listFoodEntriesSchema>['query'];
+export type FoodEntrySeriesQuery = z.infer<typeof foodEntrySeriesSchema>['query'];

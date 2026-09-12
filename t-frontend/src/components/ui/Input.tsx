@@ -21,9 +21,14 @@ function InputComponent(
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-xs font-semibold uppercase tracking-widest text-text-secondary dark:text-dark-text-secondary mb-2"
+          className="block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary mb-2"
         >
           {label}
+          {props.required && (
+            <span className="text-red-500 ml-1 font-bold" aria-hidden="true">
+              *
+            </span>
+          )}
         </label>
       )}
       <div className="relative">
@@ -32,7 +37,7 @@ function InputComponent(
           id={inputId}
           type={currentType}
           className={`
-            w-full px-4 py-3 text-sm
+            w-full px-4 py-3 text-sm rounded-xl
             bg-transparent
             border border-input-border
             text-text-primary

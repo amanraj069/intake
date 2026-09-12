@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "INTAKE",
-  description: "Full-stack authentication starter template",
+  title: "Intake",
+  description: "Keep track of your calories",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

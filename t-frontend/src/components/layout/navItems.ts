@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from "react";
-import { GoalsIcon, LogMealIcon, MealsIcon, OverviewIcon } from "@/components/icons";
+import { GoalsIcon, LogMealIcon, MealsIcon, OverviewIcon, ReportsIcon } from "@/components/icons";
 
 /** The signed-in navigation, in the order it reads in the sidebar. */
 export interface NavItem {
@@ -11,6 +11,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", label: "Overview", Icon: OverviewIcon },
+  { href: "/reports", label: "Reports", Icon: ReportsIcon },
   { href: "/meals", label: "Meals", Icon: MealsIcon },
   { href: "/log-meal", label: "Log Meal", Icon: LogMealIcon },
   { href: "/goals", label: "Goals", Icon: GoalsIcon },

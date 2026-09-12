@@ -13,7 +13,7 @@ interface EmptyStateProps {
 export default function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className="border border-dashed border-black/15 dark:border-white/15 px-6 py-16 text-center">
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-secondary dark:text-dark-text-secondary">
+      <p className="text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
         {title}
       </p>
       <p className="mt-3 text-sm font-light text-text-secondary dark:text-dark-text-secondary max-w-md mx-auto">

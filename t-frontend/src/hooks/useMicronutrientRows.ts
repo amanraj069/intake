@@ -19,12 +19,26 @@ function createEmptyRow(): MicronutrientRow {
 
 /** An entry being edited opens with its saved nutrients, plus a blank row to add to. */
 function createInitialRows(micros?: Micronutrients): MicronutrientRow[] {
-  const saved = Object.entries(micros ?? {}).map(([name, data]) => ({
-    id: nextRowId(),
-    name,
-    amount: String(data.amount),
-    unit: data.unit,
-  }));
+  const saved = Object.entries(micros ?? {}).map(([name, data]) => {
+    const rawVal = data as unknown;
+    const amount =
+      typeof rawVal === "number"
+        ? String(rawVal)
+        : typeof rawVal === "object" && rawVal !== null
+        ? String((rawVal as { amount?: number }).amount ?? "")
+        : "";
+    const unit =
+      typeof rawVal === "object" && rawVal !== null && (rawVal as { unit?: string }).unit
+        ? (rawVal as { unit: string }).unit
+        : "mg";
+
+    return {
+      id: nextRowId(),
+      name,
+      amount,
+      unit,
+    };
+  });
 
   return saved.length > 0 ? saved : [createEmptyRow()];
 }
@@ -32,8 +46,10 @@ function createInitialRows(micros?: Micronutrients): MicronutrientRow[] {
 interface UseMicronutrientRowsResult {
   rows: MicronutrientRow[];
   addRow: () => void;
+  addNutrientRow: (name: string) => void;
   updateRow: (id: string, changes: Partial<Omit<MicronutrientRow, "id">>) => void;
   removeRow: (id: string) => void;
+  setAllRows: (newRows: MicronutrientRow[]) => void;
 }
 
 /** Owns the add/edit/remove state for the meal form's nutrient name-value rows. */
@@ -42,6 +58,16 @@ export function useMicronutrientRows(initialMicros?: Micronutrients): UseMicronu
 
   const addRow = useCallback(() => {
     setRows((current) => [...current, createEmptyRow()]);
+  }, []);
+
+  const addNutrientRow = useCallback((name: string) => {
+    setRows((current) => {
+      const emptyIndex = current.findIndex((r) => !r.name.trim() && !r.amount.trim());
+      if (emptyIndex !== -1) {
+        return current.map((r, i) => (i === emptyIndex ? { ...r, name, unit: "mg" } : r));
+      }
+      return [...current, { id: nextRowId(), name, amount: "", unit: "mg" }];
+    });
   }, []);
 
   const updateRow = useCallback(
@@ -58,5 +84,9 @@ export function useMicronutrientRows(initialMicros?: Micronutrients): UseMicronu
     );
   }, []);
 
-  return { rows, addRow, updateRow, removeRow };
+  const setAllRows = useCallback((newRows: MicronutrientRow[]) => {
+    setRows(newRows.length > 0 ? newRows : [createEmptyRow()]);
+  }, []);
+
+  return { rows, addRow, addNutrientRow, updateRow, removeRow, setAllRows };
 }

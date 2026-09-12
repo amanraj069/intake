@@ -113,7 +113,7 @@ function ToastItem({
 
       <div className="flex-1 px-5 py-4">
         <p
-          className={`text-[10px] font-bold uppercase tracking-[0.2em] ${label}`}
+          className={`text-[10px] font-bold   ${label}`}
         >
           {isError ? "Error" : "Success"}
         </p>

@@ -35,3 +35,27 @@ export function daysBefore(day: CalendarDay, dayCount: number): CalendarDay {
   const shifted = new Date(startOfDay(day).getTime() - dayCount * MILLISECONDS_PER_DAY);
   return shifted.toISOString().slice(0, 10);
 }
+
+/** How many days an inclusive range covers: one for a single day, seven for a week. */
+export function countCalendarDays(startDay: CalendarDay, endDay: CalendarDay): number {
+  const spanMs = startOfDay(endDay).getTime() - startOfDay(startDay).getTime();
+  return Math.floor(spanMs / MILLISECONDS_PER_DAY) + 1;
+}
+
+/**
+ * Every day in an inclusive range, ascending. Empty for an inverted range, so a
+ * caller that skipped the start-before-end check gets no days rather than a hang.
+ */
+export function enumerateCalendarDays(
+  startDay: CalendarDay,
+  endDay: CalendarDay
+): CalendarDay[] {
+  const dayCount = countCalendarDays(startDay, endDay);
+  if (dayCount <= 0) return [];
+
+  const startMs = startOfDay(startDay).getTime();
+
+  return Array.from({ length: dayCount }, (_, index) =>
+    new Date(startMs + index * MILLISECONDS_PER_DAY).toISOString().slice(0, 10)
+  );
+}

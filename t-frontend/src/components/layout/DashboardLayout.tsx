@@ -31,7 +31,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-bg-primary dark:bg-dark-bg text-text-primary dark:text-dark-text">
+    <div className="min-h-screen bg-bg-app dark:bg-dark-bg-app text-text-primary dark:text-dark-text">
       <MobileTopBar
         drawerOpen={drawerOpen}
         onOpenDrawer={() => setDrawerOpen(true)}
@@ -48,7 +48,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border dark:border-dark-border bg-bg-primary dark:bg-dark-bg max-lg:w-64 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border dark:border-dark-border bg-bg-card dark:bg-dark-bg-card max-lg:w-64 lg:translate-x-0 ${
           expanded ? "lg:w-64" : "lg:w-16"
         } ${drawerOpen ? "translate-x-0" : "-translate-x-full"} ${
           hydrated ? "transition-[width,transform] duration-300 ease-[cubic-bezier(0.2,1,0.2,1)]" : ""
@@ -62,7 +62,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Dashboard label with collapse/expand toggle */}
         {expanded ? (
           <div className="px-5 pt-8 pb-4 flex items-center justify-between">
-            <h2 className="text-base font-extrabold uppercase tracking-[0.15em]">Dashboard</h2>
+            <h2 className="text-base font-extrabold  ">Dashboard</h2>
             <button
               type="button"
               onClick={toggle}

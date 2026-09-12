@@ -15,8 +15,17 @@ const DEFAULT_RANGE_DAYS = 7;
 
 type MicronutrientMap = Record<string, { amount: number; unit: string }>;
 
-function toMicrosMap(micros: MicronutrientMap | undefined): Map<string, { amount: number; unit: string }> {
-  return new Map(Object.entries(micros ?? {}));
+function toMicrosMap(micros: MicronutrientMap | Record<string, any> | undefined): Map<string, { amount: number; unit: string }> {
+  const map = new Map<string, { amount: number; unit: string }>();
+  if (!micros) return map;
+  for (const [name, val] of Object.entries(micros)) {
+    if (typeof val === 'number') {
+      map.set(name, { amount: val, unit: 'mg' });
+    } else if (val && typeof val === 'object') {
+      map.set(name, { amount: Number(val.amount) || 0, unit: String(val.unit || 'mg') });
+    }
+  }
+  return map;
 }
 
 /**

@@ -45,12 +45,14 @@ lib/           shared helpers (jwt, cookies, email, authenticated-user lookup)
 ```
 app/            routes, thin: they compose a shell, a hook and a form
 components/ui/  reusable primitives (Button, Input, Card, AmountInput, SegmentedControl, ...)
-components/<feature>/  feature components (GoalForm, MealEntryForm, MicronutrientRows)
+components/<feature>/  feature components (GoalForm, MealEntryForm, MicronutrientRows,
+                       TodayPanel, CalorieDial, WeeklyProgressPanel, TrendColumns)
 components/layout/     app shell: DashboardLayout, SidebarHeader, SidebarNav,
                        SidebarProfile, ProfileMenu, BrandMark, nav definitions
 components/icons.tsx   the project's inline SVG icon set
 hooks/          data-fetching and list/form state (useGoal, useFoodEntries, useMealFilters,
-                useDailyIntake, useFoodEntry, useCreateFoodEntry, useMicronutrientRows)
+                useDailyIntake, useDailyIntakeSeries, useFoodEntry, useCreateFoodEntry,
+                useMicronutrientRows)
 lib/            api client, per-domain API modules, client-side validation, formatters
 types/          shared domain types
 ```
@@ -60,13 +62,24 @@ types/          shared domain types
 - **Email + password auth** - bcrypt hashing, JWT access/refresh tokens in httpOnly cookies
 - **Google OAuth** - Passport.js with `passport-google-oauth20`
 - **Email verification** and **OTP password reset** - sent via Resend
+- **Profile and Settings are separate pages** - `/profile` presents the account (picture,
+  email, provider, member since) and never asks for a credential; `/settings` is where
+  credentials change, so neither page mixes presentation with security
+- **OTP-gated email and password change** - both are two steps: request a 6-digit code, then
+  redeem it. The email-change code goes to the *new* address (proving the user owns the inbox
+  they are moving to); the password-change code goes to the address *on file*. Codes are
+  stored bcrypt-hashed, expire in 10 minutes, and are discarded after 5 wrong guesses
 - **Goals** - one active daily target per user: calories, protein/carb/fat, optional goal weight
 - **Meal logging** - meal type, food, quantity + unit, calories, macros, and free-form
   micronutrient name/amount pairs, with backdating support
 - **Meals log** - a filterable, paginated list of every entry with inline edit and a
   confirmed delete, filtered by date range and meal type
-- **Today summary** - the dashboard's actual-vs-target widget for calories and each macro,
-  served by a single summary request
+- **Dashboard overview** - a greeting that states where today stands, calories as a tick
+  dial against the daily target, a macro strip with per-macro rails, and the day's energy
+  split, all served by a single summary request
+- **7-day progress** - a column per day against the target line for whichever measure is
+  selected (calories, protein, carbs or fat), with the hovered day's figures called out above
+  the chart and the week's average, days-on-target, days-logged and total beneath it
 - **Profile pictures** - uploaded to Cloudinary from the profile page, with the user's
   initials as the fallback when none is set
 - **Collapsible sidebar** - from `lg` up it expands to labelled navigation or retracts to a
@@ -182,8 +195,9 @@ cd t-frontend && npm run lint                 # eslint
 |---|---|---|
 | `/` | - | Landing page |
 | `/login`, `/signup`, `/forgot-password`, `/verify-email` | - | Auth flows |
-| `/profile` | yes | Account details, change email/password, resend verification |
-| `/dashboard` | yes | Today's calories and macros against the active goal |
+| `/profile` | yes | Account details and profile picture, read-only, plus resend verification |
+| `/settings` | yes | Security (OTP-gated email and password change) and appearance (theme) |
+| `/dashboard` | yes | Today's calories and macros against the active goal, plus a 7-day trend |
 | `/goals` | yes | View and update the active goal. Pre-filled when one exists. |
 | `/log-meal` | yes | Log a food entry, including add/remove micronutrient rows |
 | `/meals` | yes | Filter, page through, edit and delete logged entries |
@@ -215,6 +229,7 @@ Full parameter and response shapes are in [API.md](./API.md).
 | `POST` | `/api/goals` | yes | Create or overwrite the current user's goal |
 | `GET` | `/api/food-entries` | yes | List entries: date range, meal type, paginated |
 | `GET` | `/api/food-entries/summary` | yes | One day's totals plus the active goal |
+| `GET` | `/api/food-entries/series` | yes | Day-by-day totals across a range, plus the active goal |
 | `GET` | `/api/food-entries/:id` | yes | Fetch one entry the user owns |
 | `POST` | `/api/food-entries` | yes | Create a food entry |
 | `PATCH` | `/api/food-entries/:id` | yes | Edit an entry the user owns |
@@ -230,7 +245,7 @@ password:       string (optional - only for local auth)
 emailVerified:  boolean (default: false)
 authProvider:   'local' | 'google'
 googleId:       string (optional, sparse unique index)
-otpCode, otpExpiresAt, otpPurpose, pendingEmail:  transient OTP state
+otpCode, otpExpiresAt, otpPurpose, otpAttempts, pendingEmail:  transient OTP state
 createdAt:      Date
 ```
 
@@ -271,6 +286,34 @@ serves the date-range list query and the daily summary aggregation.
 
 Decisions made where the spec left room for interpretation:
 
+- **Profile and Settings are separate pages, split by what they do to the account.**
+  `/profile` presents identity and never asks for a credential; `/settings` is the only place
+  a credential changes. The sidebar account menu lists them as two destinations rather than
+  one combined "Profile Settings" entry.
+- **A password change is gated by an emailed code, not by the current password.** The signed-in
+  user supplies only the new password, and the code sent to the address on file is the proof of
+  identity. This lets someone who is signed in but has forgotten their password still rotate
+  it. `PATCH /auth/change-password`, which takes the current password instead, is still
+  implemented and documented but is not what the UI uses.
+- **An email-change code is sent to the new address, not the current one.** The new address is
+  the one whose ownership is unproven, so delivering a code there and having it typed back is
+  what proves control. A verified change therefore also sets `emailVerified: true`, and the
+  proposed address is parked in `pendingEmail` until then - nothing is written to `email` until
+  the code comes back.
+- **Google accounts cannot change their email or password here.** They have no local password,
+  and their address belongs to Google, so both would desync rather than take effect. The
+  settings page says so in place of the forms instead of offering controls the server would
+  reject. Letting a Google user *set* a local password would be a product decision, not a bug
+  fix, so it is deliberately not done.
+- **OTP codes are hashed, expiring and rate-limited.** They are generated from the CSPRNG,
+  stored bcrypt-hashed (a database dump yields no live codes), expire 10 minutes after issue,
+  and are discarded after 5 wrong guesses so a six-digit secret cannot be brute-forced inside
+  its window. Requesting a new code always replaces any code in flight.
+- **The code is persisted before the email is sent.** If the mail provider refuses the message
+  the endpoint returns `502`, but the stored code stays valid, so a retry re-sends rather than
+  stranding the user mid-flow.
+- **Auth cookies are reissued after a verified change.** The access token carries the email, so
+  an email change would otherwise leave the session presenting the old address.
 - **Goals are not versioned.** A user has exactly one active goal, enforced by a unique index
   on `Goal.userId`. `POST /api/goals` is an upsert that overwrites in place, so there is no
   history of past targets. If historical goals are needed later, this becomes an append-only
@@ -312,6 +355,27 @@ Decisions made where the spec left room for interpretation:
 - **The default list range is the last 7 days, ending today.** Each bound falls back
   independently: `endDate` defaults to today and `startDate` to six days before whichever
   `endDate` applies, so supplying only one bound still yields a sensible window.
+- **The dashboard's trend window is the trailing 7 days, ending today in the viewer's own
+  timezone.** The range is fixed when the panel mounts, so a tab left open overnight keeps the
+  window it loaded with rather than silently shifting at midnight. `GET
+  /api/food-entries/series` caps a range at 92 days, which bounds the response for any future
+  month or quarter view without a second endpoint.
+- **"On target" is a band, not a point.** A day counts as on target when it lands between 90%
+  and 110% of that day's target, since hitting a calorie or macro figure exactly is not
+  realistic. Anything above 110% reads as over and is the only thing the accent colour marks.
+- **Trend averages divide by every day in the range, not only the logged ones.** Seven days
+  with two logged is an average over seven, so the figure is comparable with the daily target
+  rather than flattering a sparse week. "Days logged" is reported beside it so the gap is
+  visible.
+- **The dashboard measures the whole week against the current goal.** Goals are not versioned,
+  so a past day is compared with whatever target is active now, not the one that was set then.
+- **The energy split uses the standard 4/4/9 kcal-per-gram factors.** Each share is rounded
+  independently, so the three can sum to 99 or 101; the exact grams sit beside them.
+- **A day with nothing logged draws a stub mark rather than no mark at all**, so an empty day
+  reads as a measured zero instead of missing data.
+- **The trend readout is a fixed slot, not a floating tooltip.** Hovering or tapping a column
+  fills one line above the chart, which cannot be clipped at a panel edge and works on touch,
+  where there is no hover at all.
 - **The list sort is given a total order.** Entries share a timestamp whenever they fall on the
   same day, so `date` descending is broken by `createdAt` and then `_id`. Without that, the
   same record could surface on two pages of a paginated walk, or on none.
@@ -363,7 +427,12 @@ Decisions made where the spec left room for interpretation:
 - No automated test suite. The API was verified end to end manually: register, goal upsert,
   entry create/read/patch/delete, a 29-entry paginated walk at `limit=6` confirming every
   record is visited exactly once, date-range and meal-type filters, the daily summary with and
-  without a goal, and the 400/401/403/404 paths.
+  without a goal, and the 400/401/403/404 paths. The OTP-gated account changes were verified the
+  same way against a throwaway account: a correct code commits the change and the new password
+  logs in while the old one stops working, a replayed code is rejected, an expired code is
+  rejected, a new password identical to the current one is rejected, the sixth wrong guess
+  locks the code out and discards it, and a verified email change promotes `pendingEmail` and
+  sets `emailVerified`.
 - The meals list filters on the server on every change. There is no debounce, which is fine for
   native date and select inputs but would need one if a free-text search were added.
 - `source: 'ai-image'` is accepted by the API but nothing in the UI produces it yet.

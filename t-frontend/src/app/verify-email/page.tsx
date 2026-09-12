@@ -81,7 +81,7 @@ function VerifyEmailContent() {
           </div>
           <Link
             href="/profile"
-            className="inline-block text-sm font-semibold uppercase tracking-widest text-accent dark:text-accent-dark hover:underline"
+            className="inline-block text-sm font-semibold   text-accent dark:text-accent-dark hover:underline"
           >
             Go to profile →
           </Link>
@@ -115,7 +115,7 @@ function VerifyEmailContent() {
           </div>
           <Link
             href="/login"
-            className="inline-block text-sm font-semibold uppercase tracking-widest text-accent dark:text-accent-dark hover:underline"
+            className="inline-block text-sm font-semibold   text-accent dark:text-accent-dark hover:underline"
           >
             Go to sign in →
           </Link>

@@ -3,13 +3,22 @@
 This project strictly adheres to a premium, minimalistic design language.
 
 ## Core Rules
-1. **Zero Border Radius:** `border-radius` must be exactly 0 (or `rounded-none` in Tailwind) everywhere. No rounded corners on buttons, inputs, cards, or containers.
-2. **Typography First:** Use the Inter typeface. Prioritize stark contrast, varied font weights (e.g., extremely light for secondary text, very bold for headers), and generous letter-spacing (uppercase tracking). Do not use em-dashes (-); use standard hyphens (-) or colons (:) instead.
-3. **Monochromatic & Minimal:** The color palette relies heavily on stark black and white (`#000` / `#FFF`), with subtle gray borders for structure. Use exactly one accent color (e.g., stark red, deep blue, or monochromatic inverse) sparingly for primary actions.
-4. **Structured Layouts:** Rely on visible grid lines, thin stark borders (`border-px`, `border-black/10`, `dark:border-white/10`), and generous padding to separate content instead of relying on background color differences or shadows.
+1. **Modern Softness:** Use rounded corners (`rounded-xl` or `rounded-2xl`) for cards, dialogs, and large UI elements. Use softer shadows (`shadow-sm`) to create depth.
+2. **Typography First:** Use the Inter typeface. Prioritize stark contrast, varied font weights (e.g., extremely light for secondary text, very bold for headers). Use standard sentence case or title case where appropriate; don't rely exclusively on heavy uppercase tracking. Do not use em-dashes (-); use standard hyphens (-) or colons (:) instead.
+3. **Airy & Distinct Backgrounds:** Use a soft off-white or light gray for the main application background (e.g., `--color-bg-app`), and pure white for card surfaces (`--color-bg-card`). This creates a clean, readable layout without relying on heavy borders.
+4. **Structured Layouts:** Rely on whitespace, card backgrounds, and subtle shadows to separate content instead of relying exclusively on visible grid lines or harsh borders.
 5. **Mobile Responsive Priority:** The UI must be fully phone responsive. Ensure flexible layouts (using flex/grid), appropriate padding on small screens (e.g., `px-4 sm:px-8`), and collapse/hide non-essential navigation items on mobile to maintain the clean aesthetic.
-6. **No Clutter:** Remove all unnecessary elements. Data points should be displayed in a clean label-value pairing, using all-caps tracking for labels and stark text for values.
-6. **Micro-interactions:** Hover states should be snappy and decisive. No "soft" fading unless it contributes to the sleekness. Use inverse color swapping or sharp border highlights.
+6. **No Clutter:** Remove all unnecessary elements. Data points should be displayed in a clean label-value pairing.
+7. **Micro-interactions:** Hover states should be snappy. Cards and interactive elements can elevate or highlight slightly on hover.
+
+### Semantic Nutrient Colours
+Each macro/nutrient has its own colour, used for tinted card backgrounds, progress bars, and chart series. These are the only places colour deviates from the monochrome base:
+- **Protein** — coral/red (`--color-protein` tokens)
+- **Carbs** — golden amber (`--color-carbs` tokens)
+- **Fat** — lavender/purple (`--color-fat` tokens)
+- **Calories** — teal/emerald (`--color-calories` tokens)
+
+Each colour ships in three intensities: full (text/icons), muted (fills), and bg (card backgrounds). Dark mode variants are prefixed with `--color-dark-*`.
 
 The prompt should be fully detailed, and the theme should be consistent
 

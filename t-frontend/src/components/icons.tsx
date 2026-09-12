@@ -111,11 +111,42 @@ export function MoreIcon(props: IconProps) {
   );
 }
 
-export function SettingsIcon(props: IconProps) {
+export function UserIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" />
+    </Icon>
+  );
+}
+
+/** Sliders rather than a gear: a cog's curves fight the square-capped set. */
+export function SettingsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 7h11M18 7h3" />
+      <path d="M3 17h4M11 17h10" />
+      <rect x="14" y="4.5" width="4" height="5" />
+      <rect x="7" y="14.5" width="4" height="5" />
+    </Icon>
+  );
+}
+
+/** Appearance: a disc half filled, reading as the light/dark contrast itself. */
+export function ContrastIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
+
+/** Marks the security panel and its OTP-gated actions. */
+export function ShieldIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3l8 3v6c0 4.4-3.2 7.9-8 9-4.8-1.1-8-4.6-8-9V6z" />
     </Icon>
   );
 }
@@ -162,6 +193,19 @@ export function TrashIcon(props: IconProps) {
       <path d="M4 6h16" />
       <path d="M9 6V3h6v3" />
       <path d="M6 6l1 15h10l1-15" />
+    </Icon>
+  );
+}
+
+/** A bar chart icon for the Reports section, matching the square-capped set. */
+export function ReportsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 20h16" />
+      <path d="M6 20V14" />
+      <path d="M10 20V10" />
+      <path d="M14 20V6" />
+      <path d="M18 20V4" />
     </Icon>
   );
 }

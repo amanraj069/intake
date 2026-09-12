@@ -13,7 +13,7 @@ import { useFoodEntries } from "@/hooks/useFoodEntries";
 import { useMealFilters } from "@/hooks/useMealFilters";
 import { toErrorMessage } from "@/lib/errorMessage";
 import type { FoodEntry } from "@/types/nutrition";
-import FoodEntryTable from "./FoodEntryTable";
+import FoodEntryList from "./FoodEntryList";
 import MealFilters from "./MealFilters";
 
 /** Filters, pages through and edits the current user's logged entries. */
@@ -74,11 +74,7 @@ export default function MealsBrowser() {
 
       {!loading && !loadError && entries.length > 0 && (
         <>
-          <FoodEntryTable
-            entries={entries}
-            deletingId={deletingId}
-            onDelete={setPendingDeletion}
-          />
+          <FoodEntryList entries={entries} deletingId={deletingId} onDelete={setPendingDeletion} />
           <Pagination
             page={pageMeta.page}
             totalPages={pageMeta.totalPages}

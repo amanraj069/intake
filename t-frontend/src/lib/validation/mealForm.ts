@@ -21,7 +21,7 @@ export interface MealFormValues {
   mealType: MealType;
   foodName: string;
   quantity: string;
-  quantityUnit: string;
+  servingSize: string;
   calories: string;
   proteinG: string;
   carbG: string;
@@ -30,7 +30,7 @@ export interface MealFormValues {
 }
 
 export type MealFieldName = keyof MealFormValues;
-export type MealAmountField = "quantity" | "calories" | "proteinG" | "carbG" | "fatG";
+export type MealAmountField = "quantity" | "servingSize" | "calories" | "proteinG" | "carbG" | "fatG";
 
 export interface MealFormErrors {
   fields: FieldErrors<MealFieldName>;
@@ -43,6 +43,7 @@ export interface MealFormErrors {
 /** Keyed by field so the form can look a rule up without a fallible array search. */
 export const MEAL_AMOUNT_RULES: Record<MealAmountField, AmountRule<MealAmountField>> = {
   quantity: { field: "quantity", label: "Quantity", max: LIMITS.quantity, required: true },
+  servingSize: { field: "servingSize", label: "Amount (in grams)", max: LIMITS.quantity, required: true },
   calories: { field: "calories", label: "Calories", max: LIMITS.calories, required: true },
   proteinG: { field: "proteinG", label: "Protein", max: LIMITS.macroGrams, required: true },
   carbG: { field: "carbG", label: "Carbs", max: LIMITS.macroGrams, required: true },
@@ -51,11 +52,26 @@ export const MEAL_AMOUNT_RULES: Record<MealAmountField, AmountRule<MealAmountFie
 
 /** Fills the form from a saved entry, so editing opens on exactly what was stored. */
 export function entryToFormValues(entry: FoodEntry): MealFormValues {
+  let quantity = String(entry.quantity);
+  let servingSize = "";
+
+  const unitStr = (entry.quantityUnit || "").trim();
+  const numericMatch = unitStr.match(/^(\d+(?:\.\d+)?)/);
+
+  if (numericMatch) {
+    servingSize = numericMatch[1];
+  } else if (unitStr.toLowerCase() === "g" && entry.quantity > 5) {
+    servingSize = String(entry.quantity);
+    quantity = "1";
+  } else {
+    servingSize = "100";
+  }
+
   return {
     mealType: entry.mealType,
     foodName: entry.foodName,
-    quantity: String(entry.quantity),
-    quantityUnit: entry.quantityUnit,
+    quantity,
+    servingSize,
     calories: String(entry.calories),
     proteinG: String(entry.macros.proteinG),
     carbG: String(entry.macros.carbG),
@@ -78,10 +94,9 @@ function findMicronutrientRowError(
   if (!name) return "Nutrient name is required";
   if (name.length > LIMITS.nutrientNameLength) return "Nutrient name is too long";
   if (seenNames.has(name.toLowerCase())) return "Duplicate nutrient name";
-  if (!row.unit) return "Unit is required";
 
   return findAmountError(row.amount, {
-    label: "Amount",
+    label: "Amount (in mg)",
     max: LIMITS.microAmount,
     required: true,
   });
@@ -106,7 +121,7 @@ function validateMicronutrients(rows: readonly MicronutrientRow[]): {
 
     const name = row.name.trim();
     seenNames.add(name.toLowerCase());
-    micros[name] = { amount: toAmount(row.amount), unit: row.unit };
+    micros[name] = { amount: toAmount(row.amount), unit: row.unit || "mg" };
   }
 
   return { errors, micros };
@@ -115,13 +130,9 @@ function validateMicronutrients(rows: readonly MicronutrientRow[]): {
 function findTextFieldErrors(values: MealFormValues): FieldErrors<MealFieldName> {
   const errors: FieldErrors<MealFieldName> = {};
   const foodName = values.foodName.trim();
-  const quantityUnit = values.quantityUnit.trim();
 
   if (!foodName) errors.foodName = "Food name is required";
   else if (foodName.length > LIMITS.foodNameLength) errors.foodName = "Food name is too long";
-
-  if (!quantityUnit) errors.quantityUnit = "Unit is required";
-  else if (quantityUnit.length > LIMITS.unitLength) errors.quantityUnit = "Unit is too long";
 
   if (!values.date.trim()) errors.date = "Date is required";
   else if (Number.isNaN(Date.parse(values.date))) errors.date = "Enter a valid date";
@@ -156,13 +167,16 @@ export function validateMealForm(
     return { errors };
   }
 
+  const servingAmount = toAmount(values.servingSize);
+  const quantityUnit = `${servingAmount}g`;
+
   return {
     errors,
     payload: {
       mealType: values.mealType,
       foodName: values.foodName.trim(),
       quantity: toAmount(values.quantity),
-      quantityUnit: values.quantityUnit.trim(),
+      quantityUnit,
       calories: toAmount(values.calories),
       macros: {
         proteinG: toAmount(values.proteinG),

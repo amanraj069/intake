@@ -31,7 +31,7 @@ export default function SidebarHeader({
           <Link
             href="/"
             onClick={onCloseDrawer}
-            className="flex items-center gap-3 font-extrabold tracking-[0.2em] uppercase hover:text-accent dark:hover:text-accent-dark transition-colors text-base"
+            className="flex items-center gap-3 font-extrabold   hover:text-accent dark:hover:text-accent-dark transition-colors text-base"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

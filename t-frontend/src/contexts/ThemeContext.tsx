@@ -9,16 +9,19 @@ import {
   type ReactNode,
 } from "react";
 
-type Theme = "light" | "dark";
+export type Theme = "light" | "dark";
 
 interface ThemeContextValue {
   theme: Theme;
   toggleTheme: () => void;
+  /** Picks a theme outright, for a control that shows both choices at once. */
+  selectTheme: (theme: Theme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: "light",
   toggleTheme: () => {},
+  selectTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -59,8 +62,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
 
+  const selectTheme = useCallback((next: Theme) => setTheme(next), []);
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, selectTheme }}>
       {children}
     </ThemeContext.Provider>
   );

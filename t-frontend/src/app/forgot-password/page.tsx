@@ -108,7 +108,7 @@ export default function ForgotPasswordPage() {
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
               required
-              className="tracking-[0.5em] font-mono text-center"
+              className=" font-mono text-center"
             />
 
             <Input
