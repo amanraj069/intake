@@ -2,14 +2,31 @@
 
 import { useCallback, useState } from "react";
 import type { MicronutrientRow } from "@/lib/validation/mealForm";
+import type { Micronutrients } from "@/types/nutrition";
 
 // A module counter rather than a random id: the same sequence runs on the server
 // and on the client, so the first render hydrates without a mismatch.
 let nextRowNumber = 0;
 
-function createEmptyRow(): MicronutrientRow {
+function nextRowId(): string {
   nextRowNumber += 1;
-  return { id: `micronutrient-${nextRowNumber}`, name: "", amount: "" };
+  return `micronutrient-${nextRowNumber}`;
+}
+
+function createEmptyRow(): MicronutrientRow {
+  return { id: nextRowId(), name: "", amount: "", unit: "mg" };
+}
+
+/** An entry being edited opens with its saved nutrients, plus a blank row to add to. */
+function createInitialRows(micros?: Micronutrients): MicronutrientRow[] {
+  const saved = Object.entries(micros ?? {}).map(([name, data]) => ({
+    id: nextRowId(),
+    name,
+    amount: String(data.amount),
+    unit: data.unit,
+  }));
+
+  return saved.length > 0 ? saved : [createEmptyRow()];
 }
 
 interface UseMicronutrientRowsResult {
@@ -20,8 +37,8 @@ interface UseMicronutrientRowsResult {
 }
 
 /** Owns the add/edit/remove state for the meal form's nutrient name-value rows. */
-export function useMicronutrientRows(): UseMicronutrientRowsResult {
-  const [rows, setRows] = useState<MicronutrientRow[]>(() => [createEmptyRow()]);
+export function useMicronutrientRows(initialMicros?: Micronutrients): UseMicronutrientRowsResult {
+  const [rows, setRows] = useState<MicronutrientRow[]>(() => createInitialRows(initialMicros));
 
   const addRow = useCallback(() => {
     setRows((current) => [...current, createEmptyRow()]);

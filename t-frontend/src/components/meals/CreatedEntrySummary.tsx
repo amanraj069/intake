@@ -39,21 +39,15 @@ export default function CreatedEntrySummary({ entry }: CreatedEntrySummaryProps)
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-secondary dark:text-dark-text-secondary">
             Micronutrients
           </p>
-          <dl className="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-            {micronutrients.map(([name, amount]) => (
-              <div
+          <div className="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+            {micronutrients.map(([name, data]) => (
+              <DataPair
                 key={name}
-                className="flex items-baseline justify-between gap-4 border-b border-black/10 dark:border-white/10 pb-2"
-              >
-                <dt className="text-sm font-light text-text-secondary dark:text-dark-text-secondary">
-                  {name}
-                </dt>
-                <dd className="text-sm font-medium text-text-primary dark:text-dark-text">
-                  {amount}
-                </dd>
-              </div>
+                label={name}
+                value={`${data.amount} ${data.unit}`}
+              />
             ))}
-          </dl>
+          </div>
         </div>
       )}
     </Card>

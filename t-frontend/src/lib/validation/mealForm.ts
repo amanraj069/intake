@@ -1,4 +1,5 @@
-import type { FoodEntryInput, MealType, Micronutrients } from "@/types/nutrition";
+import { toDateInputValue } from "@/lib/formatDate";
+import type { FoodEntry, FoodEntryInput, MealType, Micronutrients } from "@/types/nutrition";
 import {
   LIMITS,
   collectAmountErrors,
@@ -13,6 +14,7 @@ export interface MicronutrientRow {
   id: string;
   name: string;
   amount: string;
+  unit: string;
 }
 
 export interface MealFormValues {
@@ -47,6 +49,21 @@ export const MEAL_AMOUNT_RULES: Record<MealAmountField, AmountRule<MealAmountFie
   fatG: { field: "fatG", label: "Fat", max: LIMITS.macroGrams, required: true },
 };
 
+/** Fills the form from a saved entry, so editing opens on exactly what was stored. */
+export function entryToFormValues(entry: FoodEntry): MealFormValues {
+  return {
+    mealType: entry.mealType,
+    foodName: entry.foodName,
+    quantity: String(entry.quantity),
+    quantityUnit: entry.quantityUnit,
+    calories: String(entry.calories),
+    proteinG: String(entry.macros.proteinG),
+    carbG: String(entry.macros.carbG),
+    fatG: String(entry.macros.fatG),
+    date: toDateInputValue(entry.date),
+  };
+}
+
 /** A row left completely blank is treated as "not filled in yet", not as an error. */
 function isBlankRow(row: MicronutrientRow): boolean {
   return !row.name.trim() && !row.amount.trim();
@@ -61,6 +78,7 @@ function findMicronutrientRowError(
   if (!name) return "Nutrient name is required";
   if (name.length > LIMITS.nutrientNameLength) return "Nutrient name is too long";
   if (seenNames.has(name.toLowerCase())) return "Duplicate nutrient name";
+  if (!row.unit) return "Unit is required";
 
   return findAmountError(row.amount, {
     label: "Amount",
@@ -88,7 +106,7 @@ function validateMicronutrients(rows: readonly MicronutrientRow[]): {
 
     const name = row.name.trim();
     seenNames.add(name.toLowerCase());
-    micros[name] = toAmount(row.amount);
+    micros[name] = { amount: toAmount(row.amount), unit: row.unit };
   }
 
   return { errors, micros };

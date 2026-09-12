@@ -6,6 +6,8 @@ import { requireAuth } from '../middleware/auth';
 import { setAuthCookies } from '../lib/cookies';
 import { IUserDocument } from '../models/User';
 import * as authController from '../controllers/auth.controller';
+import * as avatarController from '../controllers/avatar.controller';
+import { uploadAvatarFile } from '../middleware/upload';
 
 const router = Router();
 
@@ -110,6 +112,21 @@ router.post(
   requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void,
   validate(verifyOtpSchema),
   authController.verifyOtp as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void
+);
+
+// --- Profile picture ---
+
+router.post(
+  '/avatar',
+  requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void,
+  uploadAvatarFile,
+  avatarController.uploadAvatar
+);
+
+router.delete(
+  '/avatar',
+  requireAuth as unknown as (req: Request, res: Response, next: import('express').NextFunction) => void,
+  avatarController.deleteAvatar
 );
 
 // --- Google OAuth ---

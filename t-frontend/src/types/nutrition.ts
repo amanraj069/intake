@@ -1,4 +1,4 @@
-export const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
+export const MEAL_TYPES = ["breakfast", "lunch", "snack", "dinner"] as const;
 export type MealType = (typeof MEAL_TYPES)[number];
 
 export type FoodEntrySource = "manual" | "ai-image";
@@ -29,8 +29,8 @@ export interface Macros {
   fatG: number;
 }
 
-/** Nutrient name to amount. Open-ended: the tracked set varies per food. */
-export type Micronutrients = Record<string, number>;
+/** Nutrient name to amount and unit. Open-ended: the tracked set varies per food. */
+export type Micronutrients = Record<string, { amount: number; unit: string }>;
 
 export interface FoodEntry {
   _id: string;
@@ -58,4 +58,38 @@ export interface FoodEntryInput {
   micros?: Micronutrients;
   date: string;
   source?: FoodEntrySource;
+}
+
+/** Calories and macros summed across every entry on one day. */
+export interface DailyNutritionTotals {
+  calories: number;
+  proteinG: number;
+  carbG: number;
+  fatG: number;
+  entryCount: number;
+}
+
+/** One day's intake next to the goal it is measured against. */
+export interface DailyIntakeSummary {
+  date: string;
+  totals: DailyNutritionTotals;
+  /** Null until the user has set a goal. */
+  goal: Goal | null;
+}
+
+/** Everything the meals list sends to the API: the filters plus the page wanted. */
+export interface FoodEntryQuery {
+  startDate?: string;
+  endDate?: string;
+  mealType?: MealType;
+  page?: number;
+  limit?: number;
+}
+
+/** Where a returned page sits within the full result set. */
+export interface PageMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }

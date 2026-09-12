@@ -1,6 +1,8 @@
 "use client";
 
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import { MICRO_UNIT_OPTIONS } from "@/constants/units";
 import { LIMITS } from "@/lib/validation/amount";
 import type { MicronutrientRow } from "@/lib/validation/mealForm";
 
@@ -49,7 +51,7 @@ function MicronutrientRowFields({ row, error, disabled, onRemove, onChange }: Si
           />
         </div>
 
-        <div className="w-full sm:w-40">
+        <div className="w-full sm:w-32">
           <Input
             id={`${row.id}-amount`}
             label="Amount"
@@ -62,6 +64,17 @@ function MicronutrientRowFields({ row, error, disabled, onRemove, onChange }: Si
             value={row.amount}
             disabled={disabled}
             onChange={(event) => onChange({ amount: event.target.value })}
+          />
+        </div>
+
+        <div className="w-full sm:w-32">
+          <Select
+            id={`${row.id}-unit`}
+            label="Unit"
+            options={MICRO_UNIT_OPTIONS}
+            value={row.unit}
+            disabled={disabled}
+            onChange={(event) => onChange({ unit: event.target.value })}
           />
         </div>
 

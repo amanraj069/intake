@@ -1,10 +1,21 @@
+import { FilterQuery } from 'mongoose';
+
 import { FoodEntry, IFoodEntryDocument } from '../models/FoodEntry';
-import { CreateFoodEntryInput, UpdateFoodEntryInput } from '../schemas/foodEntry.schema';
+import {
+  CreateFoodEntryInput,
+  ListFoodEntriesQuery,
+  UpdateFoodEntryInput,
+} from '../schemas/foodEntry.schema';
 import { AppError } from '../middleware/errorHandler';
+import { CalendarDay, daysBefore, startOfDay, startOfNextDay, today } from '../lib/calendarDay';
+import { PaginatedResult, buildPaginatedResult, toSkipCount } from '../lib/pagination';
 
-type MicronutrientMap = Record<string, number>;
+/** How many days a list request covers when the caller gives no date bounds. */
+const DEFAULT_RANGE_DAYS = 7;
 
-function toMicrosMap(micros: MicronutrientMap | undefined): Map<string, number> {
+type MicronutrientMap = Record<string, { amount: number; unit: string }>;
+
+function toMicrosMap(micros: MicronutrientMap | undefined): Map<string, { amount: number; unit: string }> {
   return new Map(Object.entries(micros ?? {}));
 }
 
@@ -75,4 +86,60 @@ export async function updateFoodEntry(
 export async function deleteFoodEntry(userId: string, entryId: string): Promise<void> {
   const entry = await findOwnedFoodEntry(userId, entryId);
   await entry.deleteOne();
+}
+
+/** Returns one of the user's entries, for pre-filling the edit form. */
+export async function getFoodEntry(
+  userId: string,
+  entryId: string
+): Promise<IFoodEntryDocument> {
+  return findOwnedFoodEntry(userId, entryId);
+}
+
+/**
+ * Resolves the day bounds a list request covers. Each bound falls back
+ * independently: an absent end date means today, and an absent start date means
+ * `DEFAULT_RANGE_DAYS` back from whichever end date applies.
+ */
+function resolveDateRange(query: ListFoodEntriesQuery): { start: CalendarDay; end: CalendarDay } {
+  const end = query.endDate ?? today();
+  const start = query.startDate ?? daysBefore(end, DEFAULT_RANGE_DAYS - 1);
+  return { start, end };
+}
+
+function buildListFilter(
+  userId: string,
+  query: ListFoodEntriesQuery
+): FilterQuery<IFoodEntryDocument> {
+  const { start, end } = resolveDateRange(query);
+
+  return {
+    userId,
+    date: { $gte: startOfDay(start), $lt: startOfNextDay(end) },
+    ...(query.mealType ? { mealType: query.mealType } : {}),
+  };
+}
+
+/**
+ * One page of the user's entries, newest day first.
+ *
+ * Entries logged on the same day share an identical timestamp, so `createdAt`
+ * and `_id` break the tie: without a total ordering the same record could
+ * appear on two pages, or on none.
+ */
+export async function listFoodEntries(
+  userId: string,
+  query: ListFoodEntriesQuery
+): Promise<PaginatedResult<IFoodEntryDocument>> {
+  const filter = buildListFilter(userId, query);
+
+  const [entries, total] = await Promise.all([
+    FoodEntry.find(filter)
+      .sort({ date: -1, createdAt: -1, _id: -1 })
+      .skip(toSkipCount(query))
+      .limit(query.limit),
+    FoodEntry.countDocuments(filter),
+  ]);
+
+  return buildPaginatedResult(entries, total, query);
 }

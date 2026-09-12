@@ -7,6 +7,8 @@ export interface IUserDocument extends Document {
   emailVerified: boolean;
   authProvider: 'local' | 'google';
   googleId?: string;
+  avatarUrl?: string;
+  avatarPublicId?: string;
   createdAt: Date;
   otpCode?: string;
   otpExpiresAt?: Date;
@@ -45,6 +47,10 @@ const userSchema = new Schema<IUserDocument>(
       sparse: true,
       unique: true,
     },
+    avatarUrl: String,
+    // Kept alongside the URL so a replaced or removed avatar can be destroyed
+    // in Cloudinary rather than left orphaned in the account's media library.
+    avatarPublicId: String,
     otpCode: String,
     otpExpiresAt: Date,
     otpPurpose: {

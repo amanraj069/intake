@@ -6,20 +6,23 @@ import Button from "@/components/ui/Button";
 import FormError from "@/components/ui/FormError";
 import FormSection from "@/components/ui/FormSection";
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import SegmentedControl, { type SegmentedOption } from "@/components/ui/SegmentedControl";
 import MicronutrientRows from "./MicronutrientRows";
 import { useMicronutrientRows } from "@/hooks/useMicronutrientRows";
+import { FOOD_UNIT_OPTIONS } from "@/constants/units";
 import { toErrorMessage } from "@/lib/errorMessage";
 import { todayAsInputValue } from "@/lib/formatDate";
 import { LIMITS } from "@/lib/validation/amount";
 import {
   MEAL_AMOUNT_RULES,
+  entryToFormValues,
   validateMealForm,
   type MealAmountField,
   type MealFormErrors,
   type MealFormValues,
 } from "@/lib/validation/mealForm";
-import { MEAL_TYPES, type FoodEntryInput, type MealType } from "@/types/nutrition";
+import { MEAL_TYPES, type FoodEntry, type FoodEntryInput, type MealType } from "@/types/nutrition";
 
 const MEAL_TYPE_OPTIONS: readonly SegmentedOption<MealType>[] = MEAL_TYPES.map((mealType) => ({
   value: mealType,
@@ -49,15 +52,33 @@ const EMPTY_MEAL_FORM: MealFormValues = {
 const NO_ERRORS: MealFormErrors = { fields: {}, micros: {} };
 
 interface MealEntryFormProps {
+  /** The entry being edited. Omitted when logging a new meal. */
+  entry?: FoodEntry;
   submitting: boolean;
+  submitLabel: string;
   onSubmit: (input: FoodEntryInput) => Promise<void>;
 }
 
-export default function MealEntryForm({ submitting, onSubmit }: MealEntryFormProps) {
-  const [values, setValues] = useState<MealFormValues>(EMPTY_MEAL_FORM);
+function getDefaultMealType(): MealType {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return "breakfast";
+  if (hour >= 11 && hour < 16) return "lunch";
+  if (hour >= 16 && hour < 19) return "snack";
+  return "dinner";
+}
+
+export default function MealEntryForm({
+  entry,
+  submitting,
+  submitLabel,
+  onSubmit,
+}: MealEntryFormProps) {
+  const [values, setValues] = useState<MealFormValues>(() =>
+    entry ? entryToFormValues(entry) : { ...EMPTY_MEAL_FORM, mealType: getDefaultMealType() }
+  );
   const [errors, setErrors] = useState<MealFormErrors>(NO_ERRORS);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const { rows, addRow, updateRow, removeRow } = useMicronutrientRows();
+  const { rows, addRow, updateRow, removeRow } = useMicronutrientRows(entry?.micros);
 
   useEffect(() => {
     // Defaulting to today has to happen after mount: the server renders in its
@@ -84,9 +105,10 @@ export default function MealEntryForm({ submitting, onSubmit }: MealEntryFormPro
     if (!payload) return;
 
     try {
-      await onSubmit(payload);
+      // An edit must not rewrite how the entry was originally captured.
+      await onSubmit(entry ? { ...payload, source: entry.source } : payload);
     } catch (cause) {
-      setSubmitError(toErrorMessage(cause, "Could not log this meal."));
+      setSubmitError(toErrorMessage(cause, "Could not save this meal."));
     }
   }
 
@@ -127,14 +149,13 @@ export default function MealEntryForm({ submitting, onSubmit }: MealEntryFormPro
 
         <div className="grid gap-6 sm:grid-cols-3">
           <div className="sm:col-span-2">{renderAmountField("quantity")}</div>
-          <Input
+          <Select
             id="quantityUnit"
             label="Unit"
-            placeholder="g"
+            options={FOOD_UNIT_OPTIONS}
             value={values.quantityUnit}
             error={errors.fields.quantityUnit}
             disabled={submitting}
-            maxLength={LIMITS.unitLength}
             onChange={(event) => updateField("quantityUnit", event.target.value)}
           />
         </div>
@@ -178,7 +199,7 @@ export default function MealEntryForm({ submitting, onSubmit }: MealEntryFormPro
 
       <div className="flex justify-end border-t border-black/10 dark:border-white/10 pt-8">
         <Button type="submit" loading={submitting} className="w-full sm:w-auto">
-          Log Meal
+          {submitLabel}
         </Button>
       </div>
     </form>

@@ -1,12 +1,22 @@
 import { z } from 'zod';
 import { MEAL_TYPES, FOOD_ENTRY_SOURCES } from '../models/FoodEntry';
-import { dateStringSchema, nonNegativeAmount, objectIdSchema } from './common.schema';
+import {
+  calendarDaySchema,
+  dateStringSchema,
+  nonNegativeAmount,
+  objectIdSchema,
+  paginationQueryFields,
+} from './common.schema';
 
 const MAX_CALORIES = 20000;
 const MAX_MACRO_GRAMS = 2000;
 const MAX_QUANTITY = 100000;
 const MAX_MICRO_AMOUNT = 100000;
 const MAX_MICRONUTRIENTS = 50;
+
+const mealTypeSchema = z.enum(MEAL_TYPES, {
+  errorMap: () => ({ message: `Meal type must be one of: ${MEAL_TYPES.join(', ')}` }),
+});
 
 const macrosSchema = z.object({
   proteinG: nonNegativeAmount('Protein', MAX_MACRO_GRAMS),
@@ -21,7 +31,10 @@ const macrosSchema = z.object({
 const microsSchema = z
   .record(
     z.string().trim().min(1, 'Nutrient name is required').max(60, 'Nutrient name is too long'),
-    nonNegativeAmount('Nutrient amount', MAX_MICRO_AMOUNT)
+    z.object({
+      amount: nonNegativeAmount('Nutrient amount', MAX_MICRO_AMOUNT),
+      unit: z.string().trim().min(1, 'Unit is required').max(20, 'Unit is too long'),
+    })
   )
   .refine(
     (micros) => Object.keys(micros).length <= MAX_MICRONUTRIENTS,
@@ -29,9 +42,7 @@ const microsSchema = z
   );
 
 const foodEntryFields = {
-  mealType: z.enum(MEAL_TYPES, {
-    errorMap: () => ({ message: `Meal type must be one of: ${MEAL_TYPES.join(', ')}` }),
-  }),
+  mealType: mealTypeSchema,
   foodName: z.string().trim().min(1, 'Food name is required').max(200, 'Food name is too long'),
   quantity: nonNegativeAmount('Quantity', MAX_QUANTITY),
   quantityUnit: z.string().trim().min(1, 'Unit is required').max(20, 'Unit is too long'),
@@ -66,5 +77,26 @@ export const foodEntryIdSchema = z.object({
   params: z.object({ id: objectIdSchema }),
 });
 
+export const listFoodEntriesSchema = z.object({
+  query: z
+    .object({
+      startDate: calendarDaySchema.optional(),
+      endDate: calendarDaySchema.optional(),
+      mealType: mealTypeSchema.optional(),
+      ...paginationQueryFields,
+    })
+    // Day strings in `YYYY-MM-DD` form sort correctly as plain strings, so no
+    // Date conversion is needed to compare the two bounds.
+    .refine((query) => !query.startDate || !query.endDate || query.startDate <= query.endDate, {
+      message: 'Start date must not be after end date',
+      path: ['startDate'],
+    }),
+});
+
+export const foodEntrySummarySchema = z.object({
+  query: z.object({ date: calendarDaySchema.optional() }),
+});
+
 export type CreateFoodEntryInput = z.infer<typeof createFoodEntrySchema>['body'];
 export type UpdateFoodEntryInput = z.infer<typeof updateFoodEntrySchema>['body'];
+export type ListFoodEntriesQuery = z.infer<typeof listFoodEntriesSchema>['query'];

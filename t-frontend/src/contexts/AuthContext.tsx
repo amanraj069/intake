@@ -56,6 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Resolving the session from the httpOnly cookie is the point of this
+    // provider, and every state write happens after an await.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshUser();
   }, [refreshUser]);
 
