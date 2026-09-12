@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* Tailwind v4: CSS-first dark mode configuration */
+@variant dark (&:where(.dark, .dark *));
+
+/* Tailwind v4: Custom theme tokens */
+@theme {
+  /* Colors */
+  --color-bg-primary: #FFFFFF;
+  --color-bg-surface: #FAFAFA;
+  --color-text-primary: #0A0A0A;
+  --color-text-secondary: #6B7280;
+  --color-border: #E5E7EB;
+  --color-input-border: #D1D5DB;
+  --color-accent: #3B7A57;
+  --color-accent-hover: #2F6246;
+  --color-accent-dark: #468E66;
+  --color-accent-dark-hover: #52A276;
+  --color-error: #DC2626;
+  --color-error-dark: #EF4444;
+  --color-success: #16A34A;
+  --color-success-dark: #22C55E;
+
+  /* Dark mode surface colors */
+  --color-dark-bg: #0A0A0A;
+  --color-dark-surface: #1A1A1A;
+  --color-dark-text: #F5F5F5;
+  --color-dark-text-secondary: #9CA3AF;
+  --color-dark-border: #2A2A2A;
+  --color-dark-input-border: #3A3A3A;
+
+  /* Font family */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Base styles */
+@layer base {
+  body {
+    @apply bg-bg-primary text-text-primary font-sans antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .dark body {
+    background-color: var(--color-dark-bg);
+    color: var(--color-dark-text);
+  }
+
+  /* Focus styles */
+  *:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  .dark *:focus-visible {
+    outline-color: var(--color-accent-dark);
+  }
+}
