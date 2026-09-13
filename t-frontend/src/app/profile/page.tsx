@@ -32,8 +32,7 @@ function ProfileContent() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto w-full max-w-5xl space-y-12 pb-24">
-        <PageHeader
+              <PageHeader
           title="Profile"
           description="Your picture and account details."
           showBackButton
@@ -80,7 +79,7 @@ function ProfileContent() {
             Sign Out
           </Button>
         </div>
-      </div>
+      
     </DashboardLayout>
   );
 }

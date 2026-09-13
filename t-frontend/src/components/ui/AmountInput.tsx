@@ -5,6 +5,8 @@ import type { AmountRule } from "@/lib/validation/amount";
 
 interface AmountInputProps<TField extends string> {
   rule: AmountRule<TField>;
+  /** Defaults to the rule's field; set it when the same field repeats on one page, as in a list of items. */
+  id?: string;
   /** Unit shown alongside the label, e.g. "kcal" or "g". */
   unit?: string;
   value: string;
@@ -22,6 +24,7 @@ function buildLabel<TField extends string>(rule: AmountRule<TField>, unit?: stri
 /** A numeric text field wired to one validation rule, so label and limits cannot drift. */
 export default function AmountInput<TField extends string>({
   rule,
+  id,
   unit,
   value,
   error,
@@ -30,7 +33,7 @@ export default function AmountInput<TField extends string>({
 }: AmountInputProps<TField>) {
   return (
     <Input
-      id={rule.field}
+      id={id ?? rule.field}
       label={buildLabel(rule, unit)}
       type="number"
       inputMode="decimal"

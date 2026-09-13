@@ -43,6 +43,9 @@ async function parseBody<TResponse>(response: Response): Promise<TResponse> {
   }
 }
 
+let isRefreshing = false;
+let refreshPromise: Promise<void> | null = null;
+
 async function send<TResponse extends ApiResponse<unknown>>(
   endpoint: string,
   options: RequestInit
@@ -67,6 +70,43 @@ async function send<TResponse extends ApiResponse<unknown>>(
     // fetch only rejects on transport failure, so callers get one predictable
     // error type instead of a bare TypeError.
     throw new ApiError("Could not reach the server. Check your connection and try again.", 0);
+  }
+
+  if (response.status === 401 && endpoint !== "/auth/refresh" && endpoint !== "/auth/login") {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Refresh failed");
+        })
+        .finally(() => {
+          isRefreshing = false;
+          refreshPromise = null;
+        });
+    }
+
+    if (refreshPromise) {
+      try {
+        await refreshPromise;
+        // Retry the original request after successful refresh
+        const retryResponse = await fetch(`${API_URL}${endpoint}`, config);
+        const retryBody = await parseBody<TResponse>(retryResponse);
+        if (!retryResponse.ok) {
+          throw new ApiError(
+            retryBody.message || "Something went wrong",
+            retryResponse.status,
+            retryBody.errors,
+            retryBody.code
+          );
+        }
+        return retryBody;
+      } catch (e) {
+        // If refresh or retry fails, fall through to normal error handling below
+      }
+    }
   }
 
   const body = await parseBody<TResponse>(response);

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { MEAL_TYPES, FOOD_ENTRY_SOURCES } from '../models/FoodEntry';
+import { FOOD_ENTRY_SOURCES, FOOD_ITEM_UNITS, MEAL_TYPES } from '../models/FoodEntry';
 import { countCalendarDays } from '../lib/calendarDay';
+import { MAX_ENTRY_NAME_LENGTH } from '../lib/foodEntryName';
 import {
   calendarDaySchema,
   dateStringSchema,
@@ -14,6 +15,8 @@ const MAX_MACRO_GRAMS = 2000;
 const MAX_QUANTITY = 100000;
 const MAX_MICRO_AMOUNT = 100000;
 const MAX_MICRONUTRIENTS = 50;
+/** Enough for a thali or a buffet plate, small enough that one entry stays one meal. */
+export const MAX_ITEMS_PER_ENTRY = 30;
 /** Bounds the day-by-day series so one request cannot ask for years of rows. */
 const MAX_SERIES_DAYS = 92;
 
@@ -44,14 +47,41 @@ const microsSchema = z
     `At most ${MAX_MICRONUTRIENTS} micronutrients are allowed`
   );
 
-const foodEntryFields = {
-  mealType: mealTypeSchema,
-  foodName: z.string().trim().min(1, 'Food name is required').max(200, 'Food name is too long'),
+const foodItemUnitSchema = z.enum(FOOD_ITEM_UNITS, {
+  errorMap: () => ({ message: 'Unit must be g, ml or count' }),
+});
+
+/** One component of a meal: its amount, and the nutrition of exactly that amount. */
+export const foodItemSchema = z.object({
+  name: z.string().trim().min(1, 'Item name is required').max(200, 'Item name is too long'),
   quantity: nonNegativeAmount('Quantity', MAX_QUANTITY),
-  quantityUnit: z.string().trim().min(1, 'Unit is required').max(20, 'Unit is too long'),
+  unit: foodItemUnitSchema,
   calories: nonNegativeAmount('Calories', MAX_CALORIES),
   macros: macrosSchema,
   micros: microsSchema.optional(),
+});
+
+const foodItemsSchema = z
+  .array(foodItemSchema, { invalid_type_error: 'Items must be a list' })
+  .min(1, 'Add at least one item')
+  .max(MAX_ITEMS_PER_ENTRY, `At most ${MAX_ITEMS_PER_ENTRY} items are allowed in one entry`);
+
+/**
+ * Totals are not accepted from the client: the service always sums them from
+ * the items, so an entry's numbers can never disagree with what it contains.
+ */
+/** Optional everywhere: a blank or missing name means "call it by its items". */
+const entryNameSchema = z
+  .string()
+  .trim()
+  .max(MAX_ENTRY_NAME_LENGTH, 'Meal name is too long')
+  .optional()
+  .transform((name) => name || undefined);
+
+const foodEntryFields = {
+  mealType: mealTypeSchema,
+  name: entryNameSchema,
+  items: foodItemsSchema,
   date: dateStringSchema,
   source: z.enum(FOOD_ENTRY_SOURCES).optional(),
   confidenceScore: z.number().min(0).max(100).optional(),
@@ -64,18 +94,11 @@ export const createFoodEntrySchema = z.object({
 });
 
 /**
- * The nutrition half of an entry, without when or at which meal it was eaten.
- * An AI extraction must satisfy it, so a draft the user accepts unchanged can
- * always be saved.
+ * The items of an entry, without when or at which meal it was eaten. An AI
+ * extraction must satisfy it, so a draft the user accepts unchanged can always
+ * be saved.
  */
-export const foodEntryDraftSchema = z.object(foodEntryFields).pick({
-  foodName: true,
-  quantity: true,
-  quantityUnit: true,
-  calories: true,
-  macros: true,
-  micros: true,
-});
+export const foodEntryDraftSchema = z.object({ name: entryNameSchema, items: foodItemsSchema });
 
 export const updateFoodEntrySchema = z.object({
   params: z.object({ id: objectIdSchema }),
@@ -135,6 +158,7 @@ export const foodEntrySeriesSchema = z.object({
 
 export type CreateFoodEntryInput = z.infer<typeof createFoodEntrySchema>['body'];
 export type FoodEntryDraft = z.infer<typeof foodEntryDraftSchema>;
+export type FoodItemInput = z.infer<typeof foodItemSchema>;
 export type UpdateFoodEntryInput = z.infer<typeof updateFoodEntrySchema>['body'];
 export type ListFoodEntriesQuery = z.infer<typeof listFoodEntriesSchema>['query'];
 export type FoodEntrySeriesQuery = z.infer<typeof foodEntrySeriesSchema>['query'];

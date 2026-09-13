@@ -97,7 +97,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           hydrated ? "transition-[margin] duration-300 ease-[cubic-bezier(0.2,1,0.2,1)]" : ""
         }`}
       >
-        <div className="px-4 py-8 sm:px-8 lg:p-12">{children}</div>
+        <div className="px-4 py-8 sm:px-8 lg:p-12">
+          <div className="w-full max-w-5xl mx-auto space-y-10 sm:space-y-12 pb-24">
+            {children}
+          </div>
+        </div>
       </main>
     </div>
   );

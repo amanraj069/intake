@@ -60,7 +60,7 @@ export default function DraftReviewConfirmation({
         <span className="text-sm text-text-primary dark:text-dark-text">
           <span className="font-semibold">I have reviewed the details filled in from my photo.</span>
           <span className="mt-1 block font-light text-text-secondary dark:text-dark-text-secondary">
-            Logging as {capitalise(mealType)} on {dayLabel}, with the food name, portion, calories, macros
+            Logging as {capitalise(mealType)} on {dayLabel}, with the items, amounts, calories, macros
             and micronutrients above.
           </span>
         </span>

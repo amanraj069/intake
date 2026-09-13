@@ -1,7 +1,7 @@
 export const MEAL_TYPES = ["breakfast", "lunch", "snack", "dinner"] as const;
 export type MealType = (typeof MEAL_TYPES)[number];
 
-export type FoodEntrySource = "manual" | "ai-image";
+export type FoodEntrySource = "manual" | "ai-image" | "pdf-import";
 
 export interface Goal {
   _id: string;
@@ -32,15 +32,35 @@ export interface Macros {
 /** Nutrient name to amount and unit. Open-ended: the tracked set varies per food. */
 export type Micronutrients = Record<string, { amount: number; unit: string }>;
 
+/**
+ * How an item is measured: grams for weighed food, millilitres for liquids, and a
+ * count for pieces (rotis, eggs, slices), with the item's name saying what is counted.
+ */
+export const FOOD_ITEM_UNITS = ["g", "ml", "count"] as const;
+export type FoodItemUnit = (typeof FOOD_ITEM_UNITS)[number];
+
+/** One component of a meal, with the nutrition of exactly that quantity. */
+export interface FoodItem {
+  name: string;
+  quantity: number;
+  unit: FoodItemUnit;
+  calories: number;
+  macros: Macros;
+  micros: Micronutrients;
+}
+
 export interface FoodEntry {
   _id: string;
   userId: string;
   mealType: MealType;
-  foodName: string;
-  quantity: number;
-  quantityUnit: string;
+  /** What the whole meal is called, e.g. "Roti sabji". The server fills it from the items when none is given. */
+  name: string;
+  items: FoodItem[];
+  /** Sum of every item's calories, computed by the server. */
   calories: number;
+  /** Sum of every item's macros, computed by the server. */
   macros: Macros;
+  /** Every item's micronutrients summed per nutrient, computed by the server. */
   micros: Micronutrients;
   date: string;
   source: FoodEntrySource;
@@ -51,14 +71,14 @@ export interface FoodEntry {
   updatedAt: string;
 }
 
+export type FoodItemInput = Omit<FoodItem, "micros"> & { micros?: Micronutrients };
+
+/** What create and update send. Totals are never sent: the server sums them from the items. */
 export interface FoodEntryInput {
   mealType: MealType;
-  foodName: string;
-  quantity: number;
-  quantityUnit: string;
-  calories: number;
-  macros: Macros;
-  micros?: Micronutrients;
+  /** Omitted or blank means "call it by its items". */
+  name?: string;
+  items: FoodItemInput[];
   date: string;
   source?: FoodEntrySource;
   confidenceScore?: number;
@@ -66,11 +86,8 @@ export interface FoodEntryInput {
   extractionAnalysis?: ExtractionAnalysis;
 }
 
-/** The nutrition fields of an entry, as read from a photo. When and at which meal are the user's call. */
-export type FoodEntryDraft = Pick<
-  FoodEntryInput,
-  "foodName" | "quantity" | "quantityUnit" | "calories" | "macros" | "micros"
->;
+/** The items of an entry, as read from a photo. When and at which meal are the user's call. */
+export type FoodEntryDraft = Pick<FoodEntryInput, "name" | "items">;
 
 export type ConfidenceLevel = "high" | "medium" | "low";
 

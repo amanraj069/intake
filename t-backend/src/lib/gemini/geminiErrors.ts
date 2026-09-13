@@ -10,6 +10,11 @@ export type GeminiFailureKind =
   | 'key-rejected'
   /** Server error, timeout, or network failure. Worth retrying elsewhere. */
   | 'unavailable'
+  /**
+   * The model is overloaded for everyone (503 "high demand"). Capacity is shared
+   * across keys, so the only useful retry is a different model on the same key.
+   */
+  | 'model-overloaded'
   /** The model returned nothing usable (empty, blocked, or not JSON). */
   | 'bad-response'
   /** This model id does not exist or is not served to these keys. */
@@ -46,6 +51,11 @@ export class GeminiRequestError extends Error {
   /** Whether trying the same request with a different key could succeed. */
   get canRotateKey(): boolean {
     return KEY_ROTATABLE_KINDS.has(this.kind);
+  }
+
+  /** Whether the model itself is the problem, so the next model should be tried. */
+  get canSwitchModel(): boolean {
+    return this.kind === 'model-unavailable' || this.kind === 'model-overloaded';
   }
 }
 
@@ -87,6 +97,7 @@ function kindForStatus(status: number, body: GeminiErrorBody): GeminiFailureKind
   if (isKeyRejection(status, body)) return 'key-rejected';
   if (status === 429) return 'rate-limited';
   if (status === 404) return 'model-unavailable';
+  if (status === 503) return 'model-overloaded';
   if (status >= 500) return 'unavailable';
   return 'invalid-request';
 }

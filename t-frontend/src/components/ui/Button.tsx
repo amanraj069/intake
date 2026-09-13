@@ -15,9 +15,9 @@ const BASE_CLASSES =
 
 const VARIANT_CLASSES = {
   primary:
-    "bg-accent text-white hover:bg-accent-hover dark:bg-accent-dark dark:hover:bg-accent-dark-hover focus-visible:outline-accent",
+    "bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover focus-visible:outline-accent",
   secondary:
-    "border border-border text-text-primary hover:bg-bg-surface dark:border-dark-border dark:text-dark-text dark:hover:bg-dark-surface focus-visible:outline-accent",
+    "bg-bg-card dark:bg-dark-bg-card border border-border text-text-primary hover:bg-bg-surface dark:border-dark-border dark:text-dark-text dark:hover:bg-dark-surface focus-visible:outline-accent",
   danger:
     "bg-error text-white hover:bg-red-700 dark:bg-error-dark dark:hover:bg-red-500 focus-visible:outline-error",
   ghost:

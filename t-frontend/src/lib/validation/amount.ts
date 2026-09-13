@@ -10,7 +10,8 @@ export const LIMITS = {
   quantity: 100000,
   microAmount: 100000,
   micronutrientRows: 50,
-  foodNameLength: 200,
+  itemsPerEntry: 30,
+  itemNameLength: 200,
   unitLength: 20,
   nutrientNameLength: 60,
 } as const;

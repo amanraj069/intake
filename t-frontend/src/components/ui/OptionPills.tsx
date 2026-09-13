@@ -98,7 +98,7 @@ export default function OptionPills<TValue extends string>({
     >
       {/* Animated Sliding Background */}
       <div
-        className={`absolute bg-white dark:bg-[#252A36] border border-black/5 dark:border-white/15 shadow-sm dark:shadow-[0_2px_8px_rgba(0,0,0,0.5)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none ${SIZE_INDICATOR[size]}`}
+        className={`absolute bg-accent-muted dark:bg-accent-dark-muted border border-black/5 dark:border-white/10 shadow-sm transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none ${SIZE_INDICATOR[size]}`}
         style={{
           left: `${indicatorStyle.left}px`,
           width: `${indicatorStyle.width}px`,
@@ -121,7 +121,7 @@ export default function OptionPills<TValue extends string>({
               SIZE_BUTTON[size]
             } ${fullWidth ? "flex-1" : ""} ${
               isSelected
-                ? "text-text-primary dark:text-white font-bold"
+                ? "text-white font-bold"
                 : "text-text-secondary dark:text-dark-text-secondary hover:text-text-primary dark:hover:text-white"
             }`}
           >

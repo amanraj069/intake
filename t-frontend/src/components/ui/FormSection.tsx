@@ -6,7 +6,8 @@ interface FormSectionProps {
   title: string;
   description?: string;
   action?: ReactNode;
-  children: ReactNode;
+  /** Optional: a section can be just a heading with its action, such as a choice of pills. */
+  children?: ReactNode;
 }
 
 /** A titled block separated by a hairline rule rather than a background change. */

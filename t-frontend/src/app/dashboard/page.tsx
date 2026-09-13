@@ -10,11 +10,10 @@ export default function DashboardPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="w-full max-w-5xl mx-auto space-y-10 sm:space-y-12 pb-24">
-          <TodayOverview />
+                  <TodayOverview />
           <WeeklyProgressPanel />
           <DashboardQuickActions />
-        </div>
+        
       </DashboardLayout>
     </ProtectedRoute>
   );

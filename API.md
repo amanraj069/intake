@@ -217,21 +217,32 @@ Create the current user's goal, or overwrite it if one exists.
 
 ### `POST /api/food-entries` (authenticated)
 
-Log a food entry for the current user.
+Log a food entry for the current user. An entry is one meal made of one or more items, such as
+"2 rotis + 200 g paneer sabji".
 
 - Body:
 
   | Field | Type | Required | Notes |
   |---|---|---|---|
   | `mealType` | `"breakfast" \| "lunch" \| "dinner" \| "snack"` | yes | |
-  | `foodName` | string | yes | 1 - 200 chars |
-  | `quantity` | number | yes | 0 - 100000 |
-  | `quantityUnit` | string | yes | 1 - 20 chars, e.g. `g`, `ml`, `serving` |
-  | `calories` | number | yes | 0 - 20000 |
-  | `macros` | `{ proteinG, carbG, fatG }` | yes | each 0 - 2000 grams |
-  | `micros` | `{ [nutrientName]: number }` | no | open-ended map, up to 50 entries |
   | `date` | date string | yes | the day the food was eaten, e.g. `2026-09-10` |
-  | `source` | `"manual" \| "ai-image"` | no | defaults to `manual` |
+  | `name` | string | no | up to 200 chars, e.g. `"Roti sabji"`; blank or missing names the entry after its items (`"Roti + Paneer sabji"`) |
+  | `items` | `FoodItem[]` | yes | 1 - 30 items |
+  | `source` | `"manual" \| "ai-image" \| "pdf-import"` | no | defaults to `manual` |
+
+  Each `FoodItem`:
+
+  | Field | Type | Required | Notes |
+  |---|---|---|---|
+  | `name` | string | yes | 1 - 200 chars; for a count, what is counted (`"Roti"`) |
+  | `quantity` | number | yes | 0 - 100000, the total amount eaten in `unit` |
+  | `unit` | `"g" \| "ml" \| "count"` | yes | grams, millilitres, or a number of pieces |
+  | `calories` | number | yes | 0 - 20000, for this item's quantity |
+  | `macros` | `{ proteinG, carbG, fatG }` | yes | each 0 - 2000 grams, for this item's quantity |
+  | `micros` | `{ [nutrientName]: { amount, unit } }` | no | up to 50 entries |
+
+  Entry-level `calories`, `macros` and `micros` are **not accepted**: the server always sums
+  them from the items, so any totals in the body are ignored.
 
 - Response `201`: `{ data: { foodEntry: FoodEntry } }`.
 
@@ -240,19 +251,27 @@ Log a food entry for the current user.
 {
   "_id": "6aa4e030...",
   "userId": "6aa4e022...",
-  "mealType": "breakfast",
-  "foodName": "Greek yogurt with berries",
-  "quantity": 250,
-  "quantityUnit": "g",
-  "calories": 310,
-  "macros": { "proteinG": 22.5, "carbG": 31, "fatG": 9 },
-  "micros": { "vitaminC": 12, "iron": 3, "calcium": 280 },
+  "mealType": "lunch",
+  "name": "Roti sabji",
+  "items": [
+    { "name": "Roti", "quantity": 2, "unit": "count", "calories": 240,
+      "macros": { "proteinG": 6, "carbG": 50, "fatG": 2 }, "micros": { "Iron": { "amount": 2, "unit": "mg" } } },
+    { "name": "Paneer sabji", "quantity": 200, "unit": "g", "calories": 320,
+      "macros": { "proteinG": 18, "carbG": 10, "fatG": 24 }, "micros": { "Calcium": { "amount": 400, "unit": "mg" } } }
+  ],
+  // Summed from the items by the server:
+  "calories": 560,
+  "macros": { "proteinG": 24, "carbG": 60, "fatG": 26 },
+  "micros": { "Iron": { "amount": 2, "unit": "mg" }, "Calcium": { "amount": 400, "unit": "mg" } },
   "date": "2026-09-10T00:00:00.000Z",
   "source": "manual",
   "createdAt": "2026-09-12T05:16:32.138Z",
   "updatedAt": "2026-09-12T05:16:32.138Z"
 }
 ```
+
+Micronutrient totals convert mass units (g, mg, mcg) to mg before adding; a non-mass unit such
+as IU is only added to the same unit and otherwise kept under `"Name (IU)"`.
 
 ### `GET /api/food-entries` (authenticated)
 
@@ -337,9 +356,10 @@ Fetch one of the current user's entries, used to open the edit form pre-filled.
 Edit one of the current user's entries.
 
 - Params: `id` - a 24-character Mongo ObjectId. A malformed id fails validation with `400`.
-- Body: any subset of the create fields, and at least one of them. `macros`, when supplied,
-  must be complete. A supplied `micros` object replaces the whole map, so a nutrient removed
-  in the UI actually disappears.
+- Body: any subset of `mealType`, `date`, `name`, `items` and `source`, and at least one of them.
+  A supplied `items` list replaces the whole list (so a removed item actually disappears), and the
+  entry's totals are summed again from it. If `items` changes and `name` is not sent, a name that
+  was only the old items joined is replaced by the new items joined; a name the user chose is kept.
 - Response `200`: `{ data: { foodEntry: FoodEntry } }`.
 - `404` if no entry has that id, `403` if it belongs to another user.
 
@@ -370,16 +390,21 @@ shows the draft for review and saves it through `POST /api/food-entries`.
 ```json
 {
   "extraction": {
-    "foodName": "Crunchy Cereal",
-    "quantity": 1,
-    "quantityUnit": "55g",
-    "calories": 230,
-    "macros": { "proteinG": 3, "carbG": 37, "fatG": 8 },
-    "micros": {
-      "Vitamin D": { "amount": 0.002, "unit": "mg" },
-      "Calcium": { "amount": 260, "unit": "mg" },
-      "Iron": { "amount": 8, "unit": "mg" }
-    }
+    "name": "Crunchy Cereal",
+    "items": [
+      {
+        "name": "Crunchy Cereal",
+        "quantity": 55,
+        "unit": "g",
+        "calories": 230,
+        "macros": { "proteinG": 3, "carbG": 37, "fatG": 8 },
+        "micros": {
+          "Vitamin D": { "amount": 0.002, "unit": "mg" },
+          "Calcium": { "amount": 260, "unit": "mg" },
+          "Iron": { "amount": 8, "unit": "mg" }
+        }
+      }
+    ]
   },
   "analysis": {
     "imageKind": "nutrition-label",
@@ -407,10 +432,13 @@ shows the draft for review and saves it through `POST /api/food-entries`.
 }
 ```
 
-`extraction` has exactly the nutrition fields of a food entry and always satisfies the create
-endpoint's limits. `quantityUnit` is grams per serving; `calories` and `macros` are totals for
-`quantity` servings; micronutrient names come from the app's catalog, amounts are in mg, and only the significant
-ones are included (at most 6, most important first).
+`extraction.name` is the model's name for everything shown ("Dal Chawal"), or the item's name for a
+single item. `extraction.items` has exactly the shape of a food entry's items and always satisfies the create
+endpoint's limits. A plate of separate foods comes back as one item per food (at most 8), a
+single dish or a label as one item. Each item's `quantity` is the total amount shown in its
+`unit` (`count` for pieces such as rotis, `ml` for liquids, `g` otherwise), and its `calories`
+and `macros` are for that quantity. Micronutrient names come from the app's catalog, amounts are
+in mg, and only the significant ones are included (at most 6 per item, most important first).
 `imageKind` is `nutrition-label | meal`. `confidence.score` is 0-95, computed on the server
 from the four factor scores (weighted mean blended with the weakest factor, then fixed caps and
 penalties listed in `adjustments`). `level` is `high | medium | low`, set by a rule ladder
@@ -435,6 +463,119 @@ Errors, each with a `code`:
 | `422` | `NO_FOOD_DETECTED` | No food, drink or label in the photo; `message` is the model's reason |
 | `502` | `AI_BAD_RESPONSE` | The model's answer was incomplete or outside entry limits |
 | `503` | `AI_UNAVAILABLE` | No Gemini key or model answered within 45 seconds, or no keys are configured |
+
+---
+
+## PDF import
+
+Bulk-logs entries from a food diary PDF in two steps: preview (read the PDF, save nothing), then
+confirm (save the reviewed rows). Both use the same Gemini integration as photo extraction.
+
+### `POST /api/food-entries/import/preview` (authenticated)
+
+Extracts the PDF's text with `pdf-parse`, asks Gemini for one row per food eaten, and returns
+the rows for review. **Saves nothing.**
+
+- Body: `multipart/form-data` with `file` (required) - one PDF, 10MB and 20 pages max, with a
+  text layer. The bytes are checked for a PDF signature, not just the declared type.
+- Response `200` `data`:
+
+```json
+{
+  "pageCount": 1,
+  "warnings": ["3 of 14 rows need a look before they can be imported."],
+  "rows": [
+    {
+      "rowNumber": 3,
+      "sourceText": "Lunch Paneer sabji with rotis + salad 2 rotis, 200 g sabji, 100 g salad 590 25 66 26",
+      "values": {
+        "date": "2026-09-07", "mealType": "lunch", "name": "Paneer sabji with rotis + salad",
+        "items": [
+          { "name": "Paneer sabji", "quantity": 200, "unit": "g", "calories": 300, "proteinG": 15, "carbG": 16, "fatG": 20 },
+          { "name": "Roti", "quantity": 2, "unit": "count", "calories": 250, "proteinG": 8, "carbG": 45, "fatG": 5 },
+          { "name": "Salad", "quantity": 100, "unit": "g", "calories": 40, "proteinG": 2, "carbG": 5, "fatG": 1 }
+        ]
+      },
+      "status": "needs-review",
+      "issues": ["The PDF gives one set of numbers for these 3 items. They were split across the items by estimate: check each item."]
+    },
+    {
+      "rowNumber": 8,
+      "sourceText": "Lunch Lentil soup 1 bowl 230",
+      "values": {
+        "date": "2026-09-08", "mealType": "lunch", "name": "Lentil soup",
+        "items": [
+          { "name": "Lentil soup", "quantity": 250, "unit": "g", "calories": 230, "proteinG": null, "carbG": null, "fatG": null }
+        ]
+      },
+      "status": "needs-review",
+      "issues": [
+        "The amount of Lentil soup is estimated: the PDF gives a household measure, not a weight.",
+        "Protein, carbs or fat for Lentil soup are missing in the PDF. Enter them, or 0 if unknown."
+      ]
+    }
+  ]
+}
+```
+
+One row is one diary line, and a line listing several foods becomes several items. When the first
+reading returns a line as one combined item ("Dal, rice and mixed vegetables"), a second, focused AI
+request splits those names into separate dishes, rescaling the estimates so they add up exactly to
+the printed amount and numbers. If that request fails, the rows stay as read and `warnings` says so. A row is never
+dropped for being hard to read. Values the PDF does not give are `null`, and the row is
+`needs-review` with a reason in `issues`: the model's own explanation (a smudged number, an
+inferred meal), one set of printed numbers split across several items, an amount estimated from a
+household measure (a bowl, a katori), a missing date, meal, name, amount, calories or macro, or a
+value outside the single-entry limits. Diary items carry no micronutrients. Daily totals, headers and notes are not rows. At most 100 rows are
+returned; a longer diary gets a `warnings` entry saying so.
+
+Errors, each with a `code`:
+
+| Status | `code` | When |
+|---|---|---|
+| `400` | `PDF_REQUIRED` | No `file` field |
+| `400` | `UNSUPPORTED_FILE_TYPE` | Declared type is not `application/pdf` |
+| `400` | `UPLOAD_UNREADABLE` | Malformed multipart body or unexpected field |
+| `401` | - | Not signed in |
+| `413` | `PDF_TOO_LARGE` | File over 10MB |
+| `422` | `PDF_UNREADABLE` | Not a PDF, or damaged |
+| `422` | `PDF_ENCRYPTED` | Password protected |
+| `422` | `PDF_TOO_LONG` | Over 20 pages or 50,000 characters of text |
+| `422` | `PDF_NO_TEXT` | No text layer (a scan or photo) |
+| `422` | `PDF_UNPROCESSABLE` | The AI provider rejected the request |
+| `422` | `NOT_A_FOOD_DIARY` | The text is not a food log; `message` is the model's reason |
+| `422` | `NO_ENTRIES_FOUND` | A diary with no food rows |
+| `502` | `AI_BAD_RESPONSE` | The model's answer failed validation |
+| `503` | `AI_UNAVAILABLE` | No Gemini key or model answered within 80 seconds |
+
+### `POST /api/food-entries/import/confirm` (authenticated)
+
+Saves reviewed rows for the current user.
+
+- Body: `{ "entries": FoodEntryInput[] }`, 1 to 100 items, each shaped like the
+  `POST /api/food-entries` body.
+- Each entry is validated on its own with the same zod schema as single-entry creation. Invalid
+  entries are skipped and reported rather than failing the batch.
+- Exact duplicates are skipped and reported: same UTC day, same set of item names
+  (case-insensitive, any order) and same total calories as an entry the user already has, or as
+  an earlier entry in the same request.
+- Saved entries always get `source: "pdf-import"` and the session's `userId`; any `userId`,
+  `source` or confidence fields in the body are ignored.
+- Response `200` `data`:
+
+```json
+{
+  "importedCount": 11,
+  "skipped": [
+    { "row": 2, "label": "Roti + Dal", "reason": "duplicate", "message": "Already logged on this day with the same items and calories." },
+    { "row": 5, "label": "Broken", "reason": "invalid", "message": "Calories cannot be negative" }
+  ]
+}
+```
+
+`row` is the 1-based position in the submitted `entries`. Errors: `400` for a missing, empty or
+oversized `entries` list, `401` when not signed in, `500` `IMPORT_SAVE_FAILED` when the database
+write fails.
 
 ---
 

@@ -255,6 +255,17 @@ export function PhotoUploadIcon(props: IconProps) {
   );
 }
 
+export function DocumentIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M14 3H5v18h14V8z" />
+      <path d="M14 3v5h5" />
+      <path d="M8 13h8" />
+      <path d="M8 17h5" />
+    </Icon>
+  );
+}
+
 export function AlertIcon(props: IconProps) {
   return (
     <Icon {...props}>

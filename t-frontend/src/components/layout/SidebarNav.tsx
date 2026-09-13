@@ -9,7 +9,7 @@ const BASE_LINK_CLASSES =
   "flex items-center h-11 mx-3 text-sm transition-all duration-150 rounded-lg active:scale-[0.98]";
 
 const ACTIVE_LINK_CLASSES =
-  "bg-accent/10 dark:bg-accent-dark/20 text-accent dark:text-accent-dark font-semibold";
+  "bg-accent-muted dark:bg-accent-dark-muted text-white font-bold shadow-md";
 
 const INACTIVE_LINK_CLASSES =
   "text-text-secondary dark:text-dark-text-secondary font-medium hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-primary dark:hover:text-dark-text";

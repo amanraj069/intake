@@ -1,6 +1,13 @@
 "use client";
 
 import { type SelectHTMLAttributes } from "react";
+import { FIELD_DENSITY_CLASSES, type FieldDensity } from "./Input";
+
+/** Room on the right for the chevron, and where it sits, at each density. */
+const CHEVRON_SPACE: Record<FieldDensity, { padding: string; position: string }> = {
+  comfortable: { padding: "pr-10", position: "right-4" },
+  compact: { padding: "pr-8", position: "right-3" },
+};
 
 export interface SelectOption {
   value: string;
@@ -11,6 +18,9 @@ interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "chi
   label: string;
   options: readonly SelectOption[];
   error?: string;
+  density?: FieldDensity;
+  /** Extra label classes, e.g. `md:sr-only` where a table header already names the column. */
+  labelClassName?: string;
 }
 
 /** A native dropdown squared off and typeset to match the project's inputs. */
@@ -18,6 +28,8 @@ export default function Select({
   label,
   options,
   error,
+  density = "comfortable",
+  labelClassName = "",
   id,
   className = "",
   ...props
@@ -28,7 +40,7 @@ export default function Select({
     <div className="w-full">
       <label
         htmlFor={selectId}
-        className="block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary mb-2"
+        className={`block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary mb-2 ${labelClassName}`}
       >
         {label}
         {props.required && (
@@ -42,8 +54,8 @@ export default function Select({
         <select
           id={selectId}
           className={`
-            w-full appearance-none px-4 py-3 pr-10 text-sm rounded-xl
-            bg-transparent border border-input-border
+            w-full appearance-none ${FIELD_DENSITY_CLASSES[density]} ${CHEVRON_SPACE[density].padding} text-sm rounded-xl
+            bg-white dark:bg-white/5 border border-input-border
             text-text-primary
             transition-colors duration-150
             focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent
@@ -63,7 +75,7 @@ export default function Select({
         </select>
 
         <svg
-          className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-3 w-3 text-text-secondary dark:text-dark-text-secondary"
+          className={`pointer-events-none absolute ${CHEVRON_SPACE[density].position} top-1/2 -translate-y-1/2 h-3 w-3 text-text-secondary dark:text-dark-text-secondary`}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

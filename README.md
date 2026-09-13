@@ -25,6 +25,8 @@ intake/
 | Validation | zod (every route body and param) |
 | Auth | JWT access/refresh tokens in httpOnly cookies, bcrypt, Passport (Google OAuth) |
 | Email | Resend |
+| AI | Gemini (photo extraction, onboarding plans, PDF import) |
+| PDF text | pdf-parse |
 
 ### Backend layering
 
@@ -81,8 +83,11 @@ types/          shared domain types
   they are moving to); the password-change code goes to the address *on file*. Codes are
   stored bcrypt-hashed, expire in 10 minutes, and are discarded after 5 wrong guesses
 - **Goals** - one active daily target per user: calories, protein/carb/fat, optional goal weight
-- **Meal logging** - meal type, food, quantity + unit, calories, macros, and free-form
-  micronutrient name/amount pairs, with backdating support
+- **Single food or meal with dishes** - `/log-meal` opens on a single food: one card with its
+  name, amount (g, ml or a count), calories, macros and optional micronutrients. Switching to
+  "Meal with dishes" adds a meal name ("Roti sabji") and one card per dish, so "2 rotis + 200 g
+  paneer sabji" is two dishes each with their own nutrition, and the meal's totals update as you
+  type. The date sits in the page header next to "Fill with JSON", and backdating is supported
 - **Log a meal from a photo** - on `/log-meal`, upload a food photo or a nutrition label
   (optionally with a short description such as "half of this pizza"). Gemini classifies the
   image first, then reads the label or estimates the portion, and the form is pre-filled with
@@ -90,6 +95,13 @@ types/          shared domain types
   until the user edits what they like, confirms they reviewed it, and submits through the normal
   create endpoint. Blurry photos, non-food photos, unsupported files and AI outages each get a
   specific inline message with retry, another photo, or manual entry as the way forward
+- **Bulk import from a PDF** - on `/meals/import` (linked from Meals), drop a food diary PDF and
+  press Parse. The server extracts the text and Gemini turns it into one row per food, skipping
+  totals and notes. Rows arrive in an editable table: anything the PDF left blank, smudged or
+  only implied is flagged with the reason, and Confirm Import stays disabled until every flagged
+  row is edited or marked "Looks right" and every row is valid. Rows can be removed. The import
+  ends with a summary of how many entries were saved and which were skipped and why (invalid, or
+  an exact duplicate of something already logged)
 - **Reports** - `/reports` charts daily calories, a stacked macro breakdown, calories against the
   goal target line, and summed micronutrients for the last 7, 14 or 30 days or a custom range
 - **Meals log** - a filterable, paginated list of every entry with inline edit and a
@@ -150,7 +162,7 @@ npm install
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `GOOGLE_CALLBACK_URL` | `http://localhost:9000/auth/google/callback` |
 | `GEMINI_KEY1` ... `GEMINI_KEY4` | Gemini API keys from https://aistudio.google.com/apikey, used in rotation. Any number of `GEMINI_KEY<n>` works; blanks are ignored. With none set, onboarding uses the formula and photo extraction returns `503 AI_UNAVAILABLE` (manual entry still works) |
-| `GEMINI_MODELS` | Optional comma-separated models, tried in order (default `gemini-3.7-flash,gemini-3.5-flash`) |
+| `GEMINI_MODELS` | Optional comma-separated models, tried in order (default `gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite`). A 503 "high demand" moves to the next model on the same key instead of rotating keys |
 | `RESEND_API_KEY` | Resend API key |
 | `EMAIL_FROM` | Sender email (default: `onboarding@resend.dev` for sandbox) |
 | `FRONTEND_URL` | `http://localhost:3000` |
@@ -205,6 +217,8 @@ Other useful commands:
 ```bash
 cd t-backend  && npm run build && npm start   # compile to dist/ and run
 cd t-backend  && npm run lint                 # eslint
+cd t-backend  && npm test                     # backend test suites (needs MongoDB running)
+cd t-backend  && npm run migrate:food-items   # preview converting old single-food entries; add -- --apply to run
 cd t-frontend && npm run build && npm start   # production build and serve
 cd t-frontend && npm run lint                 # eslint
 ```
@@ -225,6 +239,7 @@ cd t-frontend && npm run lint                 # eslint
 | `/log-meal` | yes | Log a food entry, including add/remove micronutrient rows |
 | `/meals` | yes | Filter, page through, edit and delete logged entries |
 | `/meals/:id/edit` | yes | The meal form pre-filled with a saved entry |
+| `/meals/import` | yes | Bulk import from a food diary PDF: upload, parse, review and edit rows, confirm |
 
 ## API Routes
 
@@ -262,6 +277,8 @@ Full parameter and response shapes are in [API.md](./API.md).
 | `POST` | `/api/food-entries` | yes | Create a food entry |
 | `PATCH` | `/api/food-entries/:id` | yes | Edit an entry the user owns |
 | `DELETE` | `/api/food-entries/:id` | yes | Delete an entry the user owns |
+| `POST` | `/api/food-entries/import/preview` | yes | Read a food diary PDF into flagged, reviewable rows (multipart, field `file`; saves nothing) |
+| `POST` | `/api/food-entries/import/confirm` | yes | Save reviewed rows, skipping invalid rows and exact duplicates |
 | `POST` | `/api/ai/extract-nutrition` | yes | Read a draft entry from a food photo or nutrition label (multipart, field `image`; saves nothing) |
 | `GET` | `/api/reports/weekly-calories` | yes | Daily calorie totals across a range |
 | `GET` | `/api/reports/macros` | yes | Protein/carb/fat totals by day or ISO week |
@@ -303,14 +320,19 @@ createdAt, updatedAt: Date
 ```
 userId:        ObjectId -> User (required, indexed)
 mealType:      'breakfast' | 'lunch' | 'dinner' | 'snack' (required)
-foodName:      string (required)
-quantity:      number (required)
-quantityUnit:  string (required, default 'g')
-calories:      number (required)
-macros:        { proteinG, carbG, fatG }  (all required)
-micros:        Map<string, number>  (open-ended nutrient name -> amount)
+name:          string (required) - the meal's name; the server uses the item names joined when none is given
+items:         FoodItem[] (at least one)
+  name:        string (required) - for a count, what is counted ("Roti")
+  quantity:    number (required) - total amount eaten, in unit
+  unit:        'g' | 'ml' | 'count' (required)
+  calories:    number (required) - for this item's quantity
+  macros:      { proteinG, carbG, fatG } (all required) - for this item's quantity
+  micros:      Map<string, { amount, unit }>
+calories:      number - sum of the items, written by the server
+macros:        { proteinG, carbG, fatG } - sums of the items, written by the server
+micros:        Map<string, { amount, unit }> - per-nutrient sums of the items
 date:          Date (required) - the day the food was eaten
-source:        'manual' | 'ai-image' (default 'manual')
+source:        'manual' | 'ai-image' | 'pdf-import' (default 'manual')
 createdAt, updatedAt: Date
 ```
 
@@ -358,12 +380,41 @@ Decisions made where the spec left room for interpretation:
 - **Omitting `weightGoalKg` clears it.** Because the goal is a whole-document replace rather
   than a patch, leaving the optional weight blank in the form unsets any saved value instead of
   silently preserving a stale one.
-- **Quantity units are free text, not an enum.** `quantityUnit` is a string (`g`, `ml`,
-  `serving`, `slice`). No unit conversion is performed: `calories` and `macros` are the totals
-  for the stated `quantity`, not per-100g values.
+- **An entry is a meal of items, and each item has exactly three units: g, ml or count.** A meal
+  mixes foods measured differently (rotis and eggs are counted, sabji and rice are weighed), so a
+  single quantity and unit per entry could not describe "2 rotis + 200 g paneer sabji". Units are
+  an enum rather than free text so amounts can be compared and summed; household measures
+  (bowl, cup, katori) are entered as grams, and the name says what a count counts. `quantity` is
+  the total amount eaten, and each item's `calories` and `macros` are for that amount, not per
+  100 g.
+- **Every entry has a name of its own, separate from its items.** "Roti sabji" names the meal
+  while "Roti" and "Paneer sabji" name what is in it. The name is optional in the API: when it is
+  blank or missing, the server names the entry after its items ("Roti + Paneer sabji"). On an
+  edit that changes the items, a name that was only ever the items joined follows the new items,
+  while a name the user typed is kept. A single food is simply named after the food, which is why
+  the form only asks for a meal name in "Meal with dishes" mode. The form opens an existing entry
+  in that mode whenever it has several items or a name that differs from its one item, so saving
+  never overwrites a name the user chose.
+- **Switching a meal back to a single food never drops dishes silently.** The toggle refuses
+  while more than one dish exists and says to remove dishes first.
+- **The date lives in the page header.** The form still owns the date's state and validation; it
+  hands the date field to the page through a `renderHeader` slot, so the log and edit pages place
+  it among their header actions without duplicating form state.
+- **Nutrition lives on items; the entry's totals are derived and stored.** The server sums
+  `calories`, `macros` and `micros` from the items on every create, edit and import, and never
+  accepts totals from a client, so they cannot disagree. They are stored rather than computed on
+  read so the dashboard, daily summary and every report keep aggregating one number per entry
+  unchanged. Micronutrient totals convert g, mg and mcg to mg before adding.
+- **Existing entries were migrated to one item each.** `npm run migrate:food-items` (in
+  `t-backend`) previews the change; `-- --apply` first copies every old-shape document to a
+  timestamped `foodentries_backup_*` collection, then converts it. `"250g"` with quantity 2
+  becomes 500 g, `"L"` and `"kg"` convert to ml and g, and a counted unit with no field in the new
+  model (`"bowl"`) becomes a count with the unit kept in the name ("Lentil soup (bowl)"). It only
+  touches documents still in the old shape, so running it twice is safe. Entries converted before
+  meal names existed are named after their items by the same command.
 - **Micronutrients are an open map, not fixed fields.** `micros` is a Mongoose `Map` of nutrient
-  name to amount, because which micros are known varies per food and per data source. Nutrient
-  names are free text (up to 50 per entry) and are stored verbatim, so `vitaminC` and
+  name to amount and unit on each item (and summed on the entry), because which micros are known varies per food and per data source. Nutrient
+  names are free text (up to 50 per item) and are stored verbatim, so `vitaminC` and
   `Vitamin C` are different keys. Duplicate names within a single submission are rejected
   client-side, compared case-insensitively.
 - **Micronutrients are stored in milligrams.** Each nutrient is `{ amount, unit }`, and the meal
@@ -534,9 +585,15 @@ Decisions made where the spec left room for interpretation:
   A label with no product name therefore lands on Medium (its identity is capped at 50), and a
   plate you describe as "one whole pizza" reaches High. The UI shows "83% confidence · High"
   with a "Why?" breakdown: the level's steps, then every factor, weight, reason and cap.
-- **Photo drafts carry calories and macros for the whole portion shown.** A label is read as one
-  printed serving (`quantity: 1`, grams from the label); a meal photo is one plate. The unit is
-  written as grams per serving (`"55g"`), the convention the meal form already uses.
+- **A photo is split into items and named as a meal.** The model also suggests a meal name
+  ("Dal Chawal"); a draft with several items or a distinct name opens in "Meal with dishes" mode.
+- **Free text from a model is trimmed, never grounds for rejection.** An over-long note, reason or
+  source line is cut to its limit instead of failing the whole photo or diary; numbers and enums
+  are still validated strictly.
+- **Photo items:** A plate of separate foods becomes one item per food (at most
+  8), each with its own amount and nutrition; a single dish or a nutrition label is one item. A
+  label is one printed serving in g or ml unless the description says otherwise ("2 cups of this"
+  doubles it). Amounts on a meal photo are estimates, which the draft's warning says.
 - **The photo cannot choose the meal or the date.** Meal type keeps the form's default (a
   `?mealType=` param if present, otherwise the time of day: breakfast 05-11, lunch 11-16, snack
   16-19, dinner otherwise) and the date defaults to today. The review checkbox restates both
@@ -551,9 +608,86 @@ Decisions made where the spec left room for interpretation:
   seconds across every key and model, because vision calls are slower. The UI shows staged
   progress and a Cancel button while it waits.
 
+### PDF import
+
+- **The PDF's text is read on the server, not sent to Gemini as a file.** `pdf-parse` extracts the
+  text layer and only that text goes to the model, per the spec. Scanned diaries with no text
+  layer are rejected with `PDF_NO_TEXT` rather than guessed at; the photo flow covers images.
+- **Limits: 10MB, 20 pages, 50,000 characters, 100 rows per import.** A longer document is
+  rejected instead of silently truncated. If the model finds more than 100 rows, the first 100
+  are shown with a warning naming how many were found.
+- **Missing values are never estimated.** A blank macro cell stays blank and flags the row, and
+  the user types the value (or 0). The photo flow estimates because a plate has no numbers; a
+  diary does, so filling gaps would invent data the user thinks they recorded.
+- **"Needs review" is not a hard block on the server.** The preview flags rows; the review table
+  requires each flagged row to be edited or marked "Looks right" before Confirm Import is
+  enabled. Confirm itself validates every row with the single-entry schema and does not know
+  about flags, so the API stays usable by other clients.
+- **One diary line is one entry, named as the line names it, and each food on it is an item.** "Paneer sabji with 2 rotis +
+  salad" becomes Roti (2, count), Paneer sabji (200 g) and Salad (100 g). Diaries usually print
+  one set of numbers for the whole line, so the model divides it across the items so they add up
+  exactly to what was printed, and the row is flagged for a check. A household measure (a bowl,
+  a katori) is converted to an estimated weight and flagged the same way. Diary items carry no
+  micronutrients: diaries rarely print them, and leaving them out keeps the response schema
+  simple enough for Gemini to accept.
+- **A duplicate is the same UTC day, set of item names (ignoring case and order) and total
+  calories.** It is checked against the user's saved entries and against earlier rows of the same
+  import. Meal type and quantities are deliberately not part of the key: the same foods with the
+  same calories on the same day are almost always the same entry filed under a different meal. Only the current user's
+  entries count, so another account's identical entry never blocks an import.
+- **Invalid rows are skipped, not fatal.** The client only submits rows it has validated, so this
+  is a safety net; a stale or hand-crafted request still saves its good rows and reports the rest.
+- **Photo extraction and PDF import share one AI integration point.** Both go through
+  `lib/gemini/geminiClient.ts` (key pool, model failover, time budget) and map provider failures
+  with `lib/gemini/aiFailure.ts`. Gemini rejects `maxItems` on a large array of objects as too
+  complex, so the row cap is applied in the service rather than in the response schema.
+
+## Data isolation
+
+Every user's goal and food entries are private to them. This was audited deliberately rather
+than assumed:
+
+- **Identity comes only from the session.** `requireAuth` resolves the user from the httpOnly
+  `access_token` cookie, and every Goal, FoodEntry, listing, summary, series and report handler
+  reads the id through `getAuthenticatedUserId(req)`. No endpoint accepts a `userId` in the body,
+  query or params: zod strips unknown query keys, and the create/update services copy only
+  named fields, so a smuggled `userId` is ignored.
+- **Every query is scoped.** List, summary, series and all four reports filter or `$match` on
+  the caller's `userId`; goals are read and upserted by `{ userId }`. Single-entry read, update
+  and delete load by id and then compare owners: a missing entry is `404`, another user's entry
+  is `403` with no entry data in the body.
+- **Indexes.** `Goal.userId` has a unique index (one active goal per user). `FoodEntry` has
+  `{ userId: 1, date: -1 }`, which serves both user-only and user + date-range queries.
+- **Import is scoped the same way.** Confirm saves under the session user, ignores any `userId`
+  in the body, and only checks the caller's own entries for duplicates
+  (`t-backend/tests/foodEntryImport.test.ts` covers all three).
+- **Verified by test.** `t-backend/tests/dataIsolation.test.ts` (`npm test`) boots the app
+  in-process against a throwaway database, creates two users with an entry and a goal each,
+  and checks that user A gets `403`/`404` reading, editing or deleting user B's entry (and that
+  the stored entry is unchanged), that a `userId` smuggled into create, update, goal or query
+  input is ignored, that listing, summary, series and every report total only user A's data,
+  that unauthenticated calls get `401`, and that the indexes above exist. Disabling the owner
+  check in `foodEntry.service.ts` makes the suite fail, so it guards against regressions.
+
+The one deliberate trade-off is `403` rather than `404` for another user's entry id, which
+reveals that the id exists. No field of the entry is ever returned, so this was kept for
+clearer client errors; switching to a `{ _id, userId }` lookup would make both cases `404`.
+
 ## Known gaps
 
-- No automated test suite. The API was verified end to end manually: register, goal upsert,
+- Automated tests cover data isolation, multi-item create and edit (totals summed from items,
+  client totals ignored), item totals and the legacy-entry migration, PDF import confirm
+  (validation, duplicates, ownership, input checks) and the preview row shaping. Preview itself calls Gemini, so it was verified by
+  hand: a realistic tabular diary (three days, 14 foods, wrapped cells, daily totals, a blank macro
+  row, a smudged calorie value and a row with no meal) produced 14 rows with totals and notes
+  skipped and exactly those three rows flagged. Editing them, removing one row and confirming in
+  the browser saved 11 entries, skipped the 2 that duplicated pre-existing entries, and left the
+  pre-existing entries byte-for-byte unchanged; importing the same PDF again saved nothing and
+  skipped all 13. After entries moved to items, the same browser run logged a two-item meal (Roti
+  × 2 + Paneer sabji 200 g) with a live 560 kcal total, saw it listed as "Roti + Paneer sabji, 2
+  items", removed an item in the editor and got re-summed totals, and imported a diary whose
+  lines list several foods: every stored entry's totals equalled the sum of its items. The rest of
+  the API was verified end to end manually: register, goal upsert,
   entry create/read/patch/delete, a 29-entry paginated walk at `limit=6` confirming every
   record is visited exactly once, date-range and meal-type filters, the daily summary with and
   without a goal, and the 400/401/403/404 paths. The OTP-gated account changes were verified the
@@ -562,7 +696,12 @@ Decisions made where the spec left room for interpretation:
   rejected, a new password identical to the current one is rejected, the sixth wrong guess
   locks the code out and discards it, and a verified email change promotes `pendingEmail` and
   sets `emailVerified`.
-- `POST /api/onboarding/plan` and `POST /api/ai/extract-nutrition` have no rate limit. Each
+- Two confirm requests for the same rows sent at the same moment could both pass the duplicate
+  check before either writes. The UI disables the button while saving, so this needs a second tab
+  or a script; a unique index would close it but would also forbid legitimately logging the same
+  food twice in a day.
+- `POST /api/onboarding/plan`, `POST /api/ai/extract-nutrition` and
+  `POST /api/food-entries/import/preview` have no rate limit. Each
   call can use Gemini quota (photo extraction especially), so a per-user limit would be worth
   adding before production.
 - Photo nutrition is an estimate. Labels were read exactly in testing, but meal portions are

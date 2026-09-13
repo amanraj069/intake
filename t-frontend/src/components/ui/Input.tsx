@@ -2,13 +2,33 @@
 
 import { type InputHTMLAttributes, forwardRef, type Ref, useState } from "react";
 
+export type FieldDensity = "comfortable" | "compact";
+
+/** Compact fields suit dense grids, such as rows of an editable table. */
+export const FIELD_DENSITY_CLASSES: Record<FieldDensity, string> = {
+  comfortable: "px-4 py-3",
+  compact: "px-2.5 py-2",
+};
+
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  density?: FieldDensity;
+  /** Extra label classes, e.g. `md:sr-only` where a table header already names the column. */
+  labelClassName?: string;
 }
 
 function InputComponent(
-  { label, error, className = "", id, type, ...props }: InputProps,
+  {
+    label,
+    error,
+    density = "comfortable",
+    labelClassName = "",
+    className = "",
+    id,
+    type,
+    ...props
+  }: InputProps,
   ref: Ref<HTMLInputElement>
 ) {
   const inputId = id || label?.toLowerCase().replace(/\s+/g, "-");
@@ -21,7 +41,7 @@ function InputComponent(
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary mb-2"
+          className={`block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary mb-2 ${labelClassName}`}
         >
           {label}
           {props.required && (
@@ -37,8 +57,8 @@ function InputComponent(
           id={inputId}
           type={currentType}
           className={`
-            w-full px-4 py-3 text-sm rounded-xl
-            bg-transparent
+            w-full ${FIELD_DENSITY_CLASSES[density]} text-sm rounded-xl
+            bg-white dark:bg-white/5
             border border-input-border
             text-text-primary
             placeholder:text-text-secondary/50

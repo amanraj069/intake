@@ -26,8 +26,7 @@ export default function ReportsPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="w-full max-w-5xl mx-auto space-y-10 sm:space-y-12 pb-24">
-          <PageHeader
+                  <PageHeader
             eyebrow="Analytics"
             title="Reports"
             description="Track your nutrition trends and progress over time."
@@ -54,7 +53,7 @@ export default function ReportsPage() {
               <MicroSummaryChart data={data.micros} />
             </div>
           )}
-        </div>
+        
       </DashboardLayout>
     </ProtectedRoute>
   );

@@ -30,7 +30,7 @@ export default function MealsBrowser() {
   async function confirmDeletion() {
     if (!pendingDeletion) return;
 
-    const { _id, foodName } = pendingDeletion;
+    const { _id, name } = pendingDeletion;
     // Removing the only row on a trailing page would otherwise strand the user
     // on a page that no longer exists.
     const wasLastOnPage = entries.length === 1 && pageMeta.page > 1;
@@ -38,7 +38,7 @@ export default function MealsBrowser() {
     try {
       await deleteEntry(_id);
       if (wasLastOnPage) setPage(pageMeta.page - 1);
-      toast.success(`${foodName} deleted.`);
+      toast.success(`${name} deleted.`);
     } catch (cause) {
       toast.error(toErrorMessage(cause, "Could not delete this meal."));
     } finally {
@@ -95,7 +95,7 @@ export default function MealsBrowser() {
       <ConfirmDialog
         open={pendingDeletion !== null}
         title="Delete entry"
-        description={`"${pendingDeletion?.foodName}" will be removed from your log. This cannot be undone.`}
+        description={`"${pendingDeletion?.name ?? ""}" will be removed from your log. This cannot be undone.`}
         confirmLabel="Delete"
         working={deletingId !== null}
         onConfirm={confirmDeletion}
