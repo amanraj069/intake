@@ -9,8 +9,7 @@ import ThemeToggle from "./ThemeToggle";
 const LINK_CLASSES =
   "text-[10px] sm:text-xs font-bold   text-text-secondary dark:text-dark-text-secondary hover:text-text-primary dark:hover:text-dark-text transition-colors";
 
-const ACCENT_LINK_CLASSES =
-  "text-[10px] sm:text-xs font-bold   text-accent dark:text-accent-dark hover:text-accent-hover dark:hover:text-red-400 transition-colors";
+
 
 function GuestLinks({ pathname }: { pathname: string }) {
   if (pathname !== "/") {
@@ -22,14 +21,12 @@ function GuestLinks({ pathname }: { pathname: string }) {
   }
 
   return (
-    <>
-      <Link href="/login" className={LINK_CLASSES}>
-        Sign In
-      </Link>
-      <Link href="/signup" className={ACCENT_LINK_CLASSES}>
-        Create Account
-      </Link>
-    </>
+    <Link
+      href="/login"
+      className="text-[10px] sm:text-xs font-bold px-5 py-2.5 rounded-lg bg-accent text-white hover:bg-accent-hover dark:bg-accent-dark dark:hover:bg-accent-dark-hover transition-all duration-150 active:scale-[0.97]"
+    >
+      Sign In
+    </Link>
   );
 }
 
@@ -51,7 +48,7 @@ export default function Navbar() {
                 <>
                   <Link 
                     href="/dashboard" 
-                    className="text-[10px] sm:text-xs font-bold   px-5 py-2.5 bg-accent text-white hover:bg-accent-hover dark:bg-accent-dark dark:hover:bg-accent-dark-hover transition-all duration-150 active:scale-[0.97]"
+                    className="text-[10px] sm:text-xs font-bold   px-5 py-2.5 rounded-lg bg-accent text-white hover:bg-accent-hover dark:bg-accent-dark dark:hover:bg-accent-dark-hover transition-all duration-150 active:scale-[0.97]"
                   >
                     Dashboard
                   </Link>

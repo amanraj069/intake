@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatLongDate } from "@/lib/formatDate";
+import { displayName } from "@/lib/userIdentity";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import PageHeader from "@/components/ui/PageHeader";
@@ -12,6 +13,7 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import AvatarPanel from "@/components/profile/AvatarPanel";
 import VerificationBanner from "@/components/profile/VerificationBanner";
+import BodyProfilePanel from "@/components/profile/BodyProfilePanel";
 
 const PROVIDER_LABELS = {
   google: "Google",
@@ -43,6 +45,7 @@ function ProfileContent() {
 
         <FormSection title="Account Details">
           <div className="grid gap-8 sm:grid-cols-2">
+            <DataPair label="Name" value={displayName(user)} />
             <DataPair
               label="Email"
               value={
@@ -58,6 +61,8 @@ function ProfileContent() {
             <DataPair label="Member Since" value={formatLongDate(user.createdAt)} />
           </div>
         </FormSection>
+
+        <BodyProfilePanel profile={user.bodyProfile} />
 
         <FormSection
           title="Sign-in & Security"

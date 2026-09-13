@@ -19,6 +19,7 @@ export interface DailyNutritionTotals {
   carbG: number;
   fatG: number;
   entryCount: number;
+  loggedMeals: string[];
 }
 
 /** One day's intake next to the target it is measured against. */
@@ -53,6 +54,7 @@ const NO_INTAKE: DailyNutritionTotals = {
   carbG: 0,
   fatG: 0,
   entryCount: 0,
+  loggedMeals: [],
 };
 
 /** The `$group` accumulators that sum a set of entries into nutrition totals. */
@@ -62,6 +64,7 @@ const TOTALS_ACCUMULATORS = {
   carbG: { $sum: '$macros.carbG' },
   fatG: { $sum: '$macros.fatG' },
   entryCount: { $sum: 1 },
+  loggedMeals: { $addToSet: '$mealType' },
 } as const;
 
 /** Groups entries under the UTC day they are stored against, e.g. `2026-09-12`. */
@@ -87,6 +90,7 @@ function toRoundedTotals(totals: DailyNutritionTotals): DailyNutritionTotals {
     carbG: roundToTenth(totals.carbG),
     fatG: roundToTenth(totals.fatG),
     entryCount: totals.entryCount,
+    loggedMeals: totals.loggedMeals ?? [],
   };
 }
 

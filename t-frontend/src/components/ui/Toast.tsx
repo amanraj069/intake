@@ -27,7 +27,7 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-const DURATION = 5000;
+const DURATION = 3000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -76,66 +76,61 @@ function ToastItem({
   onDismiss: (id: number) => void;
 }) {
   const [entered, setEntered] = useState(false);
+  const [exiting, setExiting] = useState(false);
+
+  const handleDismiss = useCallback(() => {
+    setExiting(true);
+    setTimeout(() => {
+      onDismiss(toast.id);
+    }, 300); // Wait for transition to finish
+  }, [onDismiss, toast.id]);
 
   useEffect(() => {
     // Next frame, so the element paints off-screen before it slides in.
     const raf = requestAnimationFrame(() => setEntered(true));
-    const timer = setTimeout(() => onDismiss(toast.id), DURATION);
+    const timer = setTimeout(handleDismiss, DURATION);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(timer);
     };
-  }, [toast.id, onDismiss]);
+  }, [handleDismiss]);
 
   const isError = toast.variant === "error";
-
-  const accentBar = isError
-    ? "bg-accent dark:bg-accent-dark"
-    : "bg-text-primary dark:bg-dark-text";
-
-  const label = isError
-    ? "text-accent dark:text-accent-dark"
-    : "text-text-primary dark:text-dark-text";
 
   return (
     <div
       role={isError ? "alert" : "status"}
       className={[
-        "pointer-events-auto flex items-stretch border bg-bg-primary dark:bg-dark-bg",
-        "border-black/10 dark:border-white/10",
-        "shadow-[0_1px_0_0_rgba(0,0,0,0.04)]",
-        "transition-transform transition-opacity duration-150 ease-out",
-        entered ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0",
+        "pointer-events-auto flex items-start rounded-xl bg-bg-card dark:bg-dark-bg-card",
+        "border border-border dark:border-dark-border",
+        "shadow-lg",
+        "transition-all duration-300 ease-out",
+        entered && !exiting ? "translate-x-0 opacity-100 scale-100" : "translate-x-4 opacity-0 scale-95",
       ].join(" ")}
     >
-      {/* Stark accent rule - the only colour in the surface */}
-      <div className={`w-[3px] shrink-0 ${accentBar}`} aria-hidden="true" />
-
-      <div className="flex-1 px-5 py-4">
-        <p
-          className={`text-[10px] font-bold   ${label}`}
-        >
+      <div className="flex-1 px-4 py-3 sm:px-5 sm:py-4">
+        <p className={`text-[10px] font-bold   ${isError ? "text-error dark:text-error-dark" : "text-success dark:text-success-dark"}`}>
           {isError ? "Error" : "Success"}
         </p>
-        <p className="mt-2 text-sm font-light leading-relaxed text-text-primary dark:text-dark-text">
+        <p className="mt-1.5 text-sm font-medium leading-relaxed text-text-primary dark:text-dark-text">
           {toast.message}
         </p>
       </div>
 
       <button
         type="button"
-        onClick={() => onDismiss(toast.id)}
+        onClick={handleDismiss}
         aria-label="Dismiss notification"
-        className="shrink-0 cursor-pointer border-l border-black/10 px-4 text-text-secondary transition-colors duration-150 hover:bg-text-primary hover:text-white dark:border-white/10 dark:text-dark-text-secondary dark:hover:bg-dark-text dark:hover:text-dark-bg"
+        className="shrink-0 cursor-pointer p-2 m-2 rounded-full text-text-secondary transition-colors duration-150 hover:bg-bg-app dark:hover:bg-dark-bg-app dark:text-dark-text-secondary hover:text-text-primary dark:hover:text-dark-text"
       >
         <svg
-          className="h-3 w-3"
+          className="h-4 w-4"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          strokeWidth={2.5}
+          strokeWidth={2}
         >
-          <path strokeLinecap="square" strokeLinejoin="miter" d="M6 18L18 6M6 6l12 12" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>

@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { IUserDocument } from '../models/User';
+import { IUserDocument, OtpPurpose } from '../models/User';
 import { generateEmailToken } from './jwt';
 
 // Get the API key lazily so dotenv has time to load
@@ -77,8 +77,6 @@ export async function sendVerificationEmail(user: IUserDocument): Promise<void> 
 }
 
 
-type OtpPurpose = 'change-email' | 'change-password' | 'forgot-password';
-
 /**
  * Each purpose reads differently to the recipient: a reset is something they
  * asked for while locked out, whereas a change-password code lands in the inbox
@@ -86,6 +84,12 @@ type OtpPurpose = 'change-email' | 'change-password' | 'forgot-password';
  * phishing attempt rather than the action they just took.
  */
 const OTP_COPY: Record<OtpPurpose, { subject: string; title: string; description: string }> = {
+  'verify-email': {
+    subject: 'Your INTAKE verification code',
+    title: 'Confirm your email',
+    description:
+      'Welcome to INTAKE. Enter the code below to confirm this address. It expires in 10 minutes.',
+  },
   'change-email': {
     subject: 'Verify your new email address',
     title: 'Verify your new email',
@@ -105,7 +109,7 @@ const OTP_COPY: Record<OtpPurpose, { subject: string; title: string; description
   },
 };
 
-/** Sends a 6-digit OTP for a password reset or an OTP-gated account change. */
+/** Sends a 6-digit OTP for signup verification, a password reset, or an OTP-gated account change. */
 export async function sendOtpEmail(
   toEmail: string,
   otpCode: string,

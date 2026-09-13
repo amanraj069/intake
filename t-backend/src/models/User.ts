@@ -1,21 +1,55 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export const BIOLOGICAL_SEXES = ['male', 'female'] as const;
+export type BiologicalSex = (typeof BIOLOGICAL_SEXES)[number];
+
+export const ACTIVITY_LEVELS = ['sedentary', 'light', 'moderate', 'active', 'very-active'] as const;
+export type ActivityLevel = (typeof ACTIVITY_LEVELS)[number];
+
+export type OtpPurpose = 'verify-email' | 'change-email' | 'change-password' | 'forgot-password';
+
+/** The body measurements a nutrition plan is derived from, captured at onboarding. */
+export interface IBodyProfile {
+  weightKg: number;
+  heightCm: number;
+  goalWeightKg: number;
+  age: number;
+  sex: BiologicalSex;
+  activityLevel: ActivityLevel;
+}
+
 export interface IUserDocument extends Document {
   _id: mongoose.Types.ObjectId;
   email: string;
+  firstName?: string;
+  lastName?: string;
   password?: string;
   emailVerified: boolean;
   authProvider: 'local' | 'google';
   googleId?: string;
   avatarUrl?: string;
   avatarPublicId?: string;
+  bodyProfile?: IBodyProfile;
+  onboardingCompletedAt?: Date;
   createdAt: Date;
   otpCode?: string;
   otpExpiresAt?: Date;
-  otpPurpose?: 'change-email' | 'change-password' | 'forgot-password';
+  otpPurpose?: OtpPurpose;
   otpAttempts?: number;
   pendingEmail?: string;
 }
+
+const bodyProfileSchema = new Schema<IBodyProfile>(
+  {
+    weightKg: { type: Number, required: true, min: 0 },
+    heightCm: { type: Number, required: true, min: 0 },
+    goalWeightKg: { type: Number, required: true, min: 0 },
+    age: { type: Number, required: true, min: 0 },
+    sex: { type: String, enum: BIOLOGICAL_SEXES, required: true },
+    activityLevel: { type: String, enum: ACTIVITY_LEVELS, required: true },
+  },
+  { _id: false }
+);
 
 const userSchema = new Schema<IUserDocument>(
   {
@@ -26,6 +60,10 @@ const userSchema = new Schema<IUserDocument>(
       lowercase: true,
       trim: true,
     },
+    // Optional at the schema level: accounts created before names were collected
+    // have none, and the client falls back to the email's local part for them.
+    firstName: { type: String, trim: true },
+    lastName: { type: String, trim: true },
     password: {
       type: String,
       // Only required for local auth; Google users won't have a password
@@ -52,11 +90,14 @@ const userSchema = new Schema<IUserDocument>(
     // Kept alongside the URL so a replaced or removed avatar can be destroyed
     // in Cloudinary rather than left orphaned in the account's media library.
     avatarPublicId: String,
+    bodyProfile: bodyProfileSchema,
+    // A timestamp rather than a boolean so it also records when the plan was set.
+    onboardingCompletedAt: Date,
     otpCode: String,
     otpExpiresAt: Date,
     otpPurpose: {
       type: String,
-      enum: ['change-email', 'change-password', 'forgot-password'],
+      enum: ['verify-email', 'change-email', 'change-password', 'forgot-password'],
     },
     // Wrong guesses against the current code, so a six-digit secret cannot be
     // brute-forced across its ten-minute window.

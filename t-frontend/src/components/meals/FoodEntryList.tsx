@@ -5,15 +5,15 @@ import FoodEntryRow, { ENTRY_GRID_CLASSES } from "./FoodEntryRow";
 
 interface FoodEntryListProps {
   entries: FoodEntry[];
-  /** The entry whose delete request is in flight, if any. */
   deletingId: string | null;
   onDelete: (entry: FoodEntry) => void;
+  onRowClick: (entry: FoodEntry) => void;
 }
 
 /**
  * The entries table, with clear column headings including Date.
  */
-export default function FoodEntryList({ entries, deletingId, onDelete }: FoodEntryListProps) {
+export default function FoodEntryList({ entries, deletingId, onDelete, onRowClick }: FoodEntryListProps) {
   return (
     <div className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm border-0">
       <div className="overflow-x-auto lg:overflow-visible">
@@ -41,6 +41,7 @@ export default function FoodEntryList({ entries, deletingId, onDelete }: FoodEnt
                 deleting={deletingId === entry._id}
                 disabled={deletingId !== null}
                 onDelete={() => onDelete(entry)}
+                onClick={() => onRowClick(entry)}
               />
             ))}
           </div>

@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { useTheme } from "@/contexts/ThemeContext";
 import { formatAmount } from "@/lib/formatNumber";
-import { formatDayAndMonth } from "@/lib/formatDate";
+import { formatChartDate } from "@/lib/formatDate";
 import type { NutritionMetric } from "@/lib/nutritionMetrics";
 import type { TrendBar } from "@/lib/intakeTrend";
 
@@ -49,7 +49,7 @@ export default function TrendColumns({
   const formatted = bars.map((bar) => ({
     ...bar,
     label: bar.weekdayLabel,
-    fullDate: formatDayAndMonth(bar.date),
+    fullDate: formatChartDate(bar.date),
   }));
 
   const handleMouseMove = (state: any) => {

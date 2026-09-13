@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useTheme } from "@/contexts/ThemeContext";
-import { formatDayAndMonth } from "@/lib/formatDate";
+import { formatChartDate } from "@/lib/formatDate";
 import type { GoalComparisonPoint } from "@/types/nutrition";
 
 interface GoalComparisonChartProps {
@@ -33,7 +33,7 @@ export default function GoalComparisonChart({ data }: GoalComparisonChartProps) 
 
   const formatted = data.map((d) => ({
     ...d,
-    label: formatDayAndMonth(d.date),
+    label: formatChartDate(d.date),
   }));
 
   return (
@@ -52,6 +52,7 @@ export default function GoalComparisonChart({ data }: GoalComparisonChartProps) 
               tickLine={false}
               axisLine={false}
               dy={8}
+              minTickGap={25}
             />
             <YAxis
               tick={{ fontSize: 10, fill: textColour }}
@@ -78,6 +79,8 @@ export default function GoalComparisonChart({ data }: GoalComparisonChartProps) 
             {targetCalories !== null && (
               <ReferenceLine
                 y={targetCalories}
+                // Without this the line is dropped whenever every day falls short of the target.
+                ifOverflow="extendDomain"
                 stroke={targetColour}
                 strokeDasharray="4 4"
                 strokeWidth={1.5}

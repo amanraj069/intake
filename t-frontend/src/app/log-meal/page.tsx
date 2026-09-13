@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useToast } from "@/components/ui/Toast";
@@ -8,9 +9,13 @@ import PageHeader from "@/components/ui/PageHeader";
 import CreatedEntrySummary from "@/components/meals/CreatedEntrySummary";
 import MealEntryForm from "@/components/meals/MealEntryForm";
 import { useCreateFoodEntry } from "@/hooks/useCreateFoodEntry";
-import type { FoodEntry, FoodEntryInput } from "@/types/nutrition";
+import { MEAL_TYPES, type FoodEntry, type FoodEntryInput, type MealType } from "@/types/nutrition";
 
 function LogMealContent() {
+  const searchParams = useSearchParams();
+  const paramMealType = searchParams.get("mealType") as MealType | null;
+  const initialMealType = paramMealType && MEAL_TYPES.includes(paramMealType) ? paramMealType : undefined;
+
   const { submitting, createFoodEntry } = useCreateFoodEntry();
   const [lastEntry, setLastEntry] = useState<FoodEntry | null>(null);
   // Bumping the key clears the form after a successful save without the form
@@ -85,6 +90,7 @@ function LogMealContent() {
           key={formInstance}
           submitting={submitting}
           submitLabel="Log Meal"
+          defaultMealType={initialMealType}
           jsonMode={jsonMode}
           onCloseJsonMode={() => setJsonMode(false)}
           onSubmit={handleSubmit}
@@ -97,7 +103,9 @@ function LogMealContent() {
 export default function LogMealPage() {
   return (
     <ProtectedRoute>
-      <LogMealContent />
+      <Suspense fallback={<div className="min-h-screen bg-bg-app dark:bg-dark-bg-app" />}>
+        <LogMealContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }

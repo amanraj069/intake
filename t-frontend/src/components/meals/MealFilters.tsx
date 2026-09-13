@@ -18,7 +18,6 @@ const MEAL_TYPE_OPTIONS: readonly PillOption<MealTypeFilter>[] = [
 
 interface MealFiltersProps {
   values: MealFilterValues;
-  disabled: boolean;
   /** True when nothing has been narrowed, which disables the reset control. */
   isDefault: boolean;
   onStartDateChange: (startDate: string) => void;
@@ -30,7 +29,6 @@ interface MealFiltersProps {
 /** Date range and meal type controls, drawn as one compact, pixel-aligned toolbar. */
 export default function MealFilters({
   values,
-  disabled,
   isDefault,
   onStartDateChange,
   onEndDateChange,
@@ -48,7 +46,6 @@ export default function MealFilters({
             label="Period"
             startDate={values.startDate}
             endDate={values.endDate}
-            disabled={disabled}
             onStartDateChange={onStartDateChange}
             onEndDateChange={onEndDateChange}
           />
@@ -61,7 +58,6 @@ export default function MealFilters({
               label="Meal type"
               options={MEAL_TYPE_OPTIONS}
               value={values.mealType}
-              disabled={disabled}
               fullWidth
               onChange={onMealTypeChange}
             />
@@ -71,7 +67,7 @@ export default function MealFilters({
         <button
           type="button"
           onClick={onReset}
-          disabled={disabled || isDefault}
+          disabled={isDefault}
           className="h-9 px-4 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:hover:bg-red-500/25 border border-red-500/20 dark:border-red-500/30 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0 self-stretch md:self-auto"
           title="Reset filters"
         >

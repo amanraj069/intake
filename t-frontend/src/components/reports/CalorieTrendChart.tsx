@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useTheme } from "@/contexts/ThemeContext";
-import { formatDayAndMonth } from "@/lib/formatDate";
+import { formatChartDate } from "@/lib/formatDate";
 import type { WeeklyCaloriePoint } from "@/types/nutrition";
 
 interface CalorieTrendChartProps {
@@ -28,7 +28,7 @@ export default function CalorieTrendChart({ data }: CalorieTrendChartProps) {
 
   const formatted = data.map((d) => ({
     ...d,
-    label: formatDayAndMonth(d.date),
+    label: formatChartDate(d.date),
   }));
 
   return (
@@ -53,6 +53,7 @@ export default function CalorieTrendChart({ data }: CalorieTrendChartProps) {
               tickLine={false}
               axisLine={false}
               dy={8}
+              minTickGap={25}
             />
             <YAxis
               tick={{ fontSize: 10, fill: textColour }}

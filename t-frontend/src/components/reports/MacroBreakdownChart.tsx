@@ -11,7 +11,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useTheme } from "@/contexts/ThemeContext";
-import { formatDayAndMonth } from "@/lib/formatDate";
+import { formatChartDate } from "@/lib/formatDate";
+import { colourFor } from "@/lib/metricColours";
 import type { MacroBreakdownPoint } from "@/types/nutrition";
 
 interface MacroBreakdownChartProps {
@@ -31,7 +32,7 @@ export default function MacroBreakdownChart({ data }: MacroBreakdownChartProps) 
 
   const formatted = data.map((d) => ({
     ...d,
-    label: d.period.includes("-W") ? d.period : formatDayAndMonth(d.period),
+    label: d.period.includes("-W") ? d.period : formatChartDate(d.period),
   }));
 
   return (
@@ -50,6 +51,7 @@ export default function MacroBreakdownChart({ data }: MacroBreakdownChartProps) 
               tickLine={false}
               axisLine={false}
               dy={8}
+              minTickGap={25}
             />
             <YAxis
               tick={{ fontSize: 10, fill: textColour }}

@@ -15,6 +15,7 @@ interface FoodEntryRowProps {
   deleting: boolean;
   disabled: boolean;
   onDelete: () => void;
+  onClick: () => void;
 }
 
 /** Formats quantity and unit cleanly, e.g. "1 × 150g" or "150g" or "2 slices". */
@@ -43,7 +44,7 @@ export function formatQuantity(quantity: number, unit: string): string {
   return `${quantity}`;
 }
 
-export default function FoodEntryRow({ entry, deleting, disabled, onDelete }: FoodEntryRowProps) {
+export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onClick }: FoodEntryRowProps) {
   const { proteinG, carbG, fatG } = entry.macros;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -73,7 +74,8 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete }: Fo
 
   return (
     <article
-      className={`${ENTRY_GRID_CLASSES} border-b border-black/5 dark:border-white/5 last:border-b-0 px-5 sm:px-6 py-3.5 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02] ${
+      onClick={onClick}
+      className={`${ENTRY_GRID_CLASSES} border-b border-black/5 dark:border-white/5 last:border-b-0 px-5 sm:px-6 py-3.5 transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.04] cursor-pointer ${
         menuOpen ? "relative z-30" : "relative z-auto"
       }`}
     >
@@ -140,7 +142,10 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete }: Fo
       <div ref={menuRef} className="relative flex items-center justify-end">
         <button
           type="button"
-          onClick={() => setMenuOpen((prev) => !prev)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((prev) => !prev);
+          }}
           className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary dark:text-dark-text-secondary hover:text-text-primary dark:hover:text-dark-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
           aria-label="Actions"
           aria-haspopup="menu"
@@ -166,11 +171,16 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete }: Fo
         {menuOpen && (
           <div
             role="menu"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             className="absolute right-0 top-full mt-1.5 z-50 w-32 rounded-xl bg-white dark:bg-[#1E222B] border border-black/10 dark:border-white/15 shadow-2xl py-1 backdrop-blur-md"
           >
             <Link
               href={`/meals/${entry._id}/edit`}
-              onClick={() => setMenuOpen(false)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+              }}
               role="menuitem"
               className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-text-primary dark:text-dark-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             >
@@ -194,7 +204,9 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete }: Fo
             <button
               type="button"
               role="menuitem"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
                 setMenuOpen(false);
                 onDelete();
               }}

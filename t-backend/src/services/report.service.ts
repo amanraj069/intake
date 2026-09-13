@@ -9,7 +9,7 @@ import {
   startOfNextDay,
   today,
 } from '../lib/calendarDay';
-import { roundToTenth } from '../lib/numbers';
+import { roundToDecimals, roundToTenth } from '../lib/numbers';
 import * as goalService from './goal.service';
 
 /** Resolve optional start/end to concrete days, defaulting to the last N days. */
@@ -145,6 +145,9 @@ export async function getMacroBreakdown(
 // Micro Summary
 // ---------------------------------------------------------------------------
 
+/** Matches the precision micronutrients are stored with, so microgram amounts do not round to zero. */
+const MICRO_AMOUNT_DECIMALS = 3;
+
 export interface MicroSummaryPoint {
   nutrient: string;
   amount: number;
@@ -180,7 +183,7 @@ export async function getMicroSummary(
 
   return rows.map((r) => ({
     nutrient: r._id,
-    amount: roundToTenth(r.amount),
+    amount: roundToDecimals(r.amount, MICRO_AMOUNT_DECIMALS),
     unit: r.unit,
   }));
 }

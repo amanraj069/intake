@@ -58,7 +58,7 @@ export default function ConfirmDialog({
         className="absolute inset-0 bg-black/40 dark:bg-black/60 cursor-default"
       />
 
-      <div className="relative w-full max-w-md border border-black/10 dark:border-white/10 bg-bg-primary dark:bg-dark-bg">
+      <div className="relative w-full max-w-lg rounded-2xl overflow-hidden border border-border dark:border-dark-border bg-bg-card dark:bg-dark-bg-card shadow-xl">
         <div className="px-6 py-6 sm:px-8 sm:py-8">
           <h2
             id="confirm-dialog-title"
@@ -71,7 +71,7 @@ export default function ConfirmDialog({
           </p>
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-black/10 dark:border-white/10 px-6 py-5 sm:px-8">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-border dark:border-dark-border px-6 py-5 sm:px-8">
           <Button variant="secondary" size="sm" onClick={onCancel} disabled={working}>
             Cancel
           </Button>

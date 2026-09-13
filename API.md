@@ -12,7 +12,9 @@ All responses share one envelope:
 { "success": false, "message": "...", "errors": { "fieldName": ["..."] } }
 ```
 
-`errors` is present only on validation failures (HTTP 400), keyed by field name.
+`errors` is present only on validation failures (HTTP 400), keyed by field name. Failures a
+client may handle differently also carry a stable `code`, e.g.
+`{ "success": false, "message": "...", "code": "NO_FOOD_DETECTED" }`.
 
 List endpoints add pagination metadata beside `data`, which holds the page of records:
 
@@ -34,7 +36,10 @@ logic runs, so a handler never sees an unchecked payload and a stack trace is ne
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `POST` | `/auth/register` | - | Create a local account. Body: `{ email, password }` (password 8-128 chars). Returns `{ user }` and sets auth cookies. |
+| `POST` | `/auth/check-email` | - | Signup step one. Body: `{ email }`. Returns `{ available: boolean }`. |
+| `POST` | `/auth/register` | - | Create a local account. Body: `{ email, firstName, lastName, password }` (names 1-50 chars, password 8-128 chars). Mails a 6-digit signup code. Returns `{ user, verificationCodeSent }` and sets auth cookies; `verificationCodeSent: false` means the account exists but the email failed, so the client should offer a resend. `409` if the email is taken. |
+| `POST` | `/auth/signup/resend-otp` | yes | Mail a fresh signup code to the signed-in, unverified user. Returns `{ sentTo }`. `400` if already verified, `502` if mail delivery failed. |
+| `POST` | `/auth/signup/verify-otp` | yes | Body: `{ otp }`. Marks the email verified. Returns `{ user }`. `400` wrong/expired code, `429` after 5 wrong guesses. |
 | `POST` | `/auth/login` | - | Sign in. Body: `{ email, password }`. Returns `{ user }` and sets auth cookies. |
 | `POST` | `/auth/logout` | - | Clear auth cookies. No body. |
 | `POST` | `/auth/refresh` | - | Mint a new access token from the refresh cookie. |
@@ -49,7 +54,7 @@ logic runs, so a handler never sees an unchecked payload and a stack trace is ne
 | `POST` | `/auth/avatar` | yes | Upload a profile picture. `multipart/form-data` with one file field `avatar` (JPEG/PNG/WebP, max 5MB). Returns `{ user }`. |
 | `DELETE` | `/auth/avatar` | yes | Remove the profile picture and destroy the stored asset. Returns `{ user }`. |
 | `GET` | `/auth/google` | - | Start the Google OAuth redirect. |
-| `GET` | `/auth/google/callback` | - | OAuth callback. Sets cookies and redirects to the frontend. |
+| `GET` | `/auth/google/callback` | - | OAuth callback. Stores the Google first/last name, sets cookies, and redirects to `/onboarding` (no body profile yet) or `/dashboard`. |
 
 Every endpoint that returns `{ user }` returns the same shape:
 
@@ -57,14 +62,22 @@ Every endpoint that returns `{ user }` returns the same shape:
 {
   "id": "6aa50aeb...",
   "email": "ada@example.com",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
   "emailVerified": true,
   "authProvider": "local",
   "avatarUrl": "https://res.cloudinary.com/.../intake/avatars/6aa50aeb....jpg",
+  "bodyProfile": {
+    "weightKg": 64, "heightCm": 165, "goalWeightKg": 60,
+    "age": 30, "sex": "female", "activityLevel": "light"
+  },
+  "onboardingCompleted": true,
   "createdAt": "2026-09-12T08:18:52.000Z"
 }
 ```
 
-`avatarUrl` is `null` when no picture is set. Avatar-specific failures: `400` no file, wrong
+`avatarUrl` is `null` when no picture is set. `firstName`/`lastName` are `null` for accounts created
+before names were collected, and `bodyProfile` is `null` until onboarding is completed. Avatar-specific failures: `400` no file, wrong
 type, oversized, or nothing to remove; `502` Cloudinary rejected the upload; `503` Cloudinary
 is not configured on the server.
 
@@ -116,6 +129,43 @@ be requested. Codes expire 10 minutes after they are issued and are stored bcryp
 a database dump never yields a live code.
 
 ---
+
+## Onboarding
+
+Both endpoints require authentication. The body profile is validated as: `weightKg` and
+`goalWeightKg` 30-300, `heightCm` 120-230, `age` a whole number 16-100, `sex` `male | female`,
+`activityLevel` `sedentary | light | moderate | active | very-active`.
+
+### `POST /api/onboarding/plan` (authenticated)
+
+Calculates BMI and recommended daily targets. Saves nothing.
+
+Body: the body profile, e.g. `{ "weightKg": 64, "heightCm": 165, "goalWeightKg": 60, "age": 30, "sex": "female", "activityLevel": "light" }`.
+
+Response `data.plan`:
+
+```json
+{
+  "bmi": 23.5,
+  "bmiCategory": "healthy",
+  "goalBmi": 22,
+  "direction": "lose",
+  "targets": { "dailyCalorieTarget": 1370, "proteinTargetG": 128, "carbTargetG": 129, "fatTargetG": 38 },
+  "rationale": "Two short sentences explaining the plan.",
+  "source": "ai"
+}
+```
+
+`bmiCategory` is `underweight | healthy | overweight | obese`; `direction` is
+`lose | maintain | gain`. `source` is `formula` when Gemini could not be reached in time or its
+answer failed validation, in which case the targets come from the Mifflin-St Jeor equation. An
+AI outage therefore never fails this endpoint.
+
+### `POST /api/onboarding/complete` (authenticated)
+
+Body: `{ "profile": <body profile>, "targets": { dailyCalorieTarget, proteinTargetG, carbTargetG, fatTargetG } }`.
+Saves the body profile, overwrites the user's goal with `targets` (and `weightGoalKg` set to the
+goal weight), marks onboarding complete, and returns `{ user }`. Safe to call again to recalculate.
 
 ## Goals
 
@@ -300,3 +350,120 @@ Delete one of the current user's entries.
 - Params: `id` - a 24-character Mongo ObjectId.
 - Response `200`: `{ success: true, message: "Food entry deleted successfully" }`.
 - `404` if no entry has that id, `403` if it belongs to another user.
+
+---
+
+## AI
+
+### `POST /api/ai/extract-nutrition` (authenticated)
+
+Reads a draft food entry from a food photo or a nutrition label. **Saves nothing**: the client
+shows the draft for review and saves it through `POST /api/food-entries`.
+
+- Body: `multipart/form-data` with
+  - `image` (required) - one JPEG, PNG, WebP or HEIC file, 8MB max. The file's bytes are checked,
+    not just its declared type.
+  - `description` (optional) - up to 200 characters, e.g. `"half of this pizza"`. Used as a hint;
+    printed label values take priority.
+- Response `200` `data`:
+
+```json
+{
+  "extraction": {
+    "foodName": "Crunchy Cereal",
+    "quantity": 1,
+    "quantityUnit": "55g",
+    "calories": 230,
+    "macros": { "proteinG": 3, "carbG": 37, "fatG": 8 },
+    "micros": {
+      "Vitamin D": { "amount": 0.002, "unit": "mg" },
+      "Calcium": { "amount": 260, "unit": "mg" },
+      "Iron": { "amount": 8, "unit": "mg" }
+    }
+  },
+  "analysis": {
+    "imageKind": "nutrition-label",
+    "confidence": {
+      "score": 76,
+      "level": "medium",
+      "levelSteps": [
+        "Start at High: nutrition label with printed values",
+        "Down to Medium: unsure what the food is (food identity 50, below 60)"
+      ],
+      "factors": [
+        { "key": "foodIdentity", "label": "Food identity", "score": 50, "weight": 0.2, "reason": "No product name; the profile suggests a cereal." },
+        { "key": "portionSize", "label": "Portion size", "score": 80, "weight": 0.25, "reason": "One 55 g serving as printed." },
+        { "key": "nutrientValues", "label": "Nutrient values", "score": 100, "weight": 0.45, "reason": "Printed clearly on the label." },
+        { "key": "imageQuality", "label": "Image quality", "score": 100, "weight": 0.1, "reason": "Sharp and fully in frame." }
+      ],
+      "adjustments": [
+        "Food identity capped at 50: no product name is visible on the label.",
+        "Portion size capped at 80: a label gives one serving, not how much was eaten."
+      ]
+    },
+    "notes": "Values read from the printed panel for one 55 g serving.",
+    "warnings": []
+  }
+}
+```
+
+`extraction` has exactly the nutrition fields of a food entry and always satisfies the create
+endpoint's limits. `quantityUnit` is grams per serving; `calories` and `macros` are totals for
+`quantity` servings; micronutrient names come from the app's catalog, amounts are in mg, and only the significant
+ones are included (at most 6, most important first).
+`imageKind` is `nutrition-label | meal`. `confidence.score` is 0-95, computed on the server
+from the four factor scores (weighted mean blended with the weakest factor, then fixed caps and
+penalties listed in `adjustments`). `level` is `high | medium | low`, set by a rule ladder
+(start from the image type, up for a described amount, down for disagreeing calories or an
+unsure food or portion, never above what the score supports) whose applied rules are listed in
+order in `levelSteps`. See the README assumptions for the full rules. `warnings`
+lists things to double-check (an estimated portion, calories that disagree with the macros).
+
+Errors, each with a `code`:
+
+| Status | `code` | When |
+|---|---|---|
+| `400` | `IMAGE_REQUIRED` | No `image` field |
+| `400` | `UNSUPPORTED_IMAGE_TYPE` | Declared type is not JPEG, PNG, WebP or HEIC |
+| `400` | `UPLOAD_UNREADABLE` | Malformed multipart body or unexpected field |
+| `400` | - | `description` over 200 characters (validation `errors`) |
+| `401` | - | Not signed in |
+| `413` | `IMAGE_TOO_LARGE` | File over 8MB |
+| `422` | `IMAGE_UNREADABLE` | The bytes are not an image |
+| `422` | `IMAGE_UNPROCESSABLE` | The AI provider could not decode the image |
+| `422` | `IMAGE_UNCLEAR` | Too blurry, dark or cropped to read; `message` is the model's reason |
+| `422` | `NO_FOOD_DETECTED` | No food, drink or label in the photo; `message` is the model's reason |
+| `502` | `AI_BAD_RESPONSE` | The model's answer was incomplete or outside entry limits |
+| `503` | `AI_UNAVAILABLE` | No Gemini key or model answered within 45 seconds, or no keys are configured |
+
+---
+
+## Reports
+
+All four require authentication and accept optional `startDate` and `endDate` query params
+(`YYYY-MM-DD`, validated as real dates). With neither, the range is the last 7 days ending today
+(the last 28 days for `macros?groupBy=week`). Days are UTC calendar days, matching how entries
+store `date`. Totals are rounded to one decimal; micronutrients to three.
+
+### `GET /api/reports/weekly-calories`
+
+- Response `data`: `[{ "date": "2026-09-08", "totalCalories": 950.4 }, ...]` - one element per
+  day in the range, in order, with `0` for days without entries.
+
+### `GET /api/reports/macros`
+
+- Query: also `groupBy` - `day` (default) or `week`.
+- Response `data`: `[{ "period": "2026-09-08", "proteinG": 55.8, "carbG": 95.3, "fatG": 32.3 }, ...]`.
+  Daily periods cover every day in the range (zero-filled). Weekly periods are ISO weeks such as
+  `"2026-W37"`, and only weeks with entries are returned.
+
+### `GET /api/reports/micros`
+
+- Response `data`: `[{ "nutrient": "Calcium", "amount": 610.5, "unit": "mg" }, ...]` - each
+  nutrient summed across the range, sorted by name. Empty when no entry has micronutrients.
+
+### `GET /api/reports/goal-comparison`
+
+- Response `data`: `[{ "date": "2026-09-08", "actualCalories": 950.4, "targetCalories": 2000 }, ...]`
+  - one element per day (zero-filled). `targetCalories` is the current goal's
+  `dailyCalorieTarget`, or `null` on every day if no goal is set.

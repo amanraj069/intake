@@ -1,20 +1,8 @@
 import { User, IUserDocument } from '../models/User';
 import { AppError } from '../middleware/errorHandler';
-import { sendOtpEmail } from '../lib/email';
 import { hashPassword, verifyPassword } from '../lib/password';
-import {
-  MAX_OTP_ATTEMPTS,
-  generateOtpCode,
-  hashOtpCode,
-  isOtpExpired,
-  otpExpiresAt,
-  verifyOtpCode,
-} from '../lib/otp';
-import type {
-  AccountOtpPurpose,
-  RequestAccountOtpInput,
-  VerifyAccountOtpInput,
-} from '../schemas/auth.schema';
+import { clearOtpState, consumeOtp, issueOtp } from './otpChallenge.service';
+import type { RequestAccountOtpInput, VerifyAccountOtpInput } from '../schemas/auth.schema';
 
 /**
  * The OTP-gated account changes: swapping the sign-in email, and setting a new
@@ -81,14 +69,6 @@ async function prepareDestination(
   return address;
 }
 
-function clearOtpState(user: IUserDocument): void {
-  user.otpCode = undefined;
-  user.otpExpiresAt = undefined;
-  user.otpPurpose = undefined;
-  user.otpAttempts = undefined;
-  user.pendingEmail = undefined;
-}
-
 /**
  * Step one: issue a code. A new request always replaces any code already in
  * flight, which is also how a user recovers from a lost or expired one.
@@ -100,54 +80,9 @@ export async function requestAccountOtp(
   const user = await findAccount(userId);
   const destination = await prepareDestination(user, input);
 
-  const code = generateOtpCode();
-  user.otpCode = await hashOtpCode(code);
-  user.otpExpiresAt = otpExpiresAt();
-  user.otpPurpose = input.purpose;
-  user.otpAttempts = 0;
-  await user.save();
-
-  try {
-    await sendOtpEmail(destination, code, input.purpose);
-  } catch (cause) {
-    console.error('[AccountSecurity] Could not send OTP email:', cause);
-    throw new AppError(
-      'We could not send the verification code right now. Please try again in a moment.',
-      502
-    );
-  }
+  await issueOtp(user, input.purpose, destination);
 
   return { sentTo: destination };
-}
-
-/** Rejects a wrong, stale, expired or exhausted code, and burns it on failure. */
-async function consumeOtp(
-  user: IUserDocument,
-  purpose: AccountOtpPurpose,
-  submittedCode: string
-): Promise<void> {
-  if (!user.otpCode || !user.otpExpiresAt || user.otpPurpose !== purpose) {
-    throw new AppError('No verification code is pending. Request a new one.', 400);
-  }
-
-  if (isOtpExpired(user.otpExpiresAt)) {
-    clearOtpState(user);
-    await user.save();
-    throw new AppError('That verification code has expired. Request a new one.', 400);
-  }
-
-  if ((user.otpAttempts ?? 0) >= MAX_OTP_ATTEMPTS) {
-    clearOtpState(user);
-    await user.save();
-    throw new AppError('Too many incorrect attempts. Request a new code.', 429);
-  }
-
-  const matches = await verifyOtpCode(submittedCode, user.otpCode);
-  if (!matches) {
-    user.otpAttempts = (user.otpAttempts ?? 0) + 1;
-    await user.save();
-    throw new AppError('That verification code is not correct', 400);
-  }
 }
 
 async function applyPendingEmail(user: IUserDocument): Promise<void> {

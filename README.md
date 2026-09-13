@@ -59,6 +59,17 @@ types/          shared domain types
 
 ## Features
 
+- **Three-step email signup** - email first (checked for availability), then first name, last
+  name and a confirmed password, then a 6-digit code mailed to the address. Google sign-in
+  takes the name from the Google profile instead
+- **AI onboarding** - after first sign-in (either method) the user enters height, weight, goal
+  weight, age, sex and activity level. The backend calculates BMI and asks Gemini for daily
+  calorie and macro targets, which the user reviews and saves as their goal, so `/goals` is
+  pre-filled from day one. Recalculate any time from the profile page
+- **Gemini key rotation** - every `GEMINI_KEY<n>` is pooled. A rate-limited, rejected or
+  failing key is skipped for the next one, the last key that worked is used first on the next
+  request, and benched keys cool down before being retried. If every key and model fails
+  within 25 seconds, the plan falls back to the Mifflin-St Jeor formula
 - **Email + password auth** - bcrypt hashing, JWT access/refresh tokens in httpOnly cookies
 - **Google OAuth** - Passport.js with `passport-google-oauth20`
 - **Email verification** and **OTP password reset** - sent via Resend
@@ -72,6 +83,15 @@ types/          shared domain types
 - **Goals** - one active daily target per user: calories, protein/carb/fat, optional goal weight
 - **Meal logging** - meal type, food, quantity + unit, calories, macros, and free-form
   micronutrient name/amount pairs, with backdating support
+- **Log a meal from a photo** - on `/log-meal`, upload a food photo or a nutrition label
+  (optionally with a short description such as "half of this pizza"). Gemini classifies the
+  image first, then reads the label or estimates the portion, and the form is pre-filled with
+  the food name, portion, calories, macros and the few micronutrients that matter for it. Nothing is saved
+  until the user edits what they like, confirms they reviewed it, and submits through the normal
+  create endpoint. Blurry photos, non-food photos, unsupported files and AI outages each get a
+  specific inline message with retry, another photo, or manual entry as the way forward
+- **Reports** - `/reports` charts daily calories, a stacked macro breakdown, calories against the
+  goal target line, and summed micronutrients for the last 7, 14 or 30 days or a custom range
 - **Meals log** - a filterable, paginated list of every entry with inline edit and a
   confirmed delete, filtered by date range and meal type
 - **Dashboard overview** - a greeting that states where today stands, calories as a tick
@@ -129,6 +149,8 @@ npm install
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `GOOGLE_CALLBACK_URL` | `http://localhost:9000/auth/google/callback` |
+| `GEMINI_KEY1` ... `GEMINI_KEY4` | Gemini API keys from https://aistudio.google.com/apikey, used in rotation. Any number of `GEMINI_KEY<n>` works; blanks are ignored. With none set, onboarding uses the formula and photo extraction returns `503 AI_UNAVAILABLE` (manual entry still works) |
+| `GEMINI_MODELS` | Optional comma-separated models, tried in order (default `gemini-3.7-flash,gemini-3.5-flash`) |
 | `RESEND_API_KEY` | Resend API key |
 | `EMAIL_FROM` | Sender email (default: `onboarding@resend.dev` for sandbox) |
 | `FRONTEND_URL` | `http://localhost:3000` |
@@ -194,8 +216,9 @@ cd t-frontend && npm run lint                 # eslint
 | Route | Auth | What it does |
 |---|---|---|
 | `/` | - | Landing page |
-| `/login`, `/signup`, `/forgot-password`, `/verify-email` | - | Auth flows |
-| `/profile` | yes | Account details and profile picture, read-only, plus resend verification |
+| `/login`, `/signup`, `/forgot-password`, `/verify-email` | - | Auth flows. `/signup` is three steps: email, name + password, verification code |
+| `/onboarding` | yes | Body profile form, then the recommended plan to review and save. Every other signed-in page redirects here until it is completed |
+| `/profile` | yes | Name, account details, body profile and profile picture, plus resend verification |
 | `/settings` | yes | Security (OTP-gated email and password change) and appearance (theme) |
 | `/dashboard` | yes | Today's calories and macros against the active goal, plus a 7-day trend |
 | `/goals` | yes | View and update the active goal. Pre-filled when one exists. |
@@ -209,7 +232,10 @@ Full parameter and response shapes are in [API.md](./API.md).
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `POST` | `/auth/register` | - | Create account |
+| `POST` | `/auth/check-email` | - | Check whether an email is free to register |
+| `POST` | `/auth/register` | - | Create account (email, name, password) and mail a signup code |
+| `POST` | `/auth/signup/resend-otp` | yes | Resend the signup verification code |
+| `POST` | `/auth/signup/verify-otp` | yes | Verify the email with the signup code |
 | `POST` | `/auth/login` | - | Sign in |
 | `POST` | `/auth/logout` | - | Sign out (clears cookies) |
 | `POST` | `/auth/refresh` | - | Refresh access token |
@@ -225,6 +251,8 @@ Full parameter and response shapes are in [API.md](./API.md).
 | `DELETE` | `/auth/avatar` | yes | Remove the profile picture |
 | `GET` | `/auth/google` | - | Start Google OAuth |
 | `GET` | `/auth/google/callback` | - | Google OAuth callback |
+| `POST` | `/api/onboarding/plan` | yes | Calculate BMI and AI-recommended daily targets (saves nothing) |
+| `POST` | `/api/onboarding/complete` | yes | Save the body profile and the accepted targets as the goal |
 | `GET` | `/api/goals` | yes | Fetch the current user's goal (`null` if unset) |
 | `POST` | `/api/goals` | yes | Create or overwrite the current user's goal |
 | `GET` | `/api/food-entries` | yes | List entries: date range, meal type, paginated |
@@ -234,6 +262,11 @@ Full parameter and response shapes are in [API.md](./API.md).
 | `POST` | `/api/food-entries` | yes | Create a food entry |
 | `PATCH` | `/api/food-entries/:id` | yes | Edit an entry the user owns |
 | `DELETE` | `/api/food-entries/:id` | yes | Delete an entry the user owns |
+| `POST` | `/api/ai/extract-nutrition` | yes | Read a draft entry from a food photo or nutrition label (multipart, field `image`; saves nothing) |
+| `GET` | `/api/reports/weekly-calories` | yes | Daily calorie totals across a range |
+| `GET` | `/api/reports/macros` | yes | Protein/carb/fat totals by day or ISO week |
+| `GET` | `/api/reports/micros` | yes | Each micronutrient summed across a range |
+| `GET` | `/api/reports/goal-comparison` | yes | Daily calories next to the goal's calorie target |
 
 ## Data Model
 
@@ -241,10 +274,14 @@ Full parameter and response shapes are in [API.md](./API.md).
 
 ```
 email:          string (unique, required)
+firstName:      string (optional - absent on accounts created before names were collected)
+lastName:       string (optional)
 password:       string (optional - only for local auth)
 emailVerified:  boolean (default: false)
 authProvider:   'local' | 'google'
 googleId:       string (optional, sparse unique index)
+bodyProfile:    { weightKg, heightCm, goalWeightKg, age, sex, activityLevel } (optional)
+onboardingCompletedAt: Date (optional - set when the first plan is saved)
 otpCode, otpExpiresAt, otpPurpose, otpAttempts, pendingEmail:  transient OTP state
 createdAt:      Date
 ```
@@ -329,8 +366,10 @@ Decisions made where the spec left room for interpretation:
   names are free text (up to 50 per entry) and are stored verbatim, so `vitaminC` and
   `Vitamin C` are different keys. Duplicate names within a single submission are rejected
   client-side, compared case-insensitively.
-- **Micronutrient amounts are unitless numbers.** The unit is implied by the nutrient name.
-  Storing an explicit unit per nutrient would be the next refinement.
+- **Micronutrients are stored in milligrams.** Each nutrient is `{ amount, unit }`, and the meal
+  form always writes `mg`. Photo extraction lets the model answer in the unit a label prints
+  (`mg` or `mcg`) and converts to mg on the server, so vitamin D printed as 2 mcg is stored as
+  0.002 mg. The micronutrient report keeps three decimals for the same reason.
 - **A `PATCH` that supplies `micros` replaces the whole map** rather than merging, so removing
   a row in the UI actually deletes that nutrient. Supplying `macros` likewise requires the
   complete object; there is no partial macro update.
@@ -422,6 +461,96 @@ Decisions made where the spec left room for interpretation:
   in sync with `t-backend/src/schemas/`. The backend remains the authority; the client copy
   only exists to give field-level feedback without a round trip.
 
+- **Onboarding asks for age, sex and activity level as well as height, weight and goal weight.**
+  Calorie needs cannot be estimated meaningfully without them (Mifflin-St Jeor needs age and
+  sex, and activity scales the result by up to 60%). Sex is limited to male/female because
+  that is what the equation models.
+- **Onboarding is required before the rest of the app.** A goal is what the dashboard and
+  reports measure against, so every protected page redirects to `/onboarding` until a plan is
+  saved. Existing accounts are prompted once too. Signup email verification is not required:
+  "Verify later" continues to onboarding, so a mail outage cannot lock a new user out.
+- **The AI proposes, the formula guards.** The Mifflin-St Jeor result is always computed first.
+  Gemini's answer is used only if it passes schema validation, lands within 25% of the formula's
+  calories, and its macros add up to within 10% of its own calorie total. Otherwise the formula
+  result is returned with `source: "formula"`, which the UI labels.
+- **Macro split for the formula fallback.** Protein is 2.0 g/kg when losing, 1.6 g/kg when
+  maintaining and 1.8 g/kg when gaining; fat is 25% of calories; carbs fill the rest. The deficit
+  is 500 kcal and the surplus 300 kcal, with floors of 1200 kcal (female) and 1500 kcal (male).
+  A goal within 1 kg of the current weight counts as maintaining.
+- **Key rotation state is per process.** The sticky key and cool-downs live in memory, so a
+  restart starts again from key 1 and multiple server instances rotate independently. A
+  rate-limited key rests for 60 seconds (or the API's `Retry-After`); a rejected key rests for an
+  hour. If every key is resting, they are still tried rather than failing without an attempt.
+- **The goal weight is copied into the goal at onboarding, not kept in sync.** Editing the goal
+  weight on `/goals` later does not change `bodyProfile.goalWeightKg`; recalculating the plan
+  overwrites the goal again.
+
+- **Photo extraction orchestration.** `POST /api/ai/extract-nutrition` runs these steps, all in
+  `t-backend/src/services/aiNutritionExtraction.ts`, the only file in the feature that talks to
+  an AI provider (swapping providers means replacing its response schema and one request
+  function):
+  1. The upload middleware accepts one JPEG, PNG, WebP or HEIC file of up to 8MB, held in memory
+     and never written to disk or stored.
+  2. The file's leading bytes must be a real image, whatever `Content-Type` the client claimed.
+  3. Gemini receives the photo, the optional description, and a system prompt
+     (`t-backend/src/lib/nutritionExtractionPrompt.ts`) listing every micronutrient the app
+     offers. Its response schema restricts nutrient names to that list, so each one lands on a
+     known option in the form. The list is there for naming only: the model reports just the
+     significant nutrients, at most 6 (`MAX_REPORTED_MICRONUTRIENTS`), most important first.
+     For a label that means the non-zero ones it prints; for a meal, roughly 10% or more of the
+     FDA Daily Value, or nutrients that matter for the dish, such as sodium. The server enforces
+     the cap too.
+  4. The model must classify the photo as `nutrition-label`, `meal`, `unclear` or `not-food`
+     before producing numbers. The last two become `422 IMAGE_UNCLEAR` / `NO_FOOD_DETECTED`
+     with the model's own one-sentence reason.
+  5. The answer is validated with zod, micronutrients are converted to mg, and the draft is
+     checked against the same limits as `POST /api/food-entries`, so an unedited draft can
+     always be saved. Anything unusable is `502 AI_BAD_RESPONSE`, never a half-filled form.
+  6. Review warnings are attached: meal portions are always flagged as estimates, and calories
+     that disagree with 4/4/9 macro energy by more than 20% are called out.
+- **Photo confidence is a percentage built from four scored factors, not the model's gut feel.**
+  The model scores each 0-100 against a written rubric in the prompt, with a one-line reason:
+  *food identity* (do we know what it is), *portion size* (do we know how much), *nutrient
+  values* (how reliable the numbers are for that food and amount, e.g. hidden oil) and *image
+  quality*. `t-backend/src/lib/extractionConfidence.ts` then combines them deterministically:
+  - Weights depend on the photo: label 20/25/45/10, meal 25/35/30/10 (identity, portion,
+    nutrients, image). The printed numbers dominate a label; the portion dominates a plate.
+  - Score = 75% weighted mean + 25% weakest factor, so one unknown (say the portion) always
+    shows, even behind a sharp photo of a recognisable dish.
+  - Hard caps: a label with no visible product name caps food identity at 50, because the food
+    has to be inferred from its numbers. A label without a user description caps portion at 80,
+    because it states one serving, not how much was eaten. Calories that disagree with the
+    macros cost 15 points. The overall score never exceeds 95%.
+- **The confidence level (High, Medium, Low) is a ladder of visible rules**
+  (`t-backend/src/lib/confidenceLevel.ts`), applied in order, each one recorded in `levelSteps`:
+  1. Start from the image type: a nutrition label starts High, a meal photo starts Medium.
+  2. Up one: a meal whose description states the amount eaten ("2 slices", "150 g"). The model
+     only answers whether the description contains an amount; the server also requires that a
+     description was actually sent, so the model cannot grant this on its own.
+  3. Down one for each of: calories and macros disagree; unsure what the food is (food identity
+     below 60); unsure how much there is (portion size below 60).
+  4. The level never claims more than the percentage supports: under 60% it is at most Medium,
+     under 40% it is Low.
+  A label with no product name therefore lands on Medium (its identity is capped at 50), and a
+  plate you describe as "one whole pizza" reaches High. The UI shows "83% confidence · High"
+  with a "Why?" breakdown: the level's steps, then every factor, weight, reason and cap.
+- **Photo drafts carry calories and macros for the whole portion shown.** A label is read as one
+  printed serving (`quantity: 1`, grams from the label); a meal photo is one plate. The unit is
+  written as grams per serving (`"55g"`), the convention the meal form already uses.
+- **The photo cannot choose the meal or the date.** Meal type keeps the form's default (a
+  `?mealType=` param if present, otherwise the time of day: breakfast 05-11, lunch 11-16, snack
+  16-19, dinner otherwise) and the date defaults to today. The review checkbox restates both
+  before saving.
+- **An AI draft must be explicitly confirmed.** The form will not submit a photo draft until
+  "I have reviewed the details" is ticked, and any new photo resets it. Entries saved this way
+  have `source: "ai-image"`; editing one later keeps that source.
+- **Large photos are downscaled in the browser** to a 1600px long edge before upload, which
+  cuts upload and analysis time without hurting label legibility. Files the browser cannot
+  decode (HEIC outside Safari) are sent unchanged, since the server and Gemini both accept them.
+- **Photo analysis gets a longer time budget than onboarding:** 25 seconds per attempt and 45
+  seconds across every key and model, because vision calls are slower. The UI shows staged
+  progress and a Cancel button while it waits.
+
 ## Known gaps
 
 - No automated test suite. The API was verified end to end manually: register, goal upsert,
@@ -433,6 +562,18 @@ Decisions made where the spec left room for interpretation:
   rejected, a new password identical to the current one is rejected, the sixth wrong guess
   locks the code out and discards it, and a verified email change promotes `pendingEmail` and
   sets `emailVerified`.
-- The meals list filters on the server on every change. There is no debounce, which is fine for
-  native date and select inputs but would need one if a free-text search were added.
-- `source: 'ai-image'` is accepted by the API but nothing in the UI produces it yet.
+- `POST /api/onboarding/plan` and `POST /api/ai/extract-nutrition` have no rate limit. Each
+  call can use Gemini quota (photo extraction especially), so a per-user limit would be worth
+  adding before production.
+- Photo nutrition is an estimate. Labels were read exactly in testing, but meal portions are
+  judged from a single photo with no scale reference, which is why the portion warning and the
+  review confirmation exist. An image Gemini blocks or returns empty for is retried on the next
+  key like any bad response, so it can take up to the 45-second budget before failing with
+  `503`.
+- The link-based verification banner on `/profile` still exists alongside the signup code, so
+  an account that chose "Verify later" verifies by link rather than by code.
+- The meals list filters on the server. Date edits wait 400 ms for a pause, because typing a date
+  with the keyboard yields a valid date after every segment; meal type, reset and paging apply
+  at once. Only the newest request may update the list, so a slow earlier response can never
+  overwrite rows for the current filters. A future free-text search should reuse the same
+  debounced path.

@@ -9,14 +9,18 @@ export default function FormError({ message }: FormErrorProps) {
   return (
     <div
       role="alert"
-      className="flex items-stretch border border-black/10 dark:border-white/10"
+      className="flex items-start rounded-xl border border-border dark:border-dark-border bg-bg-card dark:bg-dark-bg-card shadow-sm"
     >
-      <div className="w-[3px] shrink-0 bg-accent dark:bg-accent-dark" aria-hidden="true" />
-      <div className="px-5 py-4">
-        <p className="text-[10px] font-bold   text-accent dark:text-accent-dark">
-          Not saved
+      <div className="flex-1 px-4 py-3 sm:px-5 sm:py-4">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-error dark:bg-error-dark" aria-hidden="true" />
+          <p className="text-[10px] font-bold   text-error dark:text-error-dark">
+            Not saved
+          </p>
+        </div>
+        <p className="mt-1.5 text-sm font-medium leading-relaxed text-text-primary dark:text-dark-text">
+          {message}
         </p>
-        <p className="mt-2 text-sm font-light text-text-primary dark:text-dark-text">{message}</p>
       </div>
     </div>
   );

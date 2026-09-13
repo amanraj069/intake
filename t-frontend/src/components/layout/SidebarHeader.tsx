@@ -47,7 +47,7 @@ export default function SidebarHeader({
               aria-hidden="true"
               className="w-7 h-7 object-contain hidden dark:block"
             />
-            INTAKE
+            Intake
           </Link>
 
           <div className="hidden lg:block">
@@ -71,13 +71,13 @@ export default function SidebarHeader({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/icon/intake-l.png"
-            alt="INTAKE"
+            alt="Intake"
             className="w-7 h-7 object-contain block dark:hidden"
           />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/icon/intake-d.png"
-            alt="INTAKE"
+            alt="Intake"
             className="w-7 h-7 object-contain hidden dark:block"
           />
         </Link>

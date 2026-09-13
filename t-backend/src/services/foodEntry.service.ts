@@ -64,6 +64,9 @@ export async function createFoodEntry(
     micros: toMicrosMap(input.micros),
     date: new Date(input.date),
     source: input.source ?? 'manual',
+    confidenceScore: input.confidenceScore,
+    confidenceLevel: input.confidenceLevel,
+    extractionAnalysis: input.extractionAnalysis,
   });
 }
 
@@ -79,6 +82,9 @@ function applyFoodEntryUpdate(entry: IFoodEntryDocument, input: UpdateFoodEntryI
   if (input.micros !== undefined) entry.micros = toMicrosMap(input.micros);
   if (input.date !== undefined) entry.date = new Date(input.date);
   if (input.source !== undefined) entry.source = input.source;
+  if (input.confidenceScore !== undefined) entry.confidenceScore = input.confidenceScore;
+  if (input.confidenceLevel !== undefined) entry.confidenceLevel = input.confidenceLevel;
+  if (input.extractionAnalysis !== undefined) entry.extractionAnalysis = input.extractionAnalysis;
 }
 
 export async function updateFoodEntry(

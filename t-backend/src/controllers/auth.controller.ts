@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { User } from '../models/User';
 import { setAuthCookies, clearAuthCookies } from '../lib/cookies';
 import { verifyRefreshToken } from '../lib/jwt';
-import { sendVerificationEmail } from '../lib/email';
-import { hashPassword, verifyPassword } from '../lib/password';
+import { verifyPassword } from '../lib/password';
+import * as signupService from '../services/signup.service';
 import { AuthRequest } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { toUserResponse } from '../lib/userResponse';
@@ -11,39 +11,42 @@ import { toUserResponse } from '../lib/userResponse';
 /** Establishing and ending a session: who you are and how you prove it. */
 
 /**
+ * POST /auth/check-email
+ * Step one of signup: tells the client whether an address is free to register.
+ */
+export async function checkEmail(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const registered = await signupService.isEmailRegistered(req.body.email);
+
+    res.json({
+      success: true,
+      message: registered ? 'An account with this email already exists' : 'Email is available',
+      data: { available: !registered },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * POST /auth/register
- * Creates a new local user, sends verification email, sets auth cookies.
+ * Creates a local user with their name, mails a signup verification code, and
+ * signs them in.
  */
 export async function register(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { email, password } = req.body;
-
-    const existing = await User.findOne({ email: email.toLowerCase() });
-    if (existing) {
-      throw new AppError('An account with this email already exists', 409);
-    }
-
-    const hashedPassword = await hashPassword(password);
-
-    const user = await User.create({
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      authProvider: 'local',
-      emailVerified: false,
-    });
-
-    // Send verification email (non-blocking - don't fail registration if email fails)
-    sendVerificationEmail(user).catch((err) => {
-      console.error('[Email] Failed to send verification email:', err);
-    });
+    const { user, verificationCodeSent } = await signupService.registerLocalUser(req.body);
 
     setAuthCookies(res, { userId: user._id.toString(), email: user.email });
 
     res.status(201).json({
       success: true,
-      message: 'Account created successfully. Please check your email to verify your address.',
+      message: verificationCodeSent
+        ? `Account created. We sent a verification code to ${user.email}.`
+        : 'Account created, but we could not send your verification code. Try resending it.',
       data: {
         user: toUserResponse(user),
+        verificationCodeSent,
       },
     });
   } catch (error) {

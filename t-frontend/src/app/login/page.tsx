@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiError } from "@/lib/api";
+import { homeRouteFor } from "@/lib/postAuthRoute";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleButton from "@/components/GoogleButton";
+import AuthDivider from "@/components/auth/AuthDivider";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -20,10 +22,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in
+  // Also covers a fresh sign-in: `login` sets the user, and this sends them on.
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace("/profile");
+      router.replace(homeRouteFor(user));
     }
   }, [user, authLoading, router]);
 
@@ -33,8 +35,7 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      toast.success("Signed in. Taking you to your profile.");
-      router.push("/dashboard");
+      toast.success("Signed in.");
     } catch (err) {
       toast.error(
         err instanceof ApiError
@@ -75,17 +76,7 @@ export default function LoginPage() {
         {/* Google OAuth */}
         <GoogleButton />
 
-        {/* Divider */}
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border dark:border-dark-border" />
-          </div>
-          <div className="relative flex justify-center">
-            <span className="bg-bg-primary dark:bg-dark-bg px-4 text-xs   text-text-secondary dark:text-dark-text-secondary">
-              or
-            </span>
-          </div>
-        </div>
+        <AuthDivider />
 
         {/* Login form */}
         <form onSubmit={handleSubmit} className="space-y-5">

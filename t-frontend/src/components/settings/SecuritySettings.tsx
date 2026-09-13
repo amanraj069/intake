@@ -19,7 +19,7 @@ export default function SecuritySettings({ user }: SecuritySettingsProps) {
       <SettingsPanel title="Security">
         <SettingsBlock
           title="Managed By Google"
-          description={`You sign in to INTAKE with Google as ${user.email}. Your email address and password are changed in your Google account, and take effect here the next time you sign in.`}
+          description={`You sign in to Intake with Google as ${user.email}. Your email address and password are changed in your Google account, and take effect here the next time you sign in.`}
         />
       </SettingsPanel>
     );

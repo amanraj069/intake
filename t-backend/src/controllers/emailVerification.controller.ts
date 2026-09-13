@@ -4,8 +4,13 @@ import { verifyEmailToken } from '../lib/jwt';
 import { sendVerificationEmail } from '../lib/email';
 import { AuthRequest } from '../types';
 import { AppError } from '../middleware/errorHandler';
+import { toUserResponse } from '../lib/userResponse';
+import * as signupService from '../services/signup.service';
 
-/** Confirming that the address on an account is real, via a link in the inbox. */
+/**
+ * Confirming that the address on an account is real: by a six-digit code during
+ * signup, or by the older link in the inbox for accounts verifying later.
+ */
 
 /**
  * GET /auth/verify-email?token=...
@@ -79,6 +84,50 @@ export async function resendVerification(
     res.json({
       success: true,
       message: 'Verification email sent',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /auth/signup/resend-otp
+ * Mails a fresh signup verification code to the signed-in, unverified user.
+ */
+export async function resendSignupOtp(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const sentTo = await signupService.resendSignupOtp(req.user!._id);
+
+    res.json({
+      success: true,
+      message: `Verification code sent to ${sentTo}`,
+      data: { sentTo },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /auth/signup/verify-otp
+ * Redeems the signup code, marks the email verified, and returns the user.
+ */
+export async function confirmSignupOtp(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const user = await signupService.confirmSignupOtp(req.user!._id, req.body.otp);
+
+    res.json({
+      success: true,
+      message: 'Email verified successfully',
+      data: { user: toUserResponse(user) },
     });
   } catch (error) {
     next(error);

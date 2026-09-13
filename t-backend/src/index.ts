@@ -12,6 +12,8 @@ import authRoutes from './routes/auth';
 import goalRoutes from './routes/goals';
 import foodEntryRoutes from './routes/foodEntries';
 import reportRoutes from './routes/reports';
+import onboardingRoutes from './routes/onboarding';
+import aiRoutes from './routes/ai';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -44,6 +46,8 @@ app.use('/auth', authRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/food-entries', foodEntryRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/ai', aiRoutes);
 
 // --- Error handling ---
 
