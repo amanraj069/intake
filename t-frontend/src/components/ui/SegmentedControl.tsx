@@ -57,7 +57,7 @@ export default function SegmentedControl<TValue extends string>({
                   : "",
                 index === 2 ? "sm:border-l sm:border-input-border sm:dark:border-dark-input-border" : "",
                 isSelected
-                  ? "bg-text-primary text-bg-primary dark:bg-dark-text dark:text-dark-bg"
+                  ? "bg-accent-muted text-white dark:bg-accent-dark-muted dark:text-white"
                   : "bg-transparent text-text-secondary hover:bg-black/5 hover:text-text-primary dark:text-dark-text-secondary dark:hover:bg-white/5 dark:hover:text-dark-text",
               ].join(" ")}
             >

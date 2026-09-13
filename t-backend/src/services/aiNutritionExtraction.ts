@@ -3,7 +3,7 @@ import {
   InlineImage,
   generateStructuredJson,
 } from '../lib/gemini/geminiClient';
-import { GeminiRequestError, GeminiUnavailableError } from '../lib/gemini/geminiErrors';
+import { toAiAppError } from '../lib/gemini/aiFailure';
 import {
   CONFIDENCE_FACTOR_KEYS,
   ConfidenceAssessment,
@@ -11,19 +11,23 @@ import {
   assessConfidence,
 } from '../lib/extractionConfidence';
 import { detectImageType } from '../lib/imageSignature';
-import { MICRONUTRIENT_CATALOG, MICRONUTRIENT_NAMES, toMilligrams } from '../lib/micronutrientCatalog';
+import { normaliseAiMicronutrients } from '../lib/aiMicronutrients';
+import { MICRONUTRIENT_NAMES } from '../lib/micronutrientCatalog';
 import {
+  AiFoodItem,
   AiFoodReading,
-  AiMicronutrient,
   EXTRACTION_SYSTEM_INSTRUCTION,
   IMAGE_KINDS,
+  MAX_PHOTO_ITEMS,
   MAX_REPORTED_MICRONUTRIENTS,
   aiFoodReadingSchema,
   buildExtractionPrompt,
 } from '../lib/nutritionExtractionPrompt';
-import { roundToDecimals, roundToTenth } from '../lib/numbers';
+import { NutritionTotals, sumItemNutrition } from '../lib/foodItemTotals';
+import { roundToTenth } from '../lib/numbers';
+import { FOOD_ITEM_UNITS } from '../models/FoodEntry';
 import { AppError } from '../middleware/errorHandler';
-import { FoodEntryDraft, foodEntryDraftSchema } from '../schemas/foodEntry.schema';
+import { FoodEntryDraft, FoodItemInput, foodEntryDraftSchema } from '../schemas/foodEntry.schema';
 
 /**
  * This file is the only place the photo extraction feature touches an AI
@@ -39,7 +43,6 @@ const TOTAL_BUDGET_MS = 45 * 1000;
 const MAX_ENERGY_MISMATCH = 0.2;
 /** Below this, rounding alone produces large relative mismatches, so none are reported. */
 const MIN_CALORIES_FOR_ENERGY_CHECK = 50;
-const MICRONUTRIENT_DECIMALS = 3;
 
 const MICRONUTRIENT_ITEM_SCHEMA: GeminiResponseSchema = {
   type: 'OBJECT',
@@ -62,24 +65,36 @@ const FACTOR_READING_SCHEMA: GeminiResponseSchema = {
   propertyOrdering: ['reason', 'score'],
 };
 
+const FOOD_ITEM_SCHEMA: GeminiResponseSchema = {
+  type: 'OBJECT',
+  properties: {
+    name: { type: 'STRING' },
+    unit: { type: 'STRING', enum: [...FOOD_ITEM_UNITS] },
+    quantity: { type: 'NUMBER', description: 'total amount of this item, in its unit' },
+    calories: { type: 'NUMBER', description: 'kcal for this item only' },
+    proteinG: { type: 'NUMBER', description: 'grams for this item only' },
+    carbG: { type: 'NUMBER', description: 'grams for this item only' },
+    fatG: { type: 'NUMBER', description: 'grams for this item only' },
+    micronutrients: {
+      type: 'ARRAY',
+      items: MICRONUTRIENT_ITEM_SCHEMA,
+      maxItems: MAX_REPORTED_MICRONUTRIENTS,
+    },
+  },
+  required: ['name', 'unit', 'quantity', 'calories', 'proteinG', 'carbG', 'fatG'],
+  // The unit is chosen before the amount, so "2" is always read against "count" or "g".
+  propertyOrdering: ['name', 'unit', 'quantity', 'calories', 'proteinG', 'carbG', 'fatG', 'micronutrients'],
+};
+
 /** Mirrors `aiFoodReadingSchema` in Gemini's schema dialect. */
 const RESPONSE_SCHEMA: GeminiResponseSchema = {
   type: 'OBJECT',
   properties: {
     imageKind: { type: 'STRING', enum: [...IMAGE_KINDS] },
     unreadableReason: { type: 'STRING' },
-    foodName: { type: 'STRING' },
-    quantity: { type: 'NUMBER', description: 'number of servings shown' },
-    servingWeightG: { type: 'NUMBER', description: 'grams per serving' },
-    calories: { type: 'NUMBER', description: 'kcal for the whole portion' },
-    proteinG: { type: 'NUMBER', description: 'grams for the whole portion' },
-    carbG: { type: 'NUMBER', description: 'grams for the whole portion' },
-    fatG: { type: 'NUMBER', description: 'grams for the whole portion' },
-    micronutrients: {
-      type: 'ARRAY',
-      items: MICRONUTRIENT_ITEM_SCHEMA,
-      maxItems: MAX_REPORTED_MICRONUTRIENTS,
-    },
+    mealName: { type: 'STRING' },
+    // No `maxItems`: Gemini rejects large caps on arrays of objects as too complex. The service trims instead.
+    items: { type: 'ARRAY', items: FOOD_ITEM_SCHEMA },
     productNameVisible: { type: 'BOOLEAN' },
     descriptionStatesAmount: { type: 'BOOLEAN', description: 'false when there is no description' },
     confidenceFactors: {
@@ -96,14 +111,8 @@ const RESPONSE_SCHEMA: GeminiResponseSchema = {
   propertyOrdering: [
     'imageKind',
     'unreadableReason',
-    'foodName',
-    'quantity',
-    'servingWeightG',
-    'calories',
-    'proteinG',
-    'carbG',
-    'fatG',
-    'micronutrients',
+    'mealName',
+    'items',
     'productNameVisible',
     'descriptionStatesAmount',
     'confidenceFactors',
@@ -140,29 +149,16 @@ function toInlineImage(imageBytes: Buffer): InlineImage {
   return { mimeType: detectedType, data: imageBytes };
 }
 
-function toProviderError(cause: unknown): unknown {
-  if (cause instanceof GeminiUnavailableError) {
-    console.error('[NutritionExtraction] AI unavailable:', cause.message);
-    return new AppError(
-      'Photo analysis is unavailable right now. Try again in a minute, or enter the meal manually.',
-      503,
-      'AI_UNAVAILABLE'
-    );
-  }
-
+const PHOTO_FAILURE_COPY = {
+  logLabel: 'NutritionExtraction',
+  unavailableMessage:
+    'Photo analysis is unavailable right now. Try again in a minute, or enter the meal manually.',
   // A request no key or model accepts is almost always an image the provider
   // cannot decode (corrupt, unusual encoding), not a transient fault.
-  if (cause instanceof GeminiRequestError && cause.kind === 'invalid-request') {
-    console.error('[NutritionExtraction] AI rejected the request:', cause.message);
-    return new AppError(
-      'This photo could not be processed. Try a different photo, or enter the meal manually.',
-      422,
-      'IMAGE_UNPROCESSABLE'
-    );
-  }
-
-  return cause;
-}
+  rejectedMessage:
+    'This photo could not be processed. Try a different photo, or enter the meal manually.',
+  rejectedCode: 'IMAGE_UNPROCESSABLE',
+};
 
 function unusableResponseError(): AppError {
   return new AppError(
@@ -185,7 +181,7 @@ async function requestFoodReading(image: InlineImage, description?: string): Pro
       totalBudgetMs: TOTAL_BUDGET_MS,
     });
   } catch (cause) {
-    throw toProviderError(cause);
+    throw toAiAppError(cause, PHOTO_FAILURE_COPY);
   }
 
   const parsed = aiFoodReadingSchema.safeParse(raw);
@@ -217,62 +213,41 @@ function assertFoodDetected(reading: AiFoodReading): void {
   }
 }
 
-/**
- * Keeps catalog nutrients only, converted to milligrams, and at most the first
- * few. The model lists the most significant first, so the cap trims the least
- * important. The response schema already restricts names and length, so
- * anything dropped here is logged as a sign the model ignored it.
- */
-function normaliseMicronutrients(items: readonly AiMicronutrient[]): FoodEntryDraft['micros'] {
-  const micros: NonNullable<FoodEntryDraft['micros']> = {};
-  const knownNames = new Set(MICRONUTRIENT_CATALOG.map((nutrient) => nutrient.name));
-
-  for (const item of items) {
-    if (!knownNames.has(item.name)) {
-      console.warn(`[NutritionExtraction] Ignoring unknown micronutrient "${item.name}"`);
-      continue;
-    }
-
-    const amountMg = roundToDecimals(toMilligrams(item.amount, item.unit), MICRONUTRIENT_DECIMALS);
-    if (amountMg <= 0 || micros[item.name]) continue;
-
-    micros[item.name] = { amount: amountMg, unit: 'mg' };
-    if (Object.keys(micros).length === MAX_REPORTED_MICRONUTRIENTS) break;
-  }
-
-  return micros;
+/** Counted pieces keep a tenth (half a roti is real); grams and millilitres round to whole units. */
+function roundQuantity(item: AiFoodItem): number {
+  return item.unit === 'count' ? roundToTenth(item.quantity) : Math.round(item.quantity);
 }
 
-/**
- * Shapes a food reading into the same fields a manual entry sends. The unit is
- * written as grams per serving (`"150g"`), the convention the meal form uses,
- * so a draft reopens in the form exactly like a saved entry does.
- */
-function toDraft(reading: AiFoodReading): FoodEntryDraft {
-  const { foodName, servingWeightG, calories, proteinG, carbG, fatG } = reading;
-  const hasNutrition = [calories, proteinG, carbG, fatG].every((value) => value !== undefined);
+function toDraftItem(item: AiFoodItem): FoodItemInput {
+  return {
+    name: item.name,
+    quantity: roundQuantity(item),
+    unit: item.unit,
+    calories: Math.round(item.calories),
+    macros: {
+      proteinG: roundToTenth(item.proteinG),
+      carbG: roundToTenth(item.carbG),
+      fatG: roundToTenth(item.fatG),
+    },
+    micros: normaliseAiMicronutrients(item.micronutrients, MAX_REPORTED_MICRONUTRIENTS),
+  };
+}
 
-  if (!foodName || !servingWeightG || !hasNutrition) {
-    console.warn('[NutritionExtraction] AI reading is missing required fields:', reading);
+/** Shapes a food reading into the same items a manual entry sends. */
+function toDraft(reading: AiFoodReading): FoodEntryDraft {
+  if (reading.items.length === 0) {
+    console.warn('[NutritionExtraction] AI reading has no items:', reading);
     throw unusableResponseError();
   }
 
-  const servings = reading.quantity && reading.quantity > 0 ? roundToTenth(reading.quantity) : 1;
+  if (reading.items.length > MAX_PHOTO_ITEMS) {
+    console.warn(`[NutritionExtraction] Keeping the first ${MAX_PHOTO_ITEMS} of ${reading.items.length} items`);
+  }
 
-  const candidate = {
-    foodName,
-    quantity: servings,
-    quantityUnit: `${Math.round(servingWeightG)}g`,
-    calories: Math.round(calories ?? 0),
-    macros: {
-      proteinG: roundToTenth(proteinG ?? 0),
-      carbG: roundToTenth(carbG ?? 0),
-      fatG: roundToTenth(fatG ?? 0),
-    },
-    micros: normaliseMicronutrients(reading.micronutrients),
-  };
-
-  const parsed = foodEntryDraftSchema.safeParse(candidate);
+  const parsed = foodEntryDraftSchema.safeParse({
+    name: reading.mealName,
+    items: reading.items.slice(0, MAX_PHOTO_ITEMS).map(toDraftItem),
+  });
   if (!parsed.success) {
     console.warn('[NutritionExtraction] Draft is outside food entry limits:', parsed.error.issues);
     throw unusableResponseError();
@@ -281,20 +256,20 @@ function toDraft(reading: AiFoodReading): FoodEntryDraft {
   return parsed.data;
 }
 
-function macroCalories(draft: FoodEntryDraft): number {
-  const { proteinG, carbG, fatG } = draft.macros;
+function macroCalories(totals: NutritionTotals): number {
+  const { proteinG, carbG, fatG } = totals.macros;
   return proteinG * 4 + carbG * 4 + fatG * 9;
 }
 
-function hasEnergyMismatch(draft: FoodEntryDraft): boolean {
-  const fromMacros = macroCalories(draft);
-  const larger = Math.max(draft.calories, fromMacros);
+function hasEnergyMismatch(totals: NutritionTotals): boolean {
+  const fromMacros = macroCalories(totals);
+  const larger = Math.max(totals.calories, fromMacros);
   if (larger < MIN_CALORIES_FOR_ENERGY_CHECK) return false;
-  return Math.abs(draft.calories - fromMacros) / larger > MAX_ENERGY_MISMATCH;
+  return Math.abs(totals.calories - fromMacros) / larger > MAX_ENERGY_MISMATCH;
 }
 
 function findReviewWarnings(
-  draft: FoodEntryDraft,
+  totals: NutritionTotals,
   reading: AiFoodReading,
   description?: string
 ): string[] {
@@ -302,12 +277,12 @@ function findReviewWarnings(
   const userStatedAmount = Boolean(description) && reading.descriptionStatesAmount;
 
   if (reading.imageKind === 'meal' && !userStatedAmount) {
-    warnings.push('Portion size is estimated from the photo. Check the amount in grams.');
+    warnings.push('Amounts are estimated from the photo. Check the quantity of each item.');
   }
 
-  if (hasEnergyMismatch(draft)) {
+  if (hasEnergyMismatch(totals)) {
     warnings.push(
-      `Calories (${draft.calories} kcal) and macros (about ${Math.round(macroCalories(draft))} kcal) do not agree. Check both.`
+      `Calories (${Math.round(totals.calories)} kcal) and macros (about ${Math.round(macroCalories(totals))} kcal) do not agree. Check both.`
     );
   }
 
@@ -315,7 +290,7 @@ function findReviewWarnings(
 }
 
 function scoreConfidence(
-  draft: FoodEntryDraft,
+  totals: NutritionTotals,
   reading: AiFoodReading,
   imageKind: ScoredImageKind,
   description?: string
@@ -330,7 +305,7 @@ function scoreConfidence(
     productNameVisible: reading.productNameVisible,
     hasUserDescription: Boolean(description),
     descriptionStatesAmount: reading.descriptionStatesAmount,
-    energyMismatch: hasEnergyMismatch(draft),
+    energyMismatch: hasEnergyMismatch(totals),
   });
 }
 
@@ -352,14 +327,15 @@ export async function extractNutritionFromImage(
   assertFoodDetected(reading);
   const imageKind = reading.imageKind as ScoredImageKind;
   const extraction = toDraft(reading);
+  const totals = sumItemNutrition(extraction.items);
 
   return {
     extraction,
     analysis: {
       imageKind,
-      confidence: scoreConfidence(extraction, reading, imageKind, description),
+      confidence: scoreConfidence(totals, reading, imageKind, description),
       notes: reading.notes || null,
-      warnings: findReviewWarnings(extraction, reading, description),
+      warnings: findReviewWarnings(totals, reading, description),
     },
   };
 }

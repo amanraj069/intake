@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CONFIDENCE_FACTOR_KEYS, ConfidenceFactorKey } from './extractionConfidence';
+import { FOOD_ITEM_UNITS } from '../models/FoodEntry';
 import { MICRONUTRIENT_CATALOG, MICRONUTRIENT_NAMES } from './micronutrientCatalog';
 
 /**
@@ -16,6 +17,9 @@ export type ImageKind = (typeof IMAGE_KINDS)[number];
  */
 export const MAX_REPORTED_MICRONUTRIENTS = 6;
 
+/** A photo rarely shows more separate foods than this; the service trims anything beyond it. */
+export const MAX_PHOTO_ITEMS = 8;
+
 const MICRONUTRIENT_LINES = MICRONUTRIENT_CATALOG.map(
   (nutrient) => `- ${nutrient.name} (usually in ${nutrient.labelUnit})`
 ).join('\n');
@@ -27,41 +31,43 @@ Step 1: classify the photo as imageKind.
 - "meal": food or drink is clearly visible. Identify it and estimate the portion shown.
 - "unclear": food may be present, but the photo is too blurry, dark, cropped or obstructed to identify it or judge the portion.
 - "not-food": the photo contains no food, drink or nutrition label.
-For "unclear" and "not-food", set unreadableReason to one short sentence the user can act on (for example "The label is out of focus, so the numbers cannot be read.") and omit every nutrition field.
+For "unclear" and "not-food", set unreadableReason to one short sentence the user can act on (for example "The label is out of focus, so the numbers cannot be read.") and return no items.
 
-Step 2: describe the portion.
-- foodName: a short, specific name in title case, such as "Chicken Caesar Salad" or "Greek Yogurt, Plain". For a label, use the product name when it is visible; otherwise infer the most likely food from the numbers and packaging.
+Step 2: split what is shown into items.
+- items: the separate components a person would log individually, largest share of calories first, at most ${MAX_PHOTO_ITEMS}. A plate of distinct foods (roti, dal, rice, salad) is one item per food. A dish eaten as one thing (a sandwich, a slice of pizza, cereal with milk, a mixed curry) is one item. A nutrition label is one item: the product.
+- name: short and specific, in title case, singular for counted pieces, such as "Roti", "Paneer Butter Masala" or "Greek Yogurt, Plain". For a label, use the product name when it is visible; otherwise infer the most likely food from the numbers and packaging.
+- unit: "count" for pieces that are naturally counted (roti, egg, slice of bread, banana, cookie, idli); "ml" for drinks and other liquids; "g" for everything else. A bowl, cup, plate or scoop is never a count: estimate its weight in grams.
+- quantity: the total amount of that item shown, in its unit, such as 2 for two rotis or 180 for 180 g of rice. For a label, one serving as printed, in g or ml.
+- mealName: what a person would call everything shown, short and in title case, such as "Roti Sabji", "Dal Chawal" or "Chicken Caesar Salad". For a single item or a label, the item's name.
 - productNameVisible: true only when the photo shows the product's name or packaging that identifies it. Always false for a meal photo.
-- quantity: how many servings are shown. For a single plate or item, use 1. For a label, use 1 serving as printed.
-- servingWeightG: the weight of one serving in grams. For drinks, treat 1 ml as 1 g unless the label says otherwise.
 
-Step 3: nutrition totals for the whole portion (quantity servings, not per 100 g).
+Step 3: nutrition for each item, for that item's quantity only (not per 100 g, and not the whole meal).
 - calories in kcal, and proteinG, carbG and fatG in grams.
-- Calories should roughly equal 4 x protein + 4 x carbs + 9 x fat. Labels can differ slightly because of fibre and rounding: keep the printed values.
-- For a meal, use standard food composition data (such as USDA FoodData Central) and account for visible oils, dressings, sauces and toppings.
+- Each item's calories should roughly equal 4 x protein + 4 x carbs + 9 x fat. Labels can differ slightly because of fibre and rounding: keep the printed values.
+- For a meal, use standard food composition data (such as USDA FoodData Central or the Indian Food Composition Tables) and count visible oil, ghee, butter, dressing or sauce in the item it is on.
 
-Step 4: micronutrients. Report only the important, significant ones, at most ${MAX_REPORTED_MICRONUTRIENTS}, most significant first. Do not try to cover the whole list.
+Step 4: micronutrients for each item. Report only the important, significant ones, at most ${MAX_REPORTED_MICRONUTRIENTS} per item, most significant first. Do not try to cover the whole list.
 - For a label: the micronutrients it prints with an amount of 5 mg or more.
-- For a meal: only nutrients the portion is a notable source of (roughly 10% or more of the US FDA Daily Value), or that matter for the food, such as sodium in salty or processed dishes. Skip trace amounts and strictly exclude any micronutrient present in amounts less than 5 mg.
+- For a meal: only nutrients the item is a notable source of (roughly 10% or more of the US FDA Daily Value), or that matter for the food, such as sodium in salty or processed dishes. Skip trace amounts and strictly exclude any micronutrient present in amounts less than 5 mg.
 Leave out anything unknown instead of guessing or reporting zero. Give each amount in "mg" or "mcg". If a label shows only a % Daily Value, convert it using the US FDA Daily Values. Do not report any micronutrient whose final converted amount is less than 5 mg.
 Use names from this list only, spelled exactly as written:
 ${MICRONUTRIENT_LINES}
 
 Step 5: confidenceFactors. Score each factor from 0 to 100 on how sure you are, with one short, specific reason. Judge each factor on its own: a clear photo does not make an unknown portion certain. Use these anchors and interpolate between them.
 
-foodIdentity: do we know what the food is?
+foodIdentity: do we know what each item is?
 - 90-100: named product on packaging, or an unmistakable single food (a banana, a boiled egg).
 - 70-89: a recognisable dish, where variants differ little (toast with jam, a margherita pizza).
 - 40-69: the kind of dish is clear but the variant matters (a curry, a sandwich with unseen fillings), or a label with no product name where the food must be inferred from its numbers.
 - 0-39: guessing between quite different foods.
 
-portionSize: do we know how much food there is?
+portionSize: do we know how much of each item there is?
 - 90-100: the weight is printed and applies to what is shown (one packaged item), or the user's description states the amount.
 - 70-89: countable items of standard size (two slices of bread, one egg), or a label serving size where one serving is the obvious portion.
 - 40-69: a plate or bowl estimated by eye, with some scale reference (cutlery, a standard plate).
 - 0-39: no scale reference, food piled or partly out of frame, or a label where the amount actually eaten is unknown (a multi-serving container).
 
-nutrientValues: given the food and amount, how reliable are the calories and macros?
+nutrientValues: given the items and amounts, how reliable are the calories and macros?
 - 90-100: printed on a legible label.
 - 70-89: a simple food with little hidden variation (fruit, plain rice, a boiled egg).
 - 40-69: a prepared dish where cooking fat, sauces, fillings or recipe change the numbers noticeably.
@@ -87,8 +93,8 @@ export function buildExtractionPrompt(description?: string): string {
 
   return `${base}
 The user describes it as: "${description.replace(/"/g, "'")}".
-Use this to identify the food and the amount eaten. If a nutrition label is visible, the printed values take priority over the description.
-Set descriptionStatesAmount to true only if the description gives a quantity or weight, such as "2 slices", "one bowl" or "150 g". A description that only names the food is false.`;
+Use this to identify the items and the amount of each eaten. If a nutrition label is visible, the printed values take priority over the description.
+Set descriptionStatesAmount to true only if the description gives a quantity or weight, such as "2 rotis", "one bowl" or "150 g". A description that only names the food is false.`;
 }
 
 const MAX_READING_TEXT = 300;
@@ -96,9 +102,20 @@ const MAX_MODEL_NUMBER = 100000;
 
 const modelNumber = z.number().finite().nonnegative().max(MAX_MODEL_NUMBER);
 
+/**
+ * Free text the user only reads (a note, a reason). An over-long sentence is
+ * trimmed rather than rejected: failing the whole photo over a wordy note would
+ * throw away numbers that were read correctly.
+ */
+const readerText = (maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .transform((text) => (text.length > maxLength ? `${text.slice(0, maxLength - 1).trimEnd()}…` : text));
+
 const factorReadingSchema = z.object({
   score: z.number().finite().min(0).max(100),
-  reason: z.string().trim().min(1).max(MAX_READING_TEXT),
+  reason: readerText(MAX_READING_TEXT).refine((reason) => reason.length > 0),
 });
 
 const confidenceFactorsSchema = z.object(
@@ -114,6 +131,18 @@ const aiMicronutrientSchema = z.object({
   unit: z.enum(['mg', 'mcg']),
 });
 
+/** One component of the photo as the model read it. */
+const aiFoodItemSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  quantity: modelNumber,
+  unit: z.enum(FOOD_ITEM_UNITS),
+  calories: modelNumber,
+  proteinG: modelNumber,
+  carbG: modelNumber,
+  fatG: modelNumber,
+  micronutrients: z.array(aiMicronutrientSchema).max(MICRONUTRIENT_NAMES.length * 2).default([]),
+});
+
 /**
  * The model's raw answer. A response schema constrains generation, but the
  * output is still untrusted: every field is checked here, and the service
@@ -121,21 +150,16 @@ const aiMicronutrientSchema = z.object({
  */
 export const aiFoodReadingSchema = z.object({
   imageKind: z.enum(IMAGE_KINDS),
-  unreadableReason: z.string().trim().max(MAX_READING_TEXT).optional(),
-  foodName: z.string().trim().max(200).optional(),
-  quantity: modelNumber.optional(),
-  servingWeightG: modelNumber.optional(),
-  calories: modelNumber.optional(),
-  proteinG: modelNumber.optional(),
-  carbG: modelNumber.optional(),
-  fatG: modelNumber.optional(),
-  micronutrients: z.array(aiMicronutrientSchema).max(MICRONUTRIENT_NAMES.length * 2).default([]),
+  unreadableReason: readerText(MAX_READING_TEXT).optional(),
+  mealName: readerText(200).optional(),
+  /** Empty for "unclear" and "not-food", which carry no nutrition. */
+  items: z.array(aiFoodItemSchema).default([]),
   productNameVisible: z.boolean().default(false),
   descriptionStatesAmount: z.boolean().default(false),
   /** Absent for "unclear" and "not-food", which carry no nutrition to be confident about. */
   confidenceFactors: confidenceFactorsSchema.optional(),
-  notes: z.string().trim().max(MAX_READING_TEXT).optional(),
+  notes: readerText(MAX_READING_TEXT).optional(),
 });
 
 export type AiFoodReading = z.infer<typeof aiFoodReadingSchema>;
-export type AiMicronutrient = z.infer<typeof aiMicronutrientSchema>;
+export type AiFoodItem = z.infer<typeof aiFoodItemSchema>;

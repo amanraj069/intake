@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { describeItem, formatItemAmount } from "@/lib/foodItems";
 import { formatNumericDate } from "@/lib/formatDate";
 import type { FoodEntry } from "@/types/nutrition";
 
@@ -18,30 +19,9 @@ interface FoodEntryRowProps {
   onClick: () => void;
 }
 
-/** Formats quantity and unit cleanly, e.g. "1 × 150g" or "150g" or "2 slices". */
-export function formatQuantity(quantity: number, unit: string): string {
-  const trimmedUnit = (unit || "").trim();
-
-  // If unit is purely numeric (e.g. "150"), treat it as grams: "150g"
-  const normalizedUnit =
-    trimmedUnit && !/[a-zA-Z]/.test(trimmedUnit) ? `${trimmedUnit}g` : trimmedUnit;
-
-  // If unit has numbers in it (like "150g"): "1 × 150g"
-  if (/\d/.test(normalizedUnit)) {
-    return `${quantity} × ${normalizedUnit}`;
-  }
-
-  // If unit is a standard metric symbol: "150g", "250ml"
-  if (["g", "mg", "mcg", "kg", "ml", "l", "oz", "lb"].includes(normalizedUnit.toLowerCase())) {
-    return `${quantity}${normalizedUnit}`;
-  }
-
-  // If unit is a descriptive word like "serving", "slice", "piece"
-  if (normalizedUnit) {
-    return `${quantity} ${normalizedUnit}`;
-  }
-
-  return `${quantity}`;
+/** A single item shows its amount; a meal of several items says how many it has. */
+function servingLabel(entry: FoodEntry): string {
+  return entry.items.length === 1 ? formatItemAmount(entry.items[0]) : `${entry.items.length} items`;
 }
 
 export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onClick }: FoodEntryRowProps) {
@@ -92,14 +72,17 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onCl
       </div>
 
       <div className="min-w-0 pr-2">
-        <p className="text-sm font-semibold text-text-primary dark:text-dark-text truncate">
-          {entry.foodName}
+        <p
+          className="text-sm font-semibold text-text-primary dark:text-dark-text truncate"
+          title={entry.items.map(describeItem).join(", ")}
+        >
+          {entry.name}
         </p>
       </div>
 
       <div>
         <p className="text-xs font-medium text-text-secondary dark:text-dark-text-secondary whitespace-nowrap">
-          {formatQuantity(entry.quantity, entry.quantityUnit)}
+          {servingLabel(entry)}
         </p>
       </div>
 

@@ -1,59 +1,10 @@
 import 'dotenv/config';
 
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
-import passport from 'passport';
 
-import { configurePassport } from './lib/passport';
-import authRoutes from './routes/auth';
-import goalRoutes from './routes/goals';
-import foodEntryRoutes from './routes/foodEntries';
-import reportRoutes from './routes/reports';
-import onboardingRoutes from './routes/onboarding';
-import aiRoutes from './routes/ai';
-import { errorHandler } from './middleware/errorHandler';
+import { createApp } from './app';
 
-const app = express();
 const PORT = process.env.PORT || 9000;
-
-// --- Middleware stack ---
-
-app.use(helmet());
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
-  })
-);
-app.use(express.json());
-app.use(cookieParser());
-app.use(passport.initialize());
-
-// --- Passport configuration ---
-
-configurePassport();
-
-// --- Routes ---
-
-app.get('/health', (_req, res) => {
-  res.json({ success: true, message: 'Server is running' });
-});
-
-app.use('/auth', authRoutes);
-app.use('/api/goals', goalRoutes);
-app.use('/api/food-entries', foodEntryRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/onboarding', onboardingRoutes);
-app.use('/api/ai', aiRoutes);
-
-// --- Error handling ---
-
-app.use(errorHandler);
-
-// --- Database connection + server start ---
 
 async function start() {
   try {
@@ -61,7 +12,7 @@ async function start() {
     await mongoose.connect(mongoUri);
     console.log('[DB] Connected to MongoDB');
 
-    app.listen(PORT, () => {
+    createApp().listen(PORT, () => {
       console.log(`[Server] Running on http://localhost:${PORT}`);
     });
   } catch (error) {

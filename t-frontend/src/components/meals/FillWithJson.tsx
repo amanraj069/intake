@@ -2,113 +2,29 @@
 
 import { useState } from "react";
 import Button from "@/components/ui/Button";
-import type { MealFormValues, MicronutrientRow } from "@/lib/validation/mealForm";
-import type { MealType } from "@/types/nutrition";
+import { createEmptyItem, type FoodItemFormValues, type MealDetails } from "@/lib/validation/mealForm";
+import { generateMealJson, mealJsonToFormState, parseMealJson } from "@/lib/mealJson";
 
 interface FillWithJsonProps {
-  values: MealFormValues;
-  rows: MicronutrientRow[];
+  details: MealDetails;
+  items: FoodItemFormValues[];
   submitting: boolean;
   submitLabel: string;
-  onUpdateValues: (values: MealFormValues) => void;
-  onUpdateRows: (rows: MicronutrientRow[]) => void;
+  onUpdate: (details: MealDetails, items: FoodItemFormValues[] | null) => void;
   onClose: () => void;
   onSubmit: () => void;
 }
 
-export function generateMealJson(values: MealFormValues, rows: MicronutrientRow[]): string {
-  const microsObj: Record<string, { amount: number | string; unit: string }> = {};
-  for (const r of rows) {
-    if (r.name.trim()) {
-      const num = Number(r.amount);
-      microsObj[r.name.trim()] = {
-        amount: !isNaN(num) && r.amount.trim() !== "" ? num : r.amount || "",
-        unit: r.unit || "mg",
-      };
-    }
-  }
-
-  const hasItems = Object.keys(microsObj).length > 0;
-  const microsLines = hasItems
-    ? JSON.stringify(microsObj, null, 2)
-        .split("\n")
-        .map((line, i) => (i === 0 ? line : "  " + line))
-        .join("\n")
-    : `{\n    "Vitamin C": {\n      "amount": "",\n      "unit": "mg"\n    }\n  }`;
-
-  return `{
-  // — Step 1 · Meal —
-  "mealType": "${values.mealType || ""}",
-  // one of: breakfast, lunch, snack, dinner
-  "foodName": "${(values.foodName || "").replace(/"/g, '\\"')}",
-  "date": "${values.date || ""}",
-  "quantity": "${values.quantity || ""}",
-  "servingSize": "${values.servingSize || ""}", // weight in grams (g)
-
-  // — Step 2 · Calories (kcal) and Macros (weights in grams / g) —
-  "calories": "${values.calories || ""}", // in kcal
-  "proteinG": "${values.proteinG || ""}", // weight in grams (g)
-  "carbG": "${values.carbG || ""}", // weight in grams (g)
-  "fatG": "${values.fatG || ""}", // weight in grams (g)
-
-  // — Step 3 · Micronutrients (all weights in milligrams / mg) —
-  // Example structure (internal JSON format):
-  // "micros": {
-  //   "Vitamin C": {
-  //     "amount": 60,
-  //     "unit": "mg"
-  //   },
-  //   "Iron": {
-  //     "amount": 8,
-  //     "unit": "mg"
-  //   }
-  // }
-  // (Both { "amount": ..., "unit": "mg" } and simple amounts like "Vitamin C": 60 are supported)
-  // Common nutrients: "Vitamin C", "Vitamin D", "Vitamin B12", "Iron", "Calcium", "Magnesium", "Zinc", "Potassium", "Sodium"
-  "micros": ${microsLines}
-}`;
-}
-
-export function stripJsonComments(jsonWithComments: string): string {
-  // Strip markdown code fences if wrapped in ```json ... ```
-  let text = jsonWithComments.trim();
-  if (text.startsWith("```")) {
-    text = text.replace(/^```[a-zA-Z]*\n?/, "").replace(/```$/, "").trim();
-  }
-  // Strip single-line comments // ... but preserve within quoted strings
-  const withoutComments = text.replace(
-    /\\"|"(?:\\"|[^"])*"|(\/\/.*$)/gm,
-    (match, comment) => (comment ? "" : match)
-  );
-  // Strip trailing commas before } or ]
-  return withoutComments.replace(/,(\s*[}\]])/g, "$1");
-}
-
-export function parseMealJson(text: string): { data?: Record<string, unknown>; error?: string } {
-  try {
-    const cleaned = stripJsonComments(text);
-    const parsed = JSON.parse(cleaned) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { error: "JSON must be a root object { ... }" };
-    }
-    return { data: parsed as Record<string, unknown> };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Invalid JSON syntax";
-    return { error: msg };
-  }
-}
-
 export default function FillWithJson({
-  values,
-  rows,
+  details,
+  items,
   submitting,
   submitLabel,
-  onUpdateValues,
-  onUpdateRows,
+  onUpdate,
   onClose,
   onSubmit,
 }: FillWithJsonProps) {
-  const [jsonText, setJsonText] = useState(() => generateMealJson(values, rows));
+  const [jsonText, setJsonText] = useState(() => generateMealJson(details, items));
   const [parseError, setParseError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -139,101 +55,20 @@ ${jsonText.trim()}`;
 
   function handleTextChange(newText: string) {
     setJsonText(newText);
-    const res = parseMealJson(newText);
+    const result = parseMealJson(newText);
 
-    if (res.error || !res.data) {
-      setParseError(res.error || "Invalid JSON syntax");
+    if (result.error || !result.data) {
+      setParseError(result.error || "Invalid JSON syntax");
       return;
     }
 
     setParseError(null);
-    const data = res.data;
-    const nextValues: MealFormValues = { ...values };
-
-    if (data.mealType && typeof data.mealType === "string") {
-      const mt = data.mealType.toLowerCase().trim();
-      if (["breakfast", "lunch", "snack", "dinner"].includes(mt)) {
-        nextValues.mealType = mt as MealType;
-      }
-    }
-    if (data.foodName !== undefined) nextValues.foodName = String(data.foodName);
-    if (data.name !== undefined && data.foodName === undefined) nextValues.foodName = String(data.name);
-    if (data.date !== undefined) nextValues.date = String(data.date);
-    if (data.quantity !== undefined) nextValues.quantity = String(data.quantity);
-    if (data.servingSize !== undefined) nextValues.servingSize = String(data.servingSize);
-    if (data.amount !== undefined && data.servingSize === undefined) nextValues.servingSize = String(data.amount);
-    if (data.calories !== undefined) nextValues.calories = String(data.calories);
-    if (data.proteinG !== undefined) nextValues.proteinG = String(data.proteinG);
-    if (data.protein !== undefined && data.proteinG === undefined) nextValues.proteinG = String(data.protein);
-    if (data.carbG !== undefined) nextValues.carbG = String(data.carbG);
-    if (data.carbs !== undefined && data.carbG === undefined) nextValues.carbG = String(data.carbs);
-    if (data.fatG !== undefined) nextValues.fatG = String(data.fatG);
-    if (data.fat !== undefined && data.fatG === undefined) nextValues.fatG = String(data.fat);
-
-    onUpdateValues(nextValues);
-
-    if (data.micros && typeof data.micros === "object" && !Array.isArray(data.micros)) {
-      const newRows: MicronutrientRow[] = Object.entries(data.micros)
-        .filter(([name]) => name.trim() !== "")
-        .map(([name, val], index) => {
-          let amount = "";
-          let unit = "mg";
-          if (typeof val === "object" && val !== null) {
-            const vObj = val as { amount?: unknown; unit?: unknown };
-            amount = vObj.amount !== undefined && vObj.amount !== null ? String(vObj.amount).trim() : "";
-            unit = String(vObj.unit || "mg").trim();
-          } else {
-            amount = val !== undefined && val !== null ? String(val).trim() : "";
-          }
-          return {
-            id: `micronutrient-json-${index + 1}`,
-            name: name.trim(),
-            amount,
-            unit: unit || "mg",
-          };
-        })
-        .filter((r) => r.amount !== "");
-      onUpdateRows(newRows);
-    } else if (Array.isArray(data.micros)) {
-      const newRows: MicronutrientRow[] = data.micros
-        .map((item, index) => {
-          if (typeof item === "object" && item !== null) {
-            const mItem = item as { name?: unknown; amount?: unknown; unit?: unknown };
-            return {
-              id: `micronutrient-json-${index + 1}`,
-              name: String(mItem.name ?? "").trim(),
-              amount: String(mItem.amount ?? "").trim(),
-              unit: String(mItem.unit ?? "mg").trim() || "mg",
-            };
-          }
-          return {
-            id: `micronutrient-json-${index + 1}`,
-            name: String(item ?? "").trim(),
-            amount: "",
-            unit: "mg",
-          };
-        })
-        .filter((r) => r.name !== "" && r.amount !== "");
-      onUpdateRows(newRows);
-    }
+    const next = mealJsonToFormState(result.data, details);
+    onUpdate(next.details, next.items);
   }
 
   function handleResetTemplate() {
-    const template = generateMealJson(
-      {
-        mealType: "breakfast",
-        foodName: "",
-        quantity: "1",
-        servingSize: "100",
-        calories: "",
-        proteinG: "",
-        carbG: "",
-        fatG: "",
-        date: values.date || "",
-      },
-      []
-    );
-    handleTextChange(template);
+    handleTextChange(generateMealJson({ mealType: "breakfast", date: details.date, name: "" }, [createEmptyItem()]));
   }
 
   return (

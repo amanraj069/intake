@@ -101,11 +101,6 @@ export function ConfidenceDetails({ confidence }: { confidence: ExtractionConfid
             ))}
           </ul>
         )}
-
-        <p className="text-[11px] font-light text-text-secondary dark:text-dark-text-secondary">
-          The overall score blends the weighted factors with the weakest one, so a single unknown always
-          lowers it. It never exceeds 95%.
-        </p>
       </div>
     </div>
   );

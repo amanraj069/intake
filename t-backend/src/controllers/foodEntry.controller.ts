@@ -2,9 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import { getAuthenticatedUserId } from '../lib/authenticatedUser';
 import { getValidatedInput } from '../middleware/validate';
 import {
+  createFoodEntrySchema,
   foodEntrySeriesSchema,
   foodEntrySummarySchema,
   listFoodEntriesSchema,
+  updateFoodEntrySchema,
 } from '../schemas/foodEntry.schema';
 import * as dailyIntakeService from '../services/dailyIntake.service';
 import * as foodEntryService from '../services/foodEntry.service';
@@ -23,7 +25,9 @@ export async function createFoodEntry(
 ): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const foodEntry = await foodEntryService.createFoodEntry(userId, req.body);
+    // The parsed body, not the raw one: the schema trims text and turns a blank meal name into "no name".
+    const { body } = getValidatedInput(req, createFoodEntrySchema);
+    const foodEntry = await foodEntryService.createFoodEntry(userId, body);
 
     res.status(201).json({
       success: true,
@@ -46,7 +50,8 @@ export async function updateFoodEntry(
 ): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
-    const foodEntry = await foodEntryService.updateFoodEntry(userId, req.params.id, req.body);
+    const { body } = getValidatedInput(req, updateFoodEntrySchema);
+    const foodEntry = await foodEntryService.updateFoodEntry(userId, req.params.id, body);
 
     res.status(200).json({
       success: true,

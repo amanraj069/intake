@@ -9,7 +9,10 @@ import {
   listFoodEntriesSchema,
   updateFoodEntrySchema,
 } from '../schemas/foodEntry.schema';
+import { uploadFoodDiaryPdf } from '../middleware/upload';
+import { confirmFoodEntryImportSchema } from '../schemas/foodEntryImport.schema';
 import * as foodEntryController from '../controllers/foodEntry.controller';
+import * as foodEntryImportController from '../controllers/foodEntryImport.controller';
 
 const router = Router();
 
@@ -26,6 +29,17 @@ router.get('/series', validate(foodEntrySeriesSchema), foodEntryController.getDa
 router.get('/:id', validate(foodEntryIdSchema), foodEntryController.getFoodEntry);
 
 router.post('/', validate(createFoodEntrySchema), foodEntryController.createFoodEntry);
+// The upload runs before any handler: the PDF only exists on `req.file` once multer has parsed the form.
+router.post(
+  '/import/preview',
+  uploadFoodDiaryPdf,
+  foodEntryImportController.previewFoodEntryImport
+);
+router.post(
+  '/import/confirm',
+  validate(confirmFoodEntryImportSchema),
+  foodEntryImportController.confirmFoodEntryImport
+);
 router.patch('/:id', validate(updateFoodEntrySchema), foodEntryController.updateFoodEntry);
 router.delete('/:id', validate(foodEntryIdSchema), foodEntryController.deleteFoodEntry);
 

@@ -23,7 +23,7 @@ function GuestLinks({ pathname }: { pathname: string }) {
   return (
     <Link
       href="/login"
-      className="text-[10px] sm:text-xs font-bold px-5 py-2.5 rounded-lg bg-accent text-white hover:bg-accent-hover dark:bg-accent-dark dark:hover:bg-accent-dark-hover transition-all duration-150 active:scale-[0.97]"
+      className="text-[10px] sm:text-xs font-bold px-5 py-2.5 rounded-lg bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover transition-all duration-150 active:scale-[0.97]"
     >
       Sign In
     </Link>
@@ -48,7 +48,7 @@ export default function Navbar() {
                 <>
                   <Link 
                     href="/dashboard" 
-                    className="text-[10px] sm:text-xs font-bold   px-5 py-2.5 rounded-lg bg-accent text-white hover:bg-accent-hover dark:bg-accent-dark dark:hover:bg-accent-dark-hover transition-all duration-150 active:scale-[0.97]"
+                    className="text-[10px] sm:text-xs font-bold   px-5 py-2.5 rounded-lg bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover transition-all duration-150 active:scale-[0.97]"
                   >
                     Dashboard
                   </Link>

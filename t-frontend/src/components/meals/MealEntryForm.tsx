@@ -1,30 +1,29 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import AmountInput from "@/components/ui/AmountInput";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import FormError from "@/components/ui/FormError";
 import FormSection from "@/components/ui/FormSection";
 import Input from "@/components/ui/Input";
 import OptionPills, { type PillOption } from "@/components/ui/OptionPills";
-import MicronutrientRows from "./MicronutrientRows";
 import FillWithJson from "./FillWithJson";
+import MealItemsSection from "./MealItemsSection";
 import DraftReviewConfirmation from "./photo/DraftReviewConfirmation";
 import PhotoExtractPanel from "./photo/PhotoExtractPanel";
 import { useAiDraftReview } from "@/hooks/useAiDraftReview";
-import { useMicronutrientRows } from "@/hooks/useMicronutrientRows";
+import { useMealItems } from "@/hooks/useMealItems";
 import { toErrorMessage } from "@/lib/errorMessage";
 import { todayAsInputValue } from "@/lib/formatDate";
-import { LIMITS } from "@/lib/validation/amount";
 import {
-  MEAL_AMOUNT_RULES,
-  draftToFormValues,
-  entryToFormValues,
+  NO_MEAL_FORM_ERRORS,
+  entryToFormState,
+  itemToFormValues,
+  modeFor,
   validateMealForm,
-  type DraftFormFields,
-  type MealAmountField,
+  type EntryMode,
+  type FoodItemFormValues,
+  type MealDetails,
   type MealFormErrors,
-  type MealFormValues,
 } from "@/lib/validation/mealForm";
 import {
   MEAL_TYPES,
@@ -40,40 +39,6 @@ const MEAL_TYPE_OPTIONS: readonly PillOption<MealType>[] = MEAL_TYPES.map((mealT
   label: mealType.charAt(0).toUpperCase() + mealType.slice(1),
 }));
 
-const MEAL_FIELD_UNITS: Record<MealAmountField, string | undefined> = {
-  quantity: undefined,
-  servingSize: undefined,
-  calories: "kcal",
-  proteinG: "g",
-  carbG: "g",
-  fatG: "g",
-};
-
-const EMPTY_MEAL_FORM: MealFormValues = {
-  mealType: "breakfast",
-  foodName: "",
-  quantity: "",
-  servingSize: "",
-  calories: "",
-  proteinG: "",
-  carbG: "",
-  fatG: "",
-  date: "",
-};
-
-/** Clearing a photo draft empties what it filled in, and keeps the meal type and date the user chose. */
-const EMPTY_DRAFT_FIELDS: DraftFormFields = {
-  foodName: "",
-  quantity: "",
-  servingSize: "",
-  calories: "",
-  proteinG: "",
-  carbG: "",
-  fatG: "",
-};
-
-const NO_ERRORS: MealFormErrors = { fields: {}, micros: {} };
-
 interface MealEntryFormProps {
   /** The entry being edited. Omitted when logging a new meal. */
   entry?: FoodEntry;
@@ -84,6 +49,13 @@ interface MealEntryFormProps {
   jsonMode?: boolean;
   onCloseJsonMode?: () => void;
   onSubmit: (input: FoodEntryInput) => Promise<void>;
+  /**
+   * Renders the page header. The form owns the date, so it hands the date field
+   * over for the page to place among its header actions.
+   */
+  renderHeader: (dateField: ReactNode) => ReactNode;
+  /** Shown between the header and the form, e.g. the last saved entry. */
+  banner?: ReactNode;
 }
 
 function getDefaultMealType(): MealType {
@@ -94,6 +66,15 @@ function getDefaultMealType(): MealType {
   return "dinner";
 }
 
+function initialState(entry: FoodEntry | undefined, defaultMealType: MealType | undefined) {
+  if (entry) return entryToFormState(entry);
+  return {
+    details: { mealType: defaultMealType ?? getDefaultMealType(), date: "", name: "" },
+    items: undefined,
+    mode: "single" as EntryMode,
+  };
+}
+
 export default function MealEntryForm({
   entry,
   defaultMealType,
@@ -102,46 +83,53 @@ export default function MealEntryForm({
   jsonMode = false,
   onCloseJsonMode,
   onSubmit,
+  renderHeader,
+  banner,
 }: MealEntryFormProps) {
-  const [values, setValues] = useState<MealFormValues>(() =>
-    entry
-      ? entryToFormValues(entry)
-      : { ...EMPTY_MEAL_FORM, mealType: defaultMealType ?? getDefaultMealType() },
-  );
-  const [errors, setErrors] = useState<MealFormErrors>(NO_ERRORS);
+  const [initial] = useState(() => initialState(entry, defaultMealType));
+  const [details, setDetails] = useState<MealDetails>(initial.details);
+  const [mode, setMode] = useState<EntryMode>(initial.mode);
+  const [errors, setErrors] = useState<MealFormErrors>(NO_MEAL_FORM_ERRORS);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const { rows, addRow, addNutrientRow, updateRow, removeRow, setAllRows, replaceWithMicros } =
-    useMicronutrientRows(entry?.micros);
+  const mealItems = useMealItems(initial.items);
+  const { items, replaceItems } = mealItems;
   const draftReview = useAiDraftReview();
 
   useEffect(() => {
     // Defaulting to today has to happen after mount: the server renders in its
     // own timezone, so seeding this during render would break hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setValues((current) => (current.date ? current : { ...current, date: todayAsInputValue() }));
+    setDetails((current) => (current.date ? current : { ...current, date: todayAsInputValue() }));
   }, []);
 
-  function updateField<TField extends keyof MealFormValues>(
-    field: TField,
-    value: MealFormValues[TField],
-  ) {
-    setValues((current) => ({ ...current, [field]: value }));
-    setErrors((current) => ({ ...current, fields: { ...current.fields, [field]: undefined } }));
+  function updateDetails(changes: Partial<MealDetails>) {
+    setDetails((current) => ({ ...current, ...changes }));
+    setErrors((current) => ({ ...current, fields: { ...current.fields, date: undefined, name: undefined } }));
+  }
+
+  /** Fills name, items and the mode that shows them, as a photo draft or pasted JSON does. */
+  function applyItems(name: string | undefined, nextItems: FoodItemFormValues[]) {
+    replaceItems(nextItems);
+    setDetails((current) => ({ ...current, name: name ?? "" }));
+    setMode(modeFor(name, nextItems));
   }
 
   function applyPhotoDraft(result: NutritionExtraction) {
-    setValues((current) => ({ ...current, ...draftToFormValues(result.extraction) }));
-    replaceWithMicros(result.extraction.micros);
-    setErrors(NO_ERRORS);
+    applyItems(result.extraction.name, result.extraction.items.map(itemToFormValues));
+    setErrors(NO_MEAL_FORM_ERRORS);
     setSubmitError(null);
     draftReview.start(result.analysis);
   }
 
   function discardPhotoDraft() {
-    setValues((current) => ({ ...current, ...EMPTY_DRAFT_FIELDS }));
-    replaceWithMicros(undefined);
-    setErrors(NO_ERRORS);
+    applyItems(undefined, []);
+    setErrors(NO_MEAL_FORM_ERRORS);
     draftReview.clear();
+  }
+
+  function applyJson(nextDetails: MealDetails, nextItems: FoodItemFormValues[] | null) {
+    setDetails(nextDetails);
+    if (nextItems) applyItems(nextDetails.name, nextItems);
   }
 
   function entrySource(): FoodEntrySource {
@@ -153,7 +141,7 @@ export default function MealEntryForm({
   async function triggerSubmit() {
     setSubmitError(null);
 
-    const { errors: nextErrors, payload } = validateMealForm(values, rows, entrySource());
+    const { errors: nextErrors, payload } = validateMealForm({ details, items, mode }, entrySource());
     setErrors(nextErrors);
 
     const reviewed = draftReview.checkReadyToSave();
@@ -177,39 +165,51 @@ export default function MealEntryForm({
     await triggerSubmit();
   }
 
-  function renderAmountField(field: MealAmountField) {
-    return (
-      <AmountInput
-        rule={MEAL_AMOUNT_RULES[field]}
-        unit={MEAL_FIELD_UNITS[field]}
-        value={values[field]}
-        error={errors.fields[field]}
+  const dateField = (
+    <div className="w-full sm:w-44">
+      <Input
+        id="date"
+        label="Date eaten"
+        labelClassName="sr-only"
+        type="date"
+        value={details.date}
+        error={errors.fields.date}
         disabled={submitting}
-        onChange={(next) => updateField(field, next)}
+        required
+        onChange={(event) => updateDetails({ date: event.target.value })}
       />
-    );
-  }
+    </div>
+  );
 
   if (jsonMode) {
+    // A single food is named by itself, so the JSON shows that name rather than a stale meal name.
+    const jsonDetails = mode === "single" ? { ...details, name: items[0]?.name ?? "" } : details;
+
     return (
-      <div className="space-y-6">
-        <FillWithJson
-          values={values}
-          rows={rows}
-          submitting={submitting}
-          submitLabel={submitLabel}
-          onUpdateValues={setValues}
-          onUpdateRows={setAllRows}
-          onClose={onCloseJsonMode ?? (() => {})}
-          onSubmit={triggerSubmit}
-        />
-        {submitError && <FormError message={submitError} />}
-      </div>
+      <>
+        {renderHeader(dateField)}
+        {banner}
+        <div className="space-y-6">
+          <FillWithJson
+            details={jsonDetails}
+            items={items}
+            submitting={submitting}
+            submitLabel={submitLabel}
+            onUpdate={applyJson}
+            onClose={onCloseJsonMode ?? (() => {})}
+            onSubmit={triggerSubmit}
+          />
+          {submitError && <FormError message={submitError} />}
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="space-y-12">
+    <>
+      {renderHeader(dateField)}
+      {banner}
+
       {/* Outside the form, so Enter in the photo description never submits the meal. */}
       {!entry && (
         <PhotoExtractPanel
@@ -217,88 +217,41 @@ export default function MealEntryForm({
           disabled={submitting}
           onExtracted={applyPhotoDraft}
           onDiscard={discardPhotoDraft}
-          onEnterManually={() => document.getElementById("foodName")?.focus()}
+          onEnterManually={() => document.getElementById(`${items[0]?.id}-name`)?.focus()}
         />
       )}
 
       <form onSubmit={handleSubmit} noValidate className="space-y-12">
         <FormSection
           title="Meal"
-          description="What you ate, and how much of it."
+          description="Which meal of the day this was."
           action={
             <OptionPills
               label="Meal type"
               options={MEAL_TYPE_OPTIONS}
-              value={values.mealType}
+              value={details.mealType}
               disabled={submitting}
               size="md"
               className="w-full sm:w-auto"
-              onChange={(mealType) => updateField("mealType", mealType)}
+              onChange={(mealType) => updateDetails({ mealType })}
             />
           }
-        >
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Input
-              id="foodName"
-              label="Food name"
-              placeholder="Greek yogurt"
-              value={values.foodName}
-              error={errors.fields.foodName}
-              disabled={submitting}
-              required
-              maxLength={LIMITS.foodNameLength}
-              onChange={(event) => updateField("foodName", event.target.value)}
-            />
-            <Input
-              id="date"
-              label="Date eaten"
-              type="date"
-              value={values.date}
-              error={errors.fields.date}
-              disabled={submitting}
-              required
-              onChange={(event) => updateField("date", event.target.value)}
-            />
-          </div>
+        />
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            {renderAmountField("quantity")}
-            {renderAmountField("servingSize")}
-          </div>
-        </FormSection>
-
-        <FormSection
-          title="Calories and Macros"
-          description="Totals for the quantity above. Macro weights in grams (g)."
-        >
-          {renderAmountField("calories")}
-          <div className="grid gap-6 sm:grid-cols-3">
-            {renderAmountField("proteinG")}
-            {renderAmountField("carbG")}
-            {renderAmountField("fatG")}
-          </div>
-        </FormSection>
-
-        <FormSection
-          title="Micronutrients"
-          description="Optional. Add any nutrient you track (all weights in mg)."
-        >
-          <MicronutrientRows
-            rows={rows}
-            errors={errors.micros}
-            summaryError={errors.microsSummary}
-            disabled={submitting}
-            onAddRow={addRow}
-            onAddNutrientRow={addNutrientRow}
-            onRemoveRow={removeRow}
-            onUpdateRow={updateRow}
-          />
-        </FormSection>
+        <MealItemsSection
+          mode={mode}
+          mealName={details.name}
+          mealItems={mealItems}
+          errors={errors}
+          disabled={submitting}
+          onModeChange={setMode}
+          onMealNameChange={(name) => updateDetails({ name })}
+        />
 
         {draftReview.analysis && (
           <DraftReviewConfirmation
-            mealType={values.mealType}
-            date={values.date}
+            mealType={details.mealType}
+            date={details.date}
             confirmed={draftReview.confirmed}
             error={draftReview.error}
             disabled={submitting}
@@ -314,6 +267,6 @@ export default function MealEntryForm({
           </Button>
         </div>
       </form>
-    </div>
+    </>
   );
 }

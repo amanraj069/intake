@@ -8,23 +8,13 @@ import {
   matchStandardNutrient,
 } from "@/lib/micronutrients";
 import { LIMITS } from "@/lib/validation/amount";
-import type { MicronutrientRow } from "@/lib/validation/mealForm";
-
-const REMOVE_BUTTON_CLASSES = [
-  "h-[46px] px-4 sm:px-5 shrink-0 rounded-xl",
-  "border border-red-500/20 dark:border-red-500/30",
-  "bg-red-500/10 dark:bg-red-500/15",
-  "text-red-600 dark:text-red-400",
-  "hover:bg-red-500/20 dark:hover:bg-red-500/25 hover:border-red-500/40",
-  "text-xs sm:text-sm font-semibold",
-  "flex items-center justify-center gap-1.5",
-  "transition-all duration-150 cursor-pointer active:scale-[0.98]",
-  "disabled:opacity-40 disabled:cursor-not-allowed",
-].join(" ");
+import type { MicronutrientRow } from "@/lib/validation/micronutrientRows";
+import RemoveIconButton from "@/components/meals/import/RemoveIconButton";
 
 const ADD_BUTTON_CLASSES = [
   "w-full sm:w-auto px-6 py-3 rounded-xl",
   "border border-dashed border-input-border dark:border-dark-input-border",
+  "bg-bg-card dark:bg-dark-bg-card",
   "text-[10px] font-bold",
   "text-text-secondary dark:text-dark-text-secondary",
   "transition-colors duration-100 cursor-pointer",
@@ -35,7 +25,7 @@ const ADD_BUTTON_CLASSES = [
 
 const SELECT_CLASSES = [
   "w-full appearance-none px-4 py-3 pr-10 text-sm rounded-xl",
-  "bg-transparent border border-input-border dark:border-dark-input-border",
+  "bg-bg-card dark:bg-dark-bg-card border border-input-border dark:border-dark-input-border",
   "text-text-primary dark:text-dark-text",
   "transition-colors duration-150",
   "focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent",
@@ -183,26 +173,12 @@ function MicronutrientRowFields({ row, error, disabled, onRemove, onChange }: Si
         </div>
 
         {/* Remove Button */}
-        <button
-          type="button"
-          onClick={onRemove}
+        <RemoveIconButton
+          label={`Remove ${row.name.trim() || "micronutrient"}`}
           disabled={disabled}
-          aria-label={`Remove ${row.name.trim() || "micronutrient"}`}
-          className={`${REMOVE_BUTTON_CLASSES} self-start sm:mt-[24px]`}
-        >
-          <svg
-            className="w-3.5 h-3.5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-          </svg>
-          <span>Remove</span>
-        </button>
+          onClick={onRemove}
+          className="self-start sm:mt-[24px] !h-[46px] !w-[46px]"
+        />
       </div>
 
       {error && <p className="text-xs text-error dark:text-error-dark">{error}</p>}
@@ -250,7 +226,7 @@ export default function MicronutrientRows({
                 className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-150 cursor-pointer ${
                   isAlreadyAdded
                     ? "bg-black/[0.02] dark:bg-white/[0.02] border-black/5 dark:border-white/5 text-text-secondary/40 dark:text-dark-text-secondary/40 cursor-default line-through opacity-60"
-                    : "bg-black/[0.03] dark:bg-[#141824] hover:bg-black/[0.06] dark:hover:bg-[#1E2436] hover:border-text-primary/30 dark:hover:border-white/20 border-input-border dark:border-dark-input-border text-text-primary dark:text-dark-text shadow-sm active:scale-[0.97]"
+                    : "bg-bg-card dark:bg-dark-bg-card hover:bg-black/[0.06] dark:hover:bg-[#1E2436] hover:border-text-primary/30 dark:hover:border-white/20 border-input-border dark:border-dark-input-border text-text-primary dark:text-dark-text shadow-sm active:scale-[0.97]"
                 }`}
               >
                 + {name}

@@ -17,8 +17,6 @@ const DATE_INPUT_CLASSES = [
   "disabled:cursor-not-allowed disabled:opacity-40",
   // The native picker button is decoration here: it only earns full contrast on hover.
   "[&::-webkit-calendar-picker-indicator]:cursor-pointer",
-  "[&::-webkit-calendar-picker-indicator]:opacity-40",
-  "hover:[&::-webkit-calendar-picker-indicator]:opacity-80",
 ].join(" ");
 
 /**

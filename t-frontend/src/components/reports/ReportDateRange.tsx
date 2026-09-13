@@ -34,7 +34,7 @@ function detectPreset(range: DateRange): RangePreset {
 }
 
 const DATE_INPUT_CLASSES =
-  "bg-white dark:bg-[#252A36] border border-black/10 dark:border-white/15 rounded-lg px-2.5 py-1 text-xs font-semibold text-text-primary dark:text-white shadow-sm dark:shadow-[0_2px_8px_rgba(0,0,0,0.5)] focus:outline-none focus:ring-1 focus:ring-accent [color-scheme:light] dark:[color-scheme:dark] cursor-pointer hover:border-black/20 dark:hover:border-white/30 transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100";
+  "bg-accent-muted dark:bg-accent-dark-muted border border-black/5 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs font-bold text-white shadow-sm transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/20 cursor-pointer hover:brightness-110";
 
 /** Date range selector with sliding OptionPills and collapsible custom date inputs. */
 export default function ReportDateRange({ value, onChange }: ReportDateRangeProps) {

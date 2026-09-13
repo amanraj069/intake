@@ -3,30 +3,18 @@ import { FilterQuery } from 'mongoose';
 import { FoodEntry, IFoodEntryDocument } from '../models/FoodEntry';
 import {
   CreateFoodEntryInput,
+  FoodItemInput,
   ListFoodEntriesQuery,
   UpdateFoodEntryInput,
 } from '../schemas/foodEntry.schema';
 import { AppError } from '../middleware/errorHandler';
 import { CalendarDay, daysBefore, startOfDay, startOfNextDay, today } from '../lib/calendarDay';
+import { defaultEntryName } from '../lib/foodEntryName';
+import { sumItemNutrition } from '../lib/foodItemTotals';
 import { PaginatedResult, buildPaginatedResult, toSkipCount } from '../lib/pagination';
 
 /** How many days a list request covers when the caller gives no date bounds. */
 const DEFAULT_RANGE_DAYS = 7;
-
-type MicronutrientMap = Record<string, { amount: number; unit: string }>;
-
-function toMicrosMap(micros: MicronutrientMap | Record<string, any> | undefined): Map<string, { amount: number; unit: string }> {
-  const map = new Map<string, { amount: number; unit: string }>();
-  if (!micros) return map;
-  for (const [name, val] of Object.entries(micros)) {
-    if (typeof val === 'number') {
-      map.set(name, { amount: val, unit: 'mg' });
-    } else if (val && typeof val === 'object') {
-      map.set(name, { amount: Number(val.amount) || 0, unit: String(val.unit || 'mg') });
-    }
-  }
-  return map;
-}
 
 /**
  * Loads an entry and asserts the caller owns it.
@@ -49,37 +37,59 @@ async function findOwnedFoodEntry(
   return entry;
 }
 
-export async function createFoodEntry(
-  userId: string,
-  input: CreateFoodEntryInput
-): Promise<IFoodEntryDocument> {
-  return FoodEntry.create({
+/**
+ * The stored items and the totals summed from them. Every write goes through
+ * here, so an entry's totals always match its items.
+ */
+function buildItemFields(items: readonly FoodItemInput[]) {
+  return {
+    items: items.map((item) => ({ ...item, micros: item.micros ?? {} })),
+    ...sumItemNutrition(items),
+  };
+}
+
+/**
+ * The stored fields for a validated create input. Shared by single create and
+ * bulk import so both write exactly the same document shape.
+ */
+export function buildFoodEntryFields(userId: string, input: CreateFoodEntryInput) {
+  return {
     userId,
     mealType: input.mealType,
-    foodName: input.foodName,
-    quantity: input.quantity,
-    quantityUnit: input.quantityUnit,
-    calories: input.calories,
-    macros: input.macros,
-    micros: toMicrosMap(input.micros),
+    name: input.name ?? defaultEntryName(input.items),
+    ...buildItemFields(input.items),
     date: new Date(input.date),
     source: input.source ?? 'manual',
     confidenceScore: input.confidenceScore,
     confidenceLevel: input.confidenceLevel,
     extractionAnalysis: input.extractionAnalysis,
-  });
+  };
+}
+
+export async function createFoodEntry(
+  userId: string,
+  input: CreateFoodEntryInput
+): Promise<IFoodEntryDocument> {
+  return FoodEntry.create(buildFoodEntryFields(userId, input));
+}
+
+/**
+ * A name the user typed is kept when the items change; a name that was only
+ * ever the items joined follows the new items, so it never goes stale.
+ */
+function resolveUpdatedName(entry: IFoodEntryDocument, input: UpdateFoodEntryInput): string | undefined {
+  if (input.name !== undefined) return input.name;
+  if (input.items === undefined) return undefined;
+  return entry.name === defaultEntryName(entry.items) ? defaultEntryName(input.items) : undefined;
 }
 
 function applyFoodEntryUpdate(entry: IFoodEntryDocument, input: UpdateFoodEntryInput): void {
+  const name = resolveUpdatedName(entry, input);
+  if (name !== undefined) entry.name = name;
   if (input.mealType !== undefined) entry.mealType = input.mealType;
-  if (input.foodName !== undefined) entry.foodName = input.foodName;
-  if (input.quantity !== undefined) entry.quantity = input.quantity;
-  if (input.quantityUnit !== undefined) entry.quantityUnit = input.quantityUnit;
-  if (input.calories !== undefined) entry.calories = input.calories;
-  if (input.macros !== undefined) entry.macros = input.macros;
-  // A supplied micros object replaces the whole map rather than merging, so a
-  // nutrient removed in the UI actually disappears from the entry.
-  if (input.micros !== undefined) entry.micros = toMicrosMap(input.micros);
+  // Supplied items replace the whole list rather than merging, so an item
+  // removed in the UI actually disappears, and the totals are summed afresh.
+  if (input.items !== undefined) entry.set(buildItemFields(input.items));
   if (input.date !== undefined) entry.date = new Date(input.date);
   if (input.source !== undefined) entry.source = input.source;
   if (input.confidenceScore !== undefined) entry.confidenceScore = input.confidenceScore;

@@ -18,8 +18,7 @@ function SettingsContent() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto w-full max-w-5xl space-y-10 pb-24">
-        <PageHeader
+              <PageHeader
           title="Settings"
           description="Manage how you sign in to Intake and how it looks."
           showBackButton
@@ -32,7 +31,7 @@ function SettingsContent() {
             {section === "security" ? <SecuritySettings user={user} /> : <AppearanceSettings />}
           </div>
         </div>
-      </div>
+      
     </DashboardLayout>
   );
 }

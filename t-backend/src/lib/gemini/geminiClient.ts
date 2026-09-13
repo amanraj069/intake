@@ -9,16 +9,26 @@ import { GeminiKeyPool, readGeminiKeysFromEnv } from './geminiKeyPool';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const ATTEMPT_TIMEOUT_MS = 12 * 1000;
 /**
- * Caps the whole failover chain, not just one call: with four keys and two
+ * Caps the whole failover chain, not just one call: with several keys and
  * models a slow outage could otherwise hold a user on a spinner for minutes.
  */
 const TOTAL_BUDGET_MS = 25 * 1000;
 
 /**
- * Stable models only, most capable first. The fallback exists for when the
- * primary model is overloaded or out of quota on every key at once.
+ * Stable Flash models only, most capable first. The later entries exist for
+ * when an earlier model is overloaded, or out of quota on every key at once.
  */
-const DEFAULT_MODELS = ['gemini-3.7-flash', 'gemini-3.5-flash'];
+const DEFAULT_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-3.0-flash',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+];
 
 /** An OpenAPI-subset schema, as accepted by Gemini's `responseSchema`. */
 export type GeminiResponseSchema = Record<string, unknown>;
@@ -132,9 +142,16 @@ async function generateWithModel(
   return extractJson((await response.json()) as GenerateContentResponse);
 }
 
+function canTryNextModel(cause: unknown): boolean {
+  if (cause instanceof GeminiKeysExhaustedError) return true;
+  return cause instanceof GeminiRequestError && cause.canSwitchModel;
+}
+
 /**
- * Asks Gemini for JSON matching `responseSchema`, failing over across every
- * configured key and then across models. Resolves with the parsed but
+ * Asks Gemini for JSON matching `responseSchema`, failing over across keys and
+ * models. Key-specific failures (quota, bad key) rotate keys; an overloaded or
+ * missing model moves straight to the next model on the same key, since other
+ * keys would hit the same shared capacity. Resolves with the parsed but
  * *unvalidated* JSON: the caller owns the domain rules for what is acceptable.
  *
  * @throws GeminiUnavailableError when no key/model combination succeeds in time.
@@ -152,11 +169,7 @@ export async function generateStructuredJson(request: StructuredGenerationReques
     try {
       return await pool.run((apiKey) => generateWithModel(model, apiKey, request, deadline));
     } catch (cause) {
-      const modelFailed =
-        cause instanceof GeminiKeysExhaustedError ||
-        (cause instanceof GeminiRequestError && cause.kind === 'model-unavailable');
-
-      if (!modelFailed) throw cause;
+      if (!canTryNextModel(cause)) throw cause;
       console.warn(`[Gemini] Model ${model} could not serve the request: ${(cause as Error).message}`);
     }
   }

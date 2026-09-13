@@ -1,171 +1,194 @@
 import { toDateInputValue } from "@/lib/formatDate";
 import type {
   FoodEntry,
-  FoodEntryDraft,
   FoodEntryInput,
   FoodEntrySource,
+  FoodItemInput,
+  FoodItemUnit,
   MealType,
-  Micronutrients,
 } from "@/types/nutrition";
 import {
   LIMITS,
   collectAmountErrors,
-  findAmountError,
   hasErrors,
   toAmount,
   type AmountRule,
   type FieldErrors,
 } from "./amount";
+import {
+  microsToRows,
+  nextFormRowId,
+  validateMicronutrientRows,
+  type MicronutrientRow,
+} from "./micronutrientRows";
 
-export interface MicronutrientRow {
-  id: string;
+export type { MicronutrientRow } from "./micronutrientRows";
+
+/** The fields that belong to the entry rather than to one item. */
+export interface MealDetails {
+  mealType: MealType;
+  date: string;
+  /** Only edited for a meal of several dishes; a single food is named by the food itself. */
   name: string;
-  amount: string;
-  unit: string;
 }
 
-export interface MealFormValues {
-  mealType: MealType;
-  foodName: string;
+/** A single food is one item named by itself; a meal has its own name and any number of dishes. */
+export type EntryMode = "single" | "multiple";
+
+export interface MealFormState {
+  details: MealDetails;
+  items: FoodItemFormValues[];
+  mode: EntryMode;
+}
+
+/** One item as the form edits it: every number is the raw text of its input. */
+export interface FoodItemFormValues {
+  id: string;
+  name: string;
   quantity: string;
-  servingSize: string;
+  unit: FoodItemUnit;
   calories: string;
   proteinG: string;
   carbG: string;
   fatG: string;
-  date: string;
+  microRows: MicronutrientRow[];
 }
 
-export type MealFieldName = keyof MealFormValues;
-export type MealAmountField = "quantity" | "servingSize" | "calories" | "proteinG" | "carbG" | "fatG";
+export type ItemAmountField = "quantity" | "calories" | "proteinG" | "carbG" | "fatG";
+export type ItemFieldName = ItemAmountField | "name";
 
-export interface MealFormErrors {
-  fields: FieldErrors<MealFieldName>;
-  /** Keyed by micronutrient row id so each row can show its own message. */
+export interface ItemFormErrors {
+  fields: FieldErrors<ItemFieldName>;
+  /** Keyed by micronutrient row id. */
   micros: Record<string, string>;
-  /** A problem with the micronutrient list as a whole, not with one row. */
   microsSummary?: string;
 }
 
+type MealFieldName = "date" | "items" | "name";
+
+export interface MealFormErrors {
+  fields: FieldErrors<MealFieldName>;
+  /** Keyed by item id, present only for items with a problem. */
+  items: Record<string, ItemFormErrors>;
+}
+
+export const NO_MEAL_FORM_ERRORS: MealFormErrors = { fields: {}, items: {} };
+
 /** Keyed by field so the form can look a rule up without a fallible array search. */
-export const MEAL_AMOUNT_RULES: Record<MealAmountField, AmountRule<MealAmountField>> = {
+export const ITEM_AMOUNT_RULES: Record<ItemAmountField, AmountRule<ItemAmountField>> = {
   quantity: { field: "quantity", label: "Quantity", max: LIMITS.quantity, required: true },
-  servingSize: { field: "servingSize", label: "Amount (in grams)", max: LIMITS.quantity, required: true },
   calories: { field: "calories", label: "Calories", max: LIMITS.calories, required: true },
   proteinG: { field: "proteinG", label: "Protein", max: LIMITS.macroGrams, required: true },
   carbG: { field: "carbG", label: "Carbs", max: LIMITS.macroGrams, required: true },
   fatG: { field: "fatG", label: "Fat", max: LIMITS.macroGrams, required: true },
 };
 
-/** Fills the form from a saved entry, so editing opens on exactly what was stored. */
-export function entryToFormValues(entry: FoodEntry): MealFormValues {
-  let quantity = String(entry.quantity);
-  let servingSize = "";
-
-  const unitStr = (entry.quantityUnit || "").trim();
-  const numericMatch = unitStr.match(/^(\d+(?:\.\d+)?)/);
-
-  if (numericMatch) {
-    servingSize = numericMatch[1];
-  } else if (unitStr.toLowerCase() === "g" && entry.quantity > 5) {
-    servingSize = String(entry.quantity);
-    quantity = "1";
-  } else {
-    servingSize = "100";
-  }
-
+export function createEmptyItem(): FoodItemFormValues {
   return {
-    mealType: entry.mealType,
-    foodName: entry.foodName,
-    quantity,
-    servingSize,
-    calories: String(entry.calories),
-    proteinG: String(entry.macros.proteinG),
-    carbG: String(entry.macros.carbG),
-    fatG: String(entry.macros.fatG),
-    date: toDateInputValue(entry.date),
+    id: nextFormRowId("item"),
+    name: "",
+    quantity: "",
+    unit: "g",
+    calories: "",
+    proteinG: "",
+    carbG: "",
+    fatG: "",
+    microRows: [],
   };
 }
 
-export type DraftFormFields = Pick<
-  MealFormValues,
-  "foodName" | "quantity" | "servingSize" | "calories" | "proteinG" | "carbG" | "fatG"
->;
+/** Fills an item's fields from a saved or drafted item. */
+export function itemToFormValues(item: FoodItemInput): FoodItemFormValues {
+  return {
+    id: nextFormRowId("item"),
+    name: item.name,
+    quantity: String(item.quantity),
+    unit: item.unit,
+    calories: String(item.calories),
+    proteinG: String(item.macros.proteinG),
+    carbG: String(item.macros.carbG),
+    fatG: String(item.macros.fatG),
+    microRows: microsToRows(item.micros),
+  };
+}
 
 /**
- * Fills the nutrition fields from an AI draft. Meal type and date are left to
- * the form, since a photo cannot know when or at which meal it was eaten.
+ * The mode that shows an entry without hiding anything: several items, or one
+ * item whose meal name differs from the item's own, both need the meal view.
  */
-export function draftToFormValues(draft: FoodEntryDraft): DraftFormFields {
-  const gramsPerServing = draft.quantityUnit.match(/^(\d+(?:\.\d+)?)\s*g$/i)?.[1];
+export function modeFor(name: string | undefined, items: readonly Pick<FoodItemInput, "name">[]): EntryMode {
+  if (items.length > 1) return "multiple";
 
+  const mealName = name?.trim() ?? "";
+  return !mealName || mealName === (items[0]?.name.trim() ?? "") ? "single" : "multiple";
+}
+
+/** Opens the form on exactly what was stored. */
+export function entryToFormState(entry: FoodEntry): MealFormState {
   return {
-    foodName: draft.foodName,
-    quantity: String(draft.quantity),
-    servingSize: gramsPerServing ?? "",
-    calories: String(draft.calories),
-    proteinG: String(draft.macros.proteinG),
-    carbG: String(draft.macros.carbG),
-    fatG: String(draft.macros.fatG),
+    details: { mealType: entry.mealType, date: toDateInputValue(entry.date), name: entry.name },
+    items: entry.items.map(itemToFormValues),
+    mode: modeFor(entry.name, entry.items),
   };
 }
 
-/** A row left completely blank is treated as "not filled in yet", not as an error. */
-function isBlankRow(row: MicronutrientRow): boolean {
-  return !row.name.trim() && !row.amount.trim();
+/** A number while typing, for live totals: anything not yet a valid amount counts as zero. */
+function readTypedAmount(raw: string): number {
+  const value = Number(raw.trim());
+  return raw.trim() && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
-function findMicronutrientRowError(
-  row: MicronutrientRow,
-  seenNames: Set<string>
-): string | undefined {
-  const name = row.name.trim();
-
-  if (!name) return "Nutrient name is required";
-  if (name.length > LIMITS.nutrientNameLength) return "Nutrient name is too long";
-  if (seenNames.has(name.toLowerCase())) return "Duplicate nutrient name";
-
-  return findAmountError(row.amount, {
-    label: "Amount (in mg)",
-    max: LIMITS.microAmount,
-    required: true,
-  });
+/** Items as the totals summary needs them, before the form has been validated. */
+export function typedItemNutrition(items: readonly FoodItemFormValues[]) {
+  return items.map((item) => ({
+    calories: readTypedAmount(item.calories),
+    macros: {
+      proteinG: readTypedAmount(item.proteinG),
+      carbG: readTypedAmount(item.carbG),
+      fatG: readTypedAmount(item.fatG),
+    },
+  }));
 }
 
-function validateMicronutrients(rows: readonly MicronutrientRow[]): {
-  errors: Record<string, string>;
-  micros: Micronutrients;
-} {
-  const errors: Record<string, string> = {};
-  const micros: Micronutrients = {};
-  const seenNames = new Set<string>();
+function validateItem(item: FoodItemFormValues): { errors?: ItemFormErrors; payload?: FoodItemInput } {
+  const fields: FieldErrors<ItemFieldName> = collectAmountErrors(Object.values(ITEM_AMOUNT_RULES), item);
+  const name = item.name.trim();
 
-  for (const row of rows) {
-    if (isBlankRow(row)) continue;
+  if (!name) fields.name = "Item name is required";
+  else if (name.length > LIMITS.itemNameLength) fields.name = "Item name is too long";
 
-    const error = findMicronutrientRowError(row, seenNames);
-    if (error) {
-      errors[row.id] = error;
-      continue;
-    }
-
-    const name = row.name.trim();
-    seenNames.add(name.toLowerCase());
-    micros[name] = { amount: toAmount(row.amount), unit: row.unit || "mg" };
+  const micros = validateMicronutrientRows(item.microRows);
+  if (hasErrors(fields) || hasErrors(micros.errors) || micros.summary) {
+    return { errors: { fields, micros: micros.errors, microsSummary: micros.summary } };
   }
 
-  return { errors, micros };
+  return {
+    payload: {
+      name,
+      quantity: toAmount(item.quantity),
+      unit: item.unit,
+      calories: toAmount(item.calories),
+      macros: {
+        proteinG: toAmount(item.proteinG),
+        carbG: toAmount(item.carbG),
+        fatG: toAmount(item.fatG),
+      },
+      micros: micros.micros,
+    },
+  };
 }
 
-function findTextFieldErrors(values: MealFormValues): FieldErrors<MealFieldName> {
+function findDetailErrors(details: MealDetails, itemCount: number, mode: EntryMode): FieldErrors<MealFieldName> {
   const errors: FieldErrors<MealFieldName> = {};
-  const foodName = values.foodName.trim();
 
-  if (!foodName) errors.foodName = "Food name is required";
-  else if (foodName.length > LIMITS.foodNameLength) errors.foodName = "Food name is too long";
+  if (!details.date.trim()) errors.date = "Date is required";
+  else if (Number.isNaN(Date.parse(details.date))) errors.date = "Enter a valid date";
 
-  if (!values.date.trim()) errors.date = "Date is required";
-  else if (Number.isNaN(Date.parse(values.date))) errors.date = "Enter a valid date";
+  if (mode === "multiple" && details.name.trim().length > LIMITS.itemNameLength) errors.name = "Meal name is too long";
+
+  if (itemCount === 0) errors.items = "Add at least one item";
+  else if (mode === "single" && itemCount > 1) errors.items = "A single food has one item. Switch to a meal with dishes.";
+  else if (itemCount > LIMITS.itemsPerEntry) errors.items = `At most ${LIMITS.itemsPerEntry} items are allowed`;
 
   return errors;
 }
@@ -176,46 +199,28 @@ export interface MealValidationResult {
 }
 
 export function validateMealForm(
-  values: MealFormValues,
-  rows: readonly MicronutrientRow[],
+  { details, items, mode }: MealFormState,
   source: FoodEntrySource = "manual"
 ): MealValidationResult {
-  const fields = {
-    ...collectAmountErrors(Object.values(MEAL_AMOUNT_RULES), values),
-    ...findTextFieldErrors(values),
-  };
-  const { errors: microErrors, micros } = validateMicronutrients(rows);
+  const errors: MealFormErrors = { fields: findDetailErrors(details, items.length, mode), items: {} };
+  const payloadItems: FoodItemInput[] = [];
 
-  const filledRowCount = rows.filter((row) => !isBlankRow(row)).length;
-  const microsSummary =
-    filledRowCount > LIMITS.micronutrientRows
-      ? `At most ${LIMITS.micronutrientRows} micronutrients are allowed`
-      : undefined;
-
-  const errors: MealFormErrors = { fields, micros: microErrors, microsSummary };
-
-  if (hasErrors(fields) || hasErrors(microErrors) || microsSummary) {
-    return { errors };
+  for (const item of items) {
+    const result = validateItem(item);
+    if (result.errors) errors.items[item.id] = result.errors;
+    if (result.payload) payloadItems.push(result.payload);
   }
 
-  const servingAmount = toAmount(values.servingSize);
-  const quantityUnit = `${servingAmount}g`;
+  if (hasErrors(errors.fields) || hasErrors(errors.items)) return { errors };
 
   return {
     errors,
     payload: {
-      mealType: values.mealType,
-      foodName: values.foodName.trim(),
-      quantity: toAmount(values.quantity),
-      quantityUnit,
-      calories: toAmount(values.calories),
-      macros: {
-        proteinG: toAmount(values.proteinG),
-        carbG: toAmount(values.carbG),
-        fatG: toAmount(values.fatG),
-      },
-      micros,
-      date: values.date,
+      mealType: details.mealType,
+      date: details.date,
+      // A single food is named by itself; a blank meal name lets the server name it after its dishes.
+      name: mode === "single" ? payloadItems[0].name : details.name.trim() || undefined,
+      items: payloadItems,
       source,
     },
   };

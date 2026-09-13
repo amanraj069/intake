@@ -2,29 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { toAiRequestFailure, type AiRequestFailure } from "@/lib/aiRequestFailure";
 import { foodImageFileError, prepareFoodImageForUpload } from "@/lib/foodImageFile";
 import type { NutritionExtraction } from "@/types/nutrition";
 
 export type ExtractionStatus = "idle" | "analysing" | "failed" | "done";
 
-export interface ExtractionFailure {
-  message: string;
-  /** The server's failure code, or `CLIENT_REJECTED` when the file never left the browser. */
-  code: string;
-  /** Whether sending the same photo again could plausibly succeed. */
-  retryable: boolean;
-}
-
-/** Failures caused by the service rather than the photo: the same photo is worth another try. */
-const TRANSIENT_CODES = new Set(["AI_UNAVAILABLE", "AI_BAD_RESPONSE", "NETWORK"]);
-
-function toFailure(cause: unknown): ExtractionFailure {
-  if (cause instanceof ApiError) {
-    const code = cause.code ?? (cause.status === 0 ? "NETWORK" : "UNKNOWN");
-    return { message: cause.message, code, retryable: TRANSIENT_CODES.has(code) || cause.status >= 500 };
-  }
-  return { message: "Something went wrong while reading the photo.", code: "UNKNOWN", retryable: true };
-}
+export type ExtractionFailure = AiRequestFailure;
 
 interface UseNutritionExtractionResult {
   status: ExtractionStatus;
@@ -94,7 +78,7 @@ export function useNutritionExtraction(): UseNutritionExtractionResult {
         return response.data;
       } catch (cause) {
         if (controller.signal.aborted) return null;
-        setFailure(toFailure(cause));
+        setFailure(toAiRequestFailure(cause, "Something went wrong while reading the photo."));
         setStatus("failed");
         return null;
       }
