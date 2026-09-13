@@ -24,7 +24,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
             priority
           />
           <Image
-            src="/auth-hero-dark.png"
+            src="/auth-dark.png"
             alt="Abstract geometric design dark"
             fill
             sizes="50vw"

@@ -12,7 +12,7 @@ interface EmptyStateProps {
 /** Shown when a request succeeded but matched nothing, which is not an error. */
 export default function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
-    <div className="border border-dashed border-black/15 dark:border-white/15 px-6 py-16 text-center">
+    <div className="rounded-2xl border border-dashed border-border dark:border-dark-border px-6 py-16 text-center bg-bg-card dark:bg-dark-bg-card">
       <p className="text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
         {title}
       </p>

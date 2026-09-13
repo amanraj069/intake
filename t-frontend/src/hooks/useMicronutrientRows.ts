@@ -50,6 +50,8 @@ interface UseMicronutrientRowsResult {
   updateRow: (id: string, changes: Partial<Omit<MicronutrientRow, "id">>) => void;
   removeRow: (id: string) => void;
   setAllRows: (newRows: MicronutrientRow[]) => void;
+  /** Swaps every row for the given nutrients, as when a photo draft fills the form. */
+  replaceWithMicros: (micros?: Micronutrients) => void;
 }
 
 /** Owns the add/edit/remove state for the meal form's nutrient name-value rows. */
@@ -88,5 +90,9 @@ export function useMicronutrientRows(initialMicros?: Micronutrients): UseMicronu
     setRows(newRows.length > 0 ? newRows : [createEmptyRow()]);
   }, []);
 
-  return { rows, addRow, addNutrientRow, updateRow, removeRow, setAllRows };
+  const replaceWithMicros = useCallback((micros?: Micronutrients) => {
+    setRows(createInitialRows(micros));
+  }, []);
+
+  return { rows, addRow, addNutrientRow, updateRow, removeRow, setAllRows, replaceWithMicros };
 }

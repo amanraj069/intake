@@ -1,5 +1,12 @@
 import { toDateInputValue } from "@/lib/formatDate";
-import type { FoodEntry, FoodEntryInput, MealType, Micronutrients } from "@/types/nutrition";
+import type {
+  FoodEntry,
+  FoodEntryDraft,
+  FoodEntryInput,
+  FoodEntrySource,
+  MealType,
+  Micronutrients,
+} from "@/types/nutrition";
 import {
   LIMITS,
   collectAmountErrors,
@@ -80,6 +87,29 @@ export function entryToFormValues(entry: FoodEntry): MealFormValues {
   };
 }
 
+export type DraftFormFields = Pick<
+  MealFormValues,
+  "foodName" | "quantity" | "servingSize" | "calories" | "proteinG" | "carbG" | "fatG"
+>;
+
+/**
+ * Fills the nutrition fields from an AI draft. Meal type and date are left to
+ * the form, since a photo cannot know when or at which meal it was eaten.
+ */
+export function draftToFormValues(draft: FoodEntryDraft): DraftFormFields {
+  const gramsPerServing = draft.quantityUnit.match(/^(\d+(?:\.\d+)?)\s*g$/i)?.[1];
+
+  return {
+    foodName: draft.foodName,
+    quantity: String(draft.quantity),
+    servingSize: gramsPerServing ?? "",
+    calories: String(draft.calories),
+    proteinG: String(draft.macros.proteinG),
+    carbG: String(draft.macros.carbG),
+    fatG: String(draft.macros.fatG),
+  };
+}
+
 /** A row left completely blank is treated as "not filled in yet", not as an error. */
 function isBlankRow(row: MicronutrientRow): boolean {
   return !row.name.trim() && !row.amount.trim();
@@ -147,7 +177,8 @@ export interface MealValidationResult {
 
 export function validateMealForm(
   values: MealFormValues,
-  rows: readonly MicronutrientRow[]
+  rows: readonly MicronutrientRow[],
+  source: FoodEntrySource = "manual"
 ): MealValidationResult {
   const fields = {
     ...collectAmountErrors(Object.values(MEAL_AMOUNT_RULES), values),
@@ -185,7 +216,7 @@ export function validateMealForm(
       },
       micros,
       date: values.date,
-      source: "manual",
+      source,
     },
   };
 }

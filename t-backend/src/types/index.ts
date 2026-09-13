@@ -1,15 +1,20 @@
 import { Request } from 'express';
+import type { IBodyProfile } from '../models/User';
 
 // User document shape (matches Mongoose schema, after .toObject())
 export interface IUser {
   _id: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
   password?: string;
   emailVerified: boolean;
   authProvider: 'local' | 'google';
   googleId?: string;
   avatarUrl?: string;
   avatarPublicId?: string;
+  bodyProfile?: IBodyProfile;
+  onboardingCompletedAt?: Date;
   createdAt: Date;
 }
 

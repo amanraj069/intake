@@ -13,10 +13,33 @@ const otpField = z
   .length(OTP_LENGTH, `Code must be exactly ${OTP_LENGTH} digits`)
   .regex(/^\d+$/, 'Code must contain digits only');
 
+const MAX_NAME_LENGTH = 50;
+
+const nameField = (label: string) =>
+  z
+    .string({ required_error: `${label} is required` })
+    .trim()
+    .min(1, `${label} is required`)
+    .max(MAX_NAME_LENGTH, `${label} must be at most ${MAX_NAME_LENGTH} characters`);
+
 export const registerSchema = z.object({
   body: z.object({
     email: emailField,
+    firstName: nameField('First name'),
+    lastName: nameField('Last name'),
     password: newPasswordField,
+  }),
+});
+
+export const checkEmailSchema = z.object({
+  body: z.object({
+    email: emailField,
+  }),
+});
+
+export const confirmSignupOtpSchema = z.object({
+  body: z.object({
+    otp: otpField,
   }),
 });
 
@@ -71,6 +94,7 @@ export const verifyAccountOtpSchema = z.object({
   ]),
 });
 
+export type RegisterInput = z.infer<typeof registerSchema>['body'];
 export type RequestAccountOtpInput = z.infer<typeof requestAccountOtpSchema>['body'];
 export type VerifyAccountOtpInput = z.infer<typeof verifyAccountOtpSchema>['body'];
 export type AccountOtpPurpose = RequestAccountOtpInput['purpose'];

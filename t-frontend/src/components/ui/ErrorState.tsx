@@ -12,7 +12,7 @@ export default function ErrorState({ message, onRetry }: ErrorStateProps) {
   return (
     <div
       role="alert"
-      className="border border-black/10 dark:border-white/10 p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6"
+      className="rounded-2xl border border-border dark:border-dark-border bg-bg-card dark:bg-dark-bg-card p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6"
     >
       <div>
         <p className="text-[10px] font-bold   text-accent dark:text-accent-dark">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { toErrorMessage } from "@/lib/errorMessage";
 import type { FoodEntry, FoodEntryQuery, PageMeta } from "@/types/nutrition";
@@ -31,11 +31,18 @@ export function useFoodEntries(query: FoodEntryQuery): UseFoodEntriesResult {
 
   const { startDate, endDate, mealType, page, limit } = query;
 
+  // Overlapping fetches can resolve out of order; only the newest one may write
+  // state, or a slow earlier response would show rows for filters no longer set.
+  const latestRequestId = useRef(0);
+
   const fetchEntries = useCallback(async () => {
+    const requestId = ++latestRequestId.current;
+    const isSuperseded = () => requestId !== latestRequestId.current;
     setLoading(true);
 
     try {
       const response = await api.listFoodEntries({ startDate, endDate, mealType, page, limit });
+      if (isSuperseded()) return;
       setEntries(response.data ?? []);
       setPageMeta({
         page: response.page,
@@ -45,9 +52,10 @@ export function useFoodEntries(query: FoodEntryQuery): UseFoodEntriesResult {
       });
       setLoadError(null);
     } catch (cause) {
+      if (isSuperseded()) return;
       setLoadError(toErrorMessage(cause, "Could not load your meals."));
     } finally {
-      setLoading(false);
+      if (!isSuperseded()) setLoading(false);
     }
   }, [startDate, endDate, mealType, page, limit]);
 

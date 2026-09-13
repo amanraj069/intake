@@ -5,6 +5,8 @@ export interface ApiResponse<T = undefined> {
   message: string;
   data?: T;
   errors?: Record<string, string[]>;
+  /** A stable failure identifier, present on errors the client may handle specially. */
+  code?: string;
 }
 
 /**
@@ -21,12 +23,14 @@ export interface PaginatedResponse<TItem> extends ApiResponse<TItem[]> {
 export class ApiError extends Error {
   status: number;
   errors?: Record<string, string[]>;
+  code?: string;
 
-  constructor(message: string, status: number, errors?: Record<string, string[]>) {
+  constructor(message: string, status: number, errors?: Record<string, string[]>, code?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.errors = errors;
+    this.code = code;
   }
 }
 
@@ -68,7 +72,7 @@ async function send<TResponse extends ApiResponse<unknown>>(
   const body = await parseBody<TResponse>(response);
 
   if (!response.ok) {
-    throw new ApiError(body.message || "Something went wrong", response.status, body.errors);
+    throw new ApiError(body.message || "Something went wrong", response.status, body.errors, body.code);
   }
 
   return body;

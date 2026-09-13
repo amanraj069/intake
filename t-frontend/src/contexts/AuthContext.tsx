@@ -8,24 +8,28 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { api, type User, ApiError } from "@/lib/api";
+import { api, type RegistrationInput, type User, ApiError } from "@/lib/api";
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
+  /** Resolves with whether the verification code email was actually sent. */
+  signup: (input: RegistrationInput) => Promise<{ verificationCodeSent: boolean }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** Adopts a user an API call already returned, saving a round trip to /auth/me. */
+  setSessionUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
   login: async () => {},
-  signup: async () => {},
+  signup: async () => ({ verificationCodeSent: false }),
   logout: async () => {},
   refreshUser: async () => {},
+  setSessionUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -36,14 +40,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = useCallback(async () => {
     try {
       const res = await api.me();
-      setUser(res.data?.user ?? null);
+      const u = res.data?.user ?? null;
+      setUser(u);
+      // Remember the email + avatar for the "Continue as …" Google button
+      if (u?.authProvider === "google") {
+        try {
+          localStorage.setItem("intake_last_google_email", u.email);
+          if (u.avatarUrl) localStorage.setItem("intake_last_google_avatar", u.avatarUrl);
+        } catch {}
+      }
     } catch (error) {
       // If access token expired, try refreshing
       if (error instanceof ApiError && error.status === 401) {
         try {
           await api.refresh();
           const res = await api.me();
-          setUser(res.data?.user ?? null);
+          const u = res.data?.user ?? null;
+          setUser(u);
+          if (u?.authProvider === "google") {
+            try {
+              localStorage.setItem("intake_last_google_email", u.email);
+              if (u.avatarUrl) localStorage.setItem("intake_last_google_avatar", u.avatarUrl);
+            } catch {}
+          }
         } catch {
           setUser(null);
         }
@@ -70,13 +89,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const signup = useCallback(
-    async (email: string, password: string) => {
-      const res = await api.register(email, password);
-      setUser(res.data?.user ?? null);
-    },
-    []
-  );
+  const signup = useCallback(async (input: RegistrationInput) => {
+    const res = await api.register(input);
+    setUser(res.data?.user ?? null);
+    return { verificationCodeSent: res.data?.verificationCodeSent ?? false };
+  }, []);
+
+  const setSessionUser = useCallback((nextUser: User) => setUser(nextUser), []);
 
   const logout = useCallback(async () => {
     await api.logout();
@@ -85,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, signup, logout, refreshUser }}
+      value={{ user, loading, login, signup, logout, refreshUser, setSessionUser }}
     >
       {children}
     </AuthContext.Provider>

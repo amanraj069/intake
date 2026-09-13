@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
@@ -23,6 +24,7 @@ export default function MealsBrowser() {
   const { entries, pageMeta, loading, loadError, deletingId, reload, deleteEntry } =
     useFoodEntries(query);
   const [pendingDeletion, setPendingDeletion] = useState<FoodEntry | null>(null);
+  const router = useRouter();
   const toast = useToast();
 
   async function confirmDeletion() {
@@ -48,7 +50,6 @@ export default function MealsBrowser() {
     <div className="space-y-8">
       <MealFilters
         values={values}
-        disabled={loading}
         isDefault={isDefault}
         onStartDateChange={setStartDate}
         onEndDateChange={setEndDate}
@@ -74,7 +75,12 @@ export default function MealsBrowser() {
 
       {!loading && !loadError && entries.length > 0 && (
         <>
-          <FoodEntryList entries={entries} deletingId={deletingId} onDelete={setPendingDeletion} />
+          <FoodEntryList
+            entries={entries}
+            deletingId={deletingId}
+            onDelete={setPendingDeletion}
+            onRowClick={(entry) => router.push(`/meals/${entry._id}/edit`)}
+          />
           <Pagination
             page={pageMeta.page}
             totalPages={pageMeta.totalPages}

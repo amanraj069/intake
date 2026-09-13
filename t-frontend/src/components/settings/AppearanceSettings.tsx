@@ -28,7 +28,7 @@ export default function AppearanceSettings() {
     <SettingsPanel title="Appearance">
       <SettingsBlock
         title="Theme"
-        description="Applies to this browser and is remembered the next time you open INTAKE."
+        description="Applies to this browser and is remembered the next time you open Intake."
       >
         <div
           role="radiogroup"

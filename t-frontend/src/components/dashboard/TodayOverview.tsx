@@ -8,7 +8,7 @@ import SkeletonRows from "@/components/ui/SkeletonRows";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDailyIntake } from "@/hooks/useDailyIntake";
 import { greetingForHour, toTodayStatusLine } from "@/lib/dashboardCopy";
-import { displayName } from "@/lib/userIdentity";
+import { firstNameOrFallback } from "@/lib/userIdentity";
 import TodayPanel from "./TodayPanel";
 
 /** The date line above the greeting, e.g. "SATURDAY, 12 SEPTEMBER". */
@@ -38,7 +38,7 @@ export default function TodayOverview() {
     <section className="space-y-8">
       <PageHeader
         eyebrow={formatGreetingDate(new Date())}
-        title={toGreeting(user ? displayName(user) : null)}
+        title={toGreeting(user ? firstNameOrFallback(user) : null)}
         description={toTodayStatusLine(loading ? null : summary)}
         action={
           <Link href="/log-meal">

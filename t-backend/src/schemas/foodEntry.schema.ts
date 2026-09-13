@@ -54,10 +54,27 @@ const foodEntryFields = {
   micros: microsSchema.optional(),
   date: dateStringSchema,
   source: z.enum(FOOD_ENTRY_SOURCES).optional(),
+  confidenceScore: z.number().min(0).max(100).optional(),
+  confidenceLevel: z.enum(['high', 'medium', 'low']).optional(),
+  extractionAnalysis: z.any().optional(),
 };
 
 export const createFoodEntrySchema = z.object({
   body: z.object(foodEntryFields),
+});
+
+/**
+ * The nutrition half of an entry, without when or at which meal it was eaten.
+ * An AI extraction must satisfy it, so a draft the user accepts unchanged can
+ * always be saved.
+ */
+export const foodEntryDraftSchema = z.object(foodEntryFields).pick({
+  foodName: true,
+  quantity: true,
+  quantityUnit: true,
+  calories: true,
+  macros: true,
+  micros: true,
 });
 
 export const updateFoodEntrySchema = z.object({
@@ -117,6 +134,7 @@ export const foodEntrySeriesSchema = z.object({
 });
 
 export type CreateFoodEntryInput = z.infer<typeof createFoodEntrySchema>['body'];
+export type FoodEntryDraft = z.infer<typeof foodEntryDraftSchema>;
 export type UpdateFoodEntryInput = z.infer<typeof updateFoodEntrySchema>['body'];
 export type ListFoodEntriesQuery = z.infer<typeof listFoodEntriesSchema>['query'];
 export type FoodEntrySeriesQuery = z.infer<typeof foodEntrySeriesSchema>['query'];

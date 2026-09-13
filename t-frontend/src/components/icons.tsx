@@ -209,3 +209,66 @@ export function ReportsIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function CoffeeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
+      <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
+      <path d="M6 2v2" />
+      <path d="M10 2v2" />
+      <path d="M14 2v2" />
+    </Icon>
+  );
+}
+
+export function BowlIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 12h16a8 8 0 0 1-16 0z" />
+      <path d="M4 12v-2" />
+      <path d="M20 12v-2" />
+      <path d="M10 5v3" />
+      <path d="M14 5v3" />
+    </Icon>
+  );
+}
+
+export function AppleIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 20.5c-4.5 0-8-3.5-8-8 0-5 3.5-8 8-8s8 3 8 8-3.5 8-8 8z" />
+      <path d="M12 4.5V2" />
+      <path d="M12 4.5c-1.5-1-3-1-3-1" />
+    </Icon>
+  );
+}
+
+export function PhotoUploadIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 14v7H3V3h11" />
+      <path d="M3 17l5-5 4 4 3-3 6 6" />
+      <path d="M19 2v7" />
+      <path d="M16 5l3-3 3 3" />
+    </Icon>
+  );
+}
+
+export function AlertIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3l10 18H2z" />
+      <path d="M12 10v5" />
+      <path d="M12 18h.01" />
+    </Icon>
+  );
+}
+
+export function CheckIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 12l5 5L20 6" />
+    </Icon>
+  );
+}

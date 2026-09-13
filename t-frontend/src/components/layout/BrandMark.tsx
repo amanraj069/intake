@@ -38,7 +38,7 @@ export default function BrandMark({ className = "", size = "md", onNavigate }: B
         aria-hidden="true"
         className={`${iconSize} object-contain hidden dark:block`}
       />
-      INTAKE
+      Intake
     </Link>
   );
 }

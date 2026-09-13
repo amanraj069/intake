@@ -5,10 +5,13 @@ import { Request, Response, NextFunction } from 'express';
  */
 export class AppError extends Error {
   statusCode: number;
+  /** A stable identifier for failures the client reacts to differently, e.g. `NO_FOOD_DETECTED`. */
+  code?: string;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode: number, code?: string) {
     super(message);
     this.statusCode = statusCode;
+    this.code = code;
     this.name = 'AppError';
   }
 }
@@ -32,6 +35,7 @@ export function errorHandler(
     res.status(err.statusCode).json({
       success: false,
       message: err.message,
+      ...(err.code ? { code: err.code } : {}),
     });
     return;
   }

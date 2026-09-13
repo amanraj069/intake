@@ -69,3 +69,11 @@ export function formatDayAndMonth(isoDate: string): string {
     timeZone: UTC,
   });
 }
+
+/** Day and month in numeric format for charts, e.g. "12/09". */
+export function formatChartDate(isoDate: string): string {
+  const d = new Date(isoDate);
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${day}/${month}`;
+}

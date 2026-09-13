@@ -21,7 +21,7 @@ function SettingsContent() {
       <div className="mx-auto w-full max-w-5xl space-y-10 pb-24">
         <PageHeader
           title="Settings"
-          description="Manage how you sign in to INTAKE and how it looks."
+          description="Manage how you sign in to Intake and how it looks."
           showBackButton
         />
 

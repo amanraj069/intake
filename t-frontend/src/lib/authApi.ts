@@ -1,12 +1,30 @@
 import { API_URL, request } from "./apiClient";
+import type { BodyProfile } from "@/types/onboarding";
 
 export interface User {
   id: string;
   email: string;
+  /** Null for accounts created before names were collected. */
+  firstName: string | null;
+  lastName: string | null;
   emailVerified: boolean;
   authProvider: "local" | "google";
   avatarUrl: string | null;
+  bodyProfile: BodyProfile | null;
+  onboardingCompleted: boolean;
   createdAt: string;
+}
+
+export interface RegistrationInput {
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+}
+
+interface RegistrationData extends AuthData {
+  /** False when the account exists but the verification code email failed. */
+  verificationCodeSent: boolean;
 }
 
 interface AuthData {
@@ -19,10 +37,25 @@ interface OtpDestination {
 }
 
 export const authApi = {
-  register: (email: string, password: string) =>
-    request<AuthData>("/auth/register", {
+  checkEmail: (email: string) =>
+    request<{ available: boolean }>("/auth/check-email", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email }),
+    }),
+
+  register: (input: RegistrationInput) =>
+    request<RegistrationData>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  resendSignupOtp: () =>
+    request<OtpDestination>("/auth/signup/resend-otp", { method: "POST" }),
+
+  confirmSignupOtp: (otp: string) =>
+    request<AuthData>("/auth/signup/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ otp }),
     }),
 
   login: (email: string, password: string) =>

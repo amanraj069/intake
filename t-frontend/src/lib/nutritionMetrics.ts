@@ -8,12 +8,15 @@ export type NutritionMetricKey = (typeof NUTRITION_METRIC_KEYS)[number];
  * How to read one measure out of a day's totals and out of a goal, so every
  * view that plots or lists a measure shares a single definition of it.
  */
+/** The four daily targets; a saved `Goal` and an unsaved plan both provide them. */
+export type GoalTargets = Pick<Goal, "dailyCalorieTarget" | "proteinTargetG" | "carbTargetG" | "fatTargetG">;
+
 export interface NutritionMetric {
   key: NutritionMetricKey;
   label: string;
   unit: string;
   actualOf: (totals: DailyNutritionTotals) => number;
-  targetOf: (goal: Goal) => number;
+  targetOf: (goal: GoalTargets) => number;
 }
 
 export const NUTRITION_METRICS: Record<NutritionMetricKey, NutritionMetric> = {

@@ -3,7 +3,8 @@ import passport from 'passport';
 import { validate } from '../middleware/validate';
 import { requireAuth } from '../middleware/auth';
 import { setAuthCookies } from '../lib/cookies';
-import { IUserDocument } from '../models/User';
+import { postAuthRedirectUrl } from '../lib/postAuthRedirect';
+import { IUser } from '../types';
 import * as authController from '../controllers/auth.controller';
 import * as emailVerificationController from '../controllers/emailVerification.controller';
 import * as passwordRecoveryController from '../controllers/passwordRecovery.controller';
@@ -12,6 +13,8 @@ import * as avatarController from '../controllers/avatar.controller';
 import { uploadAvatarFile } from '../middleware/upload';
 import {
   changePasswordSchema,
+  checkEmailSchema,
+  confirmSignupOtpSchema,
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
@@ -29,6 +32,7 @@ const handler = (fn: unknown) => fn as import('express').RequestHandler;
 
 // --- Core auth ---
 
+router.post('/check-email', validate(checkEmailSchema), authController.checkEmail);
 router.post('/register', validate(registerSchema), authController.register);
 router.post('/login', validate(loginSchema), authController.login);
 router.post('/logout', authController.logout);
@@ -36,6 +40,18 @@ router.post('/refresh', authController.refresh);
 router.get('/me', handler(requireAuth), handler(authController.me));
 
 // --- Email verification ---
+
+router.post(
+  '/signup/resend-otp',
+  handler(requireAuth),
+  handler(emailVerificationController.resendSignupOtp)
+);
+router.post(
+  '/signup/verify-otp',
+  handler(requireAuth),
+  validate(confirmSignupOtpSchema),
+  handler(emailVerificationController.confirmSignupOtp)
+);
 
 router.get('/verify-email', emailVerificationController.verifyEmail);
 router.post(
@@ -100,9 +116,9 @@ router.get(
     failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_auth_failed`,
   }),
   (req, res: Response) => {
-    const user = req.user as unknown as IUserDocument;
-    setAuthCookies(res, { userId: user._id.toString(), email: user.email });
-    res.redirect(`${process.env.FRONTEND_URL}/profile`);
+    const user = req.user as IUser;
+    setAuthCookies(res, { userId: user._id, email: user.email });
+    res.redirect(postAuthRedirectUrl(user));
   }
 );
 

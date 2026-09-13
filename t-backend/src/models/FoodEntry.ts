@@ -22,6 +22,9 @@ export interface IFoodEntryDocument extends Document {
   micros: Map<string, { amount: number; unit: string }>;
   date: Date;
   source: FoodEntrySource;
+  confidenceScore?: number;
+  confidenceLevel?: string;
+  extractionAnalysis?: any;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +102,18 @@ const foodEntrySchema = new Schema<IFoodEntryDocument>(
       enum: FOOD_ENTRY_SOURCES,
       required: true,
       default: 'manual',
+    },
+    confidenceScore: {
+      type: Number,
+      min: 0,
+      max: 100,
+    },
+    confidenceLevel: {
+      type: String,
+      enum: ['high', 'medium', 'low'],
+    },
+    extractionAnalysis: {
+      type: Schema.Types.Mixed,
     },
   },
   {

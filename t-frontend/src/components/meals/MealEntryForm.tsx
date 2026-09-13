@@ -9,19 +9,31 @@ import Input from "@/components/ui/Input";
 import OptionPills, { type PillOption } from "@/components/ui/OptionPills";
 import MicronutrientRows from "./MicronutrientRows";
 import FillWithJson from "./FillWithJson";
+import DraftReviewConfirmation from "./photo/DraftReviewConfirmation";
+import PhotoExtractPanel from "./photo/PhotoExtractPanel";
+import { useAiDraftReview } from "@/hooks/useAiDraftReview";
 import { useMicronutrientRows } from "@/hooks/useMicronutrientRows";
 import { toErrorMessage } from "@/lib/errorMessage";
 import { todayAsInputValue } from "@/lib/formatDate";
 import { LIMITS } from "@/lib/validation/amount";
 import {
   MEAL_AMOUNT_RULES,
+  draftToFormValues,
   entryToFormValues,
   validateMealForm,
+  type DraftFormFields,
   type MealAmountField,
   type MealFormErrors,
   type MealFormValues,
 } from "@/lib/validation/mealForm";
-import { MEAL_TYPES, type FoodEntry, type FoodEntryInput, type MealType } from "@/types/nutrition";
+import {
+  MEAL_TYPES,
+  type FoodEntry,
+  type FoodEntryInput,
+  type FoodEntrySource,
+  type MealType,
+  type NutritionExtraction,
+} from "@/types/nutrition";
 
 const MEAL_TYPE_OPTIONS: readonly PillOption<MealType>[] = MEAL_TYPES.map((mealType) => ({
   value: mealType,
@@ -40,8 +52,8 @@ const MEAL_FIELD_UNITS: Record<MealAmountField, string | undefined> = {
 const EMPTY_MEAL_FORM: MealFormValues = {
   mealType: "breakfast",
   foodName: "",
-  quantity: "1",
-  servingSize: "100",
+  quantity: "",
+  servingSize: "",
   calories: "",
   proteinG: "",
   carbG: "",
@@ -49,11 +61,24 @@ const EMPTY_MEAL_FORM: MealFormValues = {
   date: "",
 };
 
+/** Clearing a photo draft empties what it filled in, and keeps the meal type and date the user chose. */
+const EMPTY_DRAFT_FIELDS: DraftFormFields = {
+  foodName: "",
+  quantity: "",
+  servingSize: "",
+  calories: "",
+  proteinG: "",
+  carbG: "",
+  fatG: "",
+};
+
 const NO_ERRORS: MealFormErrors = { fields: {}, micros: {} };
 
 interface MealEntryFormProps {
   /** The entry being edited. Omitted when logging a new meal. */
   entry?: FoodEntry;
+  /** A pre-selected meal type from URL params. Overrides time-based default if provided. */
+  defaultMealType?: MealType;
   submitting: boolean;
   submitLabel: string;
   jsonMode?: boolean;
@@ -71,6 +96,7 @@ function getDefaultMealType(): MealType {
 
 export default function MealEntryForm({
   entry,
+  defaultMealType,
   submitting,
   submitLabel,
   jsonMode = false,
@@ -78,12 +104,15 @@ export default function MealEntryForm({
   onSubmit,
 }: MealEntryFormProps) {
   const [values, setValues] = useState<MealFormValues>(() =>
-    entry ? entryToFormValues(entry) : { ...EMPTY_MEAL_FORM, mealType: getDefaultMealType() }
+    entry
+      ? entryToFormValues(entry)
+      : { ...EMPTY_MEAL_FORM, mealType: defaultMealType ?? getDefaultMealType() },
   );
   const [errors, setErrors] = useState<MealFormErrors>(NO_ERRORS);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const { rows, addRow, addNutrientRow, updateRow, removeRow, setAllRows } =
+  const { rows, addRow, addNutrientRow, updateRow, removeRow, setAllRows, replaceWithMicros } =
     useMicronutrientRows(entry?.micros);
+  const draftReview = useAiDraftReview();
 
   useEffect(() => {
     // Defaulting to today has to happen after mount: the server renders in its
@@ -94,23 +123,50 @@ export default function MealEntryForm({
 
   function updateField<TField extends keyof MealFormValues>(
     field: TField,
-    value: MealFormValues[TField]
+    value: MealFormValues[TField],
   ) {
     setValues((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, fields: { ...current.fields, [field]: undefined } }));
   }
 
+  function applyPhotoDraft(result: NutritionExtraction) {
+    setValues((current) => ({ ...current, ...draftToFormValues(result.extraction) }));
+    replaceWithMicros(result.extraction.micros);
+    setErrors(NO_ERRORS);
+    setSubmitError(null);
+    draftReview.start(result.analysis);
+  }
+
+  function discardPhotoDraft() {
+    setValues((current) => ({ ...current, ...EMPTY_DRAFT_FIELDS }));
+    replaceWithMicros(undefined);
+    setErrors(NO_ERRORS);
+    draftReview.clear();
+  }
+
+  function entrySource(): FoodEntrySource {
+    // An edit must not rewrite how the entry was originally captured.
+    if (entry) return entry.source;
+    return draftReview.analysis ? "ai-image" : "manual";
+  }
+
   async function triggerSubmit() {
     setSubmitError(null);
 
-    const { errors: nextErrors, payload } = validateMealForm(values, rows);
+    const { errors: nextErrors, payload } = validateMealForm(values, rows, entrySource());
     setErrors(nextErrors);
 
-    if (!payload) return;
+    const reviewed = draftReview.checkReadyToSave();
+    if (!payload || !reviewed) return;
+
+    if (draftReview.analysis) {
+      payload.confidenceScore = draftReview.analysis.confidence.score;
+      payload.confidenceLevel = draftReview.analysis.confidence.level;
+      payload.extractionAnalysis = draftReview.analysis;
+    }
 
     try {
-      // An edit must not rewrite how the entry was originally captured.
-      await onSubmit(entry ? { ...payload, source: entry.source } : payload);
+      await onSubmit(payload);
     } catch (cause) {
       setSubmitError(toErrorMessage(cause, "Could not save this meal."));
     }
@@ -153,85 +209,111 @@ export default function MealEntryForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-12">
-      <FormSection
-        title="Meal"
-        description="What you ate, and how much of it."
-        action={
-          <OptionPills
-            label="Meal type"
-            options={MEAL_TYPE_OPTIONS}
-            value={values.mealType}
-            disabled={submitting}
-            size="md"
-            className="w-full sm:w-auto"
-            onChange={(mealType) => updateField("mealType", mealType)}
-          />
-        }
-      >
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          <Input
-            id="foodName"
-            label="Food name"
-            placeholder="Greek yogurt"
-            value={values.foodName}
-            error={errors.fields.foodName}
-            disabled={submitting}
-            required
-            maxLength={LIMITS.foodNameLength}
-            onChange={(event) => updateField("foodName", event.target.value)}
-          />
-          <Input
-            id="date"
-            label="Date eaten"
-            type="date"
-            value={values.date}
-            error={errors.fields.date}
-            disabled={submitting}
-            required
-            onChange={(event) => updateField("date", event.target.value)}
-          />
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          {renderAmountField("quantity")}
-          {renderAmountField("servingSize")}
-        </div>
-      </FormSection>
-
-      <FormSection title="Calories and Macros" description="Totals for the quantity above. Macro weights in grams (g).">
-        {renderAmountField("calories")}
-        <div className="grid gap-6 sm:grid-cols-3">
-          {renderAmountField("proteinG")}
-          {renderAmountField("carbG")}
-          {renderAmountField("fatG")}
-        </div>
-      </FormSection>
-
-      <FormSection
-        title="Micronutrients"
-        description="Optional. Add any nutrient you track (all weights in mg)."
-      >
-        <MicronutrientRows
-          rows={rows}
-          errors={errors.micros}
-          summaryError={errors.microsSummary}
+    <div className="space-y-12">
+      {/* Outside the form, so Enter in the photo description never submits the meal. */}
+      {!entry && (
+        <PhotoExtractPanel
+          analysis={draftReview.analysis}
           disabled={submitting}
-          onAddRow={addRow}
-          onAddNutrientRow={addNutrientRow}
-          onRemoveRow={removeRow}
-          onUpdateRow={updateRow}
+          onExtracted={applyPhotoDraft}
+          onDiscard={discardPhotoDraft}
+          onEnterManually={() => document.getElementById("foodName")?.focus()}
         />
-      </FormSection>
+      )}
 
-      {submitError && <FormError message={submitError} />}
+      <form onSubmit={handleSubmit} noValidate className="space-y-12">
+        <FormSection
+          title="Meal"
+          description="What you ate, and how much of it."
+          action={
+            <OptionPills
+              label="Meal type"
+              options={MEAL_TYPE_OPTIONS}
+              value={values.mealType}
+              disabled={submitting}
+              size="md"
+              className="w-full sm:w-auto"
+              onChange={(mealType) => updateField("mealType", mealType)}
+            />
+          }
+        >
+          <div className="grid gap-6 sm:grid-cols-2">
+            <Input
+              id="foodName"
+              label="Food name"
+              placeholder="Greek yogurt"
+              value={values.foodName}
+              error={errors.fields.foodName}
+              disabled={submitting}
+              required
+              maxLength={LIMITS.foodNameLength}
+              onChange={(event) => updateField("foodName", event.target.value)}
+            />
+            <Input
+              id="date"
+              label="Date eaten"
+              type="date"
+              value={values.date}
+              error={errors.fields.date}
+              disabled={submitting}
+              required
+              onChange={(event) => updateField("date", event.target.value)}
+            />
+          </div>
 
-      <div className="flex justify-end border-t border-black/10 dark:border-white/10 pt-8">
-        <Button type="submit" loading={submitting} className="w-full sm:w-auto">
-          {submitLabel}
-        </Button>
-      </div>
-    </form>
+          <div className="grid gap-6 sm:grid-cols-2">
+            {renderAmountField("quantity")}
+            {renderAmountField("servingSize")}
+          </div>
+        </FormSection>
+
+        <FormSection
+          title="Calories and Macros"
+          description="Totals for the quantity above. Macro weights in grams (g)."
+        >
+          {renderAmountField("calories")}
+          <div className="grid gap-6 sm:grid-cols-3">
+            {renderAmountField("proteinG")}
+            {renderAmountField("carbG")}
+            {renderAmountField("fatG")}
+          </div>
+        </FormSection>
+
+        <FormSection
+          title="Micronutrients"
+          description="Optional. Add any nutrient you track (all weights in mg)."
+        >
+          <MicronutrientRows
+            rows={rows}
+            errors={errors.micros}
+            summaryError={errors.microsSummary}
+            disabled={submitting}
+            onAddRow={addRow}
+            onAddNutrientRow={addNutrientRow}
+            onRemoveRow={removeRow}
+            onUpdateRow={updateRow}
+          />
+        </FormSection>
+
+        {draftReview.analysis && (
+          <DraftReviewConfirmation
+            mealType={values.mealType}
+            date={values.date}
+            confirmed={draftReview.confirmed}
+            error={draftReview.error}
+            disabled={submitting}
+            onChange={draftReview.setConfirmed}
+          />
+        )}
+
+        {submitError && <FormError message={submitError} />}
+
+        <div className="flex justify-end border-t border-black/10 dark:border-white/10 pt-8">
+          <Button type="submit" loading={submitting} className="w-full sm:w-auto">
+            {submitLabel}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
