@@ -26,8 +26,8 @@ export default function Badge({
     <span
       className={`
         inline-flex items-center
-        px-3 py-1
-        text-xs font-semibold  
+        px-2.5 py-0.5
+        text-xs font-semibold rounded-full
         ${variants[variant]}
         ${className}
       `}

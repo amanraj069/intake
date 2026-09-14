@@ -1,5 +1,7 @@
 "use client";
 
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
+
 interface PaginationProps {
   page: number;
   totalPages: number;
@@ -9,18 +11,6 @@ interface PaginationProps {
   disabled?: boolean;
   onPageChange: (page: number) => void;
 }
-
-const STEP_BUTTON_CLASSES = [
-  "px-4 py-2 border border-transparent",
-  "text-[10px] font-bold  ",
-  "text-text-secondary dark:text-dark-text-secondary",
-  "transition-colors duration-100 cursor-pointer",
-  "hover:border-black/15 hover:text-text-primary",
-  "dark:hover:border-white/15 dark:hover:text-dark-text",
-  "disabled:opacity-30 disabled:cursor-not-allowed",
-  "disabled:hover:border-transparent disabled:hover:text-text-secondary",
-  "dark:disabled:hover:border-transparent dark:disabled:hover:text-dark-text-secondary",
-].join(" ");
 
 function describeRange(page: number, pageSize: number, total: number): string {
   if (total === 0) return "No entries";
@@ -40,34 +30,73 @@ export default function Pagination({
   return (
     <nav
       aria-label="Pagination"
-      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-black/10 dark:border-white/10 pt-5"
+      className="flex items-center justify-between gap-3 pt-2 sm:pt-4"
     >
-      <p className="text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
-        {describeRange(page, pageSize, total)}
-      </p>
-
-      <div className="flex items-center gap-2 sm:gap-4 -mr-4">
+      {/* Mobile view: unified 3-part toolbar */}
+      <div className="flex sm:hidden items-center justify-between w-full">
         <button
           type="button"
           onClick={() => onPageChange(page - 1)}
           disabled={disabled || page <= 1}
-          className={STEP_BUTTON_CLASSES}
+          className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-bg-card dark:bg-dark-bg-card border border-border dark:border-dark-border text-text-primary dark:text-dark-text hover:bg-bg-surface dark:hover:bg-dark-surface transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer shadow-2xs"
+          aria-label="Previous page"
         >
-          Previous
+          <ChevronLeftIcon className="h-3.5 w-3.5" />
+          <span>Prev</span>
         </button>
 
-        <p className="text-[10px] font-bold   tabular-nums text-text-primary dark:text-dark-text whitespace-nowrap">
-          Page {page} / {totalPages}
-        </p>
+        <div className="text-center px-2">
+          <p className="text-xs font-bold text-text-primary dark:text-dark-text tabular-nums">
+            Page {page} of {totalPages}
+          </p>
+          <p className="text-[10px] font-medium text-text-secondary dark:text-dark-text-secondary tabular-nums">
+            {describeRange(page, pageSize, total)}
+          </p>
+        </div>
 
         <button
           type="button"
           onClick={() => onPageChange(page + 1)}
           disabled={disabled || page >= totalPages}
-          className={STEP_BUTTON_CLASSES}
+          className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-bg-card dark:bg-dark-bg-card border border-border dark:border-dark-border text-text-primary dark:text-dark-text hover:bg-bg-surface dark:hover:bg-dark-surface transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer shadow-2xs"
+          aria-label="Next page"
         >
-          Next
+          <span>Next</span>
+          <ChevronRightIcon className="h-3.5 w-3.5" />
         </button>
+      </div>
+
+      {/* Desktop view: description on the left, buttons on the right */}
+      <div className="hidden sm:flex sm:items-center sm:justify-between w-full">
+        <p className="text-xs font-medium text-text-secondary dark:text-dark-text-secondary">
+          Showing <span className="font-semibold text-text-primary dark:text-dark-text">{describeRange(page, pageSize, total)}</span>
+        </p>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onPageChange(page - 1)}
+            disabled={disabled || page <= 1}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-bg-card dark:bg-dark-bg-card border border-border dark:border-dark-border text-text-primary dark:text-dark-text hover:bg-bg-surface dark:hover:bg-dark-surface transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer shadow-2xs"
+          >
+            <ChevronLeftIcon className="h-3.5 w-3.5" />
+            <span>Previous</span>
+          </button>
+
+          <span className="text-xs font-semibold tabular-nums text-text-primary dark:text-dark-text px-1">
+            Page {page} of {totalPages}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => onPageChange(page + 1)}
+            disabled={disabled || page >= totalPages}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-bg-card dark:bg-dark-bg-card border border-border dark:border-dark-border text-text-primary dark:text-dark-text hover:bg-bg-surface dark:hover:bg-dark-surface transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer shadow-2xs"
+          >
+            <span>Next</span>
+            <ChevronRightIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
     </nav>
   );

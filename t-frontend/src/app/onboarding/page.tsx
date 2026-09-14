@@ -60,7 +60,7 @@ function OnboardingContent() {
 
   return (
     <AuthLayout>
-      <div className="space-y-8">
+      <div className="space-y-4 sm:space-y-8">
         <AuthStepHeader
           title={title}
           description={description}

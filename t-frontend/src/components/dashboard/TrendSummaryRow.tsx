@@ -24,9 +24,12 @@ export default function TrendSummaryRow({ summary, metric }: TrendSummaryRowProp
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 px-4 pb-6 sm:grid-cols-4 sm:px-7 sm:pb-7">
+    <div className="grid grid-cols-2 gap-2.5 px-4 pb-4 sm:gap-4 sm:grid-cols-4 sm:px-7 sm:pb-7">
       {figures.map((figure) => (
-        <div key={figure.label} className="bg-black/5 dark:bg-white/5 rounded-2xl p-4">
+        <div
+          key={figure.label}
+          className="bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5 rounded-xl sm:rounded-2xl p-2.5 sm:p-4"
+        >
           <DataPair label={figure.label} value={figure.value} />
         </div>
       ))}

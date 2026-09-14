@@ -66,8 +66,8 @@ export default function BodyProfileForm({ initialValues, busy, onSubmit }: BodyP
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5">
-      <div className="grid grid-cols-2 gap-4">
+    <form onSubmit={handleSubmit} noValidate className="space-y-3.5 sm:space-y-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
         {renderMeasure("heightCm")}
         {renderMeasure("age")}
         {renderMeasure("weightKg")}
@@ -75,7 +75,7 @@ export default function BodyProfileForm({ initialValues, busy, onSubmit }: BodyP
       </div>
 
       <div>
-        <span className="mb-2 block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary">
+        <span className="mb-1.5 sm:mb-2 block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary">
           Sex
         </span>
         <OptionPills

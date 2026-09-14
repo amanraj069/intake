@@ -23,12 +23,12 @@ export default function MobileTopBar({
         onClick={onOpenDrawer}
         aria-label="Open navigation"
         aria-expanded={drawerOpen}
-        className="p-2 -ml-2 text-text-primary dark:text-dark-text hover:text-accent dark:hover:text-accent-dark transition-colors cursor-pointer"
+        className="p-2 -ml-2 text-text-primary dark:text-dark-text hover:text-accent dark:hover:text-accent-dark active:scale-90 transition-all duration-150 cursor-pointer"
       >
         <MenuIcon className="w-5 h-5" />
       </button>
 
-      <BrandMark className="text-sm" onNavigate={onNavigate} />
+      <BrandMark className="text-lg tracking-tight" onNavigate={onNavigate} />
       <ThemeToggle />
     </header>
   );

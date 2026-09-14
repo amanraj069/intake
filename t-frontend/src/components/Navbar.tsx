@@ -14,7 +14,7 @@ const LINK_CLASSES =
 function GuestLinks({ pathname }: { pathname: string }) {
   if (pathname !== "/") {
     return (
-      <Link href="/" className={LINK_CLASSES}>
+      <Link href="/" className="text-xs sm:text-sm font-bold px-5 py-2.5 rounded-lg bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover transition-all duration-150 active:scale-[0.97]">
         Home
       </Link>
     );
@@ -23,7 +23,7 @@ function GuestLinks({ pathname }: { pathname: string }) {
   return (
     <Link
       href="/login"
-      className="text-[10px] sm:text-xs font-bold px-5 py-2.5 rounded-lg bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover transition-all duration-150 active:scale-[0.97]"
+      className="text-xs sm:text-sm font-bold px-5 py-2.5 rounded-lg bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover transition-all duration-150 active:scale-[0.97]"
     >
       Sign In
     </Link>
@@ -37,18 +37,18 @@ export default function Navbar() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-black/10 dark:border-white/10 bg-bg-primary/90 dark:bg-dark-bg/90 backdrop-blur-md">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-        <BrandMark size="sm" className="text-sm text-text-primary dark:text-dark-text" />
+        <BrandMark size="sm" className="text-lg sm:text-xl tracking-tight text-text-primary dark:text-dark-text" />
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 sm:gap-6">
           <ThemeToggle />
 
           {!loading && (
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 sm:gap-6">
               {user ? (
                 <>
                   <Link 
                     href="/dashboard" 
-                    className="text-[10px] sm:text-xs font-bold   px-5 py-2.5 rounded-lg bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover transition-all duration-150 active:scale-[0.97]"
+                    className="text-xs sm:text-sm font-bold   px-5 py-2.5 rounded-lg bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover transition-all duration-150 active:scale-[0.97]"
                   >
                     Dashboard
                   </Link>

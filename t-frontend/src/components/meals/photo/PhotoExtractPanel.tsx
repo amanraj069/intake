@@ -108,7 +108,7 @@ export default function PhotoExtractPanel({
   return (
     <section
       aria-label="Fill from a photo"
-      className="rounded-2xl bg-bg-card dark:bg-dark-bg-card border border-black/5 dark:border-white/10 shadow-sm p-4 sm:p-6"
+      className="mt-3 sm:mt-0 rounded-2xl bg-bg-card dark:bg-dark-bg-card border border-black/5 dark:border-white/10 shadow-sm px-4 py-5 sm:p-6"
     >
       <input
         ref={fileInput}

@@ -21,7 +21,7 @@ interface OptionPillsProps<TValue extends string> {
 }
 
 const SIZE_CONTAINER: Record<PillSize, string> = {
-  sm: "h-9 p-1 rounded-xl",
+  sm: "h-10 p-1 rounded-xl",
   md: "h-11 p-1 sm:p-1.25 rounded-xl",
   lg: "h-12 p-1.5 rounded-2xl",
 };
@@ -33,8 +33,8 @@ const SIZE_INDICATOR: Record<PillSize, string> = {
 };
 
 const SIZE_BUTTON: Record<PillSize, string> = {
-  sm: "px-3 sm:px-4 text-xs",
-  md: "px-4 sm:px-5 text-xs sm:text-sm",
+  sm: "px-1.5 sm:px-4 text-[11px] sm:text-xs",
+  md: "px-2 sm:px-5 text-xs sm:text-sm",
   lg: "px-5 sm:px-6 text-sm sm:text-base",
 };
 
@@ -86,13 +86,22 @@ export default function OptionPills<TValue extends string>({
   }, [value, options, size]);
 
   const hasCustomHeight = /\bh-\S+/.test(className);
+  const isFullWidthMobile = fullWidth || className.includes("w-full");
+  const isAutoDesktop = className.includes("sm:w-auto");
+  const buttonFlexClass = fullWidth
+    ? "flex-1"
+    : isFullWidthMobile
+    ? isAutoDesktop
+      ? "flex-1 sm:flex-initial"
+      : "flex-1"
+    : "";
 
   return (
     <div
       ref={containerRef}
       role="radiogroup"
       aria-label={label}
-      className={`relative flex items-center border border-input-border dark:border-dark-input-border bg-black/[0.03] dark:bg-[#11141D] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)] overflow-hidden ${
+      className={`relative flex items-center border border-border dark:border-dark-border bg-bg-card dark:bg-dark-bg-card shadow-2xs overflow-hidden ${
         hasCustomHeight ? "" : SIZE_CONTAINER[size]
       } ${fullWidth ? "w-full" : ""} ${className}`}
     >
@@ -119,7 +128,7 @@ export default function OptionPills<TValue extends string>({
             onClick={() => onChange(option.value)}
             className={`relative z-10 h-full flex items-center justify-center font-semibold transition-colors duration-200 rounded-lg disabled:cursor-not-allowed disabled:opacity-40 whitespace-nowrap cursor-pointer select-none ${
               SIZE_BUTTON[size]
-            } ${fullWidth ? "flex-1" : ""} ${
+            } ${buttonFlexClass} ${
               isSelected
                 ? "text-white font-bold"
                 : "text-text-secondary dark:text-dark-text-secondary hover:text-text-primary dark:hover:text-white"

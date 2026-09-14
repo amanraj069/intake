@@ -4,7 +4,7 @@ import { useState } from "react";
 import Meter from "@/components/ui/Meter";
 import type { ConfidenceLevel, ExtractionConfidence } from "@/types/nutrition";
 
-const LEVEL_LABELS: Record<ConfidenceLevel, string> = {
+export const LEVEL_LABELS: Record<ConfidenceLevel, string> = {
   high: "High",
   medium: "Medium",
   low: "Low",

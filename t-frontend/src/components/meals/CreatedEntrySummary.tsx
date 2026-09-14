@@ -15,7 +15,7 @@ export default function CreatedEntrySummary({ entry }: CreatedEntrySummaryProps)
   const micronutrients = Object.entries(entry.micros ?? {});
 
   return (
-    <Card className="space-y-8 sm:p-8">
+    <Card className="bg-bg-card dark:bg-dark-bg-card space-y-4 sm:space-y-8 p-4 sm:p-8">
       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
         <p className="text-[10px] font-bold text-text-primary dark:text-dark-text capitalize">Logged: {entry.mealType}</p>
         <p className="text-[10px] font-bold text-text-secondary dark:text-dark-text-secondary">

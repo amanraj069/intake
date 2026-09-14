@@ -221,7 +221,7 @@ export default function MealEntryForm({
         />
       )}
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-12">
+      <form onSubmit={handleSubmit} noValidate className="space-y-6 sm:space-y-12">
         <FormSection
           title="Meal"
           description="Which meal of the day this was."
@@ -261,7 +261,7 @@ export default function MealEntryForm({
 
         {submitError && <FormError message={submitError} />}
 
-        <div className="flex justify-end border-t border-black/10 dark:border-white/10 pt-8">
+        <div className="flex justify-end border-t border-black/10 dark:border-white/10 pt-6 sm:pt-8">
           <Button type="submit" loading={submitting} className="w-full sm:w-auto">
             {submitLabel}
           </Button>

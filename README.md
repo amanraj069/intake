@@ -613,7 +613,7 @@ Decisions made where the spec left room for interpretation:
 - **The PDF's text is read on the server, not sent to Gemini as a file.** `pdf-parse` extracts the
   text layer and only that text goes to the model, per the spec. Scanned diaries with no text
   layer are rejected with `PDF_NO_TEXT` rather than guessed at; the photo flow covers images.
-- **Limits: 10MB, 20 pages, 50,000 characters, 100 rows per import.** A longer document is
+- **Limits: 5MB, 10 pages, 50,000 characters, 100 rows per import.** A longer document is
   rejected instead of silently truncated. If the model finds more than 100 rows, the first 100
   are shown with a warning naming how many were found.
 - **Missing values are never estimated.** A blank macro cell stays blank and flags the row, and

@@ -2,7 +2,7 @@ import { InvalidPDFException, PDFParse, PasswordException } from 'pdf-parse';
 import { AppError } from '../middleware/errorHandler';
 
 /** A diary longer than this is almost certainly not one sitting of food logs, and would outgrow one AI call. */
-export const MAX_PDF_PAGES = 20;
+export const MAX_PDF_PAGES = 10;
 export const MAX_PDF_TEXT_CHARACTERS = 50_000;
 /** Below this, a page is treated as a scan with no text layer rather than a short diary. */
 const MIN_TEXT_CHARACTERS = 20;

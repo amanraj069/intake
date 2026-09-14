@@ -14,11 +14,11 @@ interface AvatarProps {
 const SIZES: Record<AvatarSize, string> = {
   sm: "w-9 h-9 text-[11px]",
   md: "w-12 h-12 text-sm",
-  lg: "w-28 h-28 text-2xl",
+  lg: "w-20 h-20 sm:w-28 sm:h-28 text-xl sm:text-2xl",
 };
 
 /**
- * Square avatar that falls back to the user's initials, either when no picture
+ * Circular avatar that falls back to the user's initials, either when no picture
  * is set or when a stored image URL fails to load (a deleted Cloudinary asset,
  * say) so the slot never renders as a broken image.
  */
@@ -27,7 +27,7 @@ export default function Avatar({ src, initials, size = "sm", className = "" }: A
   // picture is retried automatically, with no effect to reset the flag.
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
-  const box = `${SIZES[size]} shrink-0 flex items-center justify-center overflow-hidden select-none ${className}`;
+  const box = `${SIZES[size]} shrink-0 flex items-center justify-center overflow-hidden select-none rounded-full ${className}`;
 
   if (src && src !== failedSrc) {
     // Cloudinary already serves an optimised, correctly sized asset, so

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "intake:sidebar-expanded";
 
@@ -69,7 +69,10 @@ export function useSidebarExpansion(): SidebarExpansion {
     () => true
   );
 
-  const hydrated = useSyncExternalStore(subscribeToStorage, () => true, () => false);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   // Set once the user works the control, and takes priority over the stored
   // preference for the rest of the visit.

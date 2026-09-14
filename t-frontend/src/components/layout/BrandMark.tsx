@@ -22,7 +22,7 @@ export default function BrandMark({ className = "", size = "md", onNavigate }: B
     <Link
       href="/"
       onClick={onNavigate}
-      className={`flex items-center gap-3 font-extrabold   hover:text-accent dark:hover:text-accent-dark transition-colors ${className}`}
+      className={`flex items-center gap-1.5 font-extrabold   hover:text-accent dark:hover:text-accent-dark transition-colors ${className}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- a fixed 28px mark gains nothing from next/image's resizing pipeline */}
       <img

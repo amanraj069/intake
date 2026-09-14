@@ -21,16 +21,18 @@ function GoalsContent() {
 
   return (
     <DashboardLayout>
-              <PageHeader
+      <div className="space-y-4 sm:space-y-8">
+        <PageHeader
           title="Goals"
           description="Set your daily energy and macronutrient targets."
+          hideDescriptionOnMobile
           showBackButton
         />
 
         {loading && <SkeletonRows count={4} />}
         {!loading && loadError && <ErrorState message={loadError} onRetry={reload} />}
         {!loading && !loadError && <GoalForm goal={goal} saving={saving} onSave={handleSave} />}
-      
+      </div>
     </DashboardLayout>
   );
 }

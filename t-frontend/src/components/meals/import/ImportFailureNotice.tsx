@@ -52,7 +52,7 @@ export default function ImportFailureNotice({ fileName, failure, onRetry, onChoo
             Try again
           </Button>
         )}
-        <Button type="button" variant="ghost" size="sm" onClick={onChooseAnother}>
+        <Button type="button" variant="secondary" size="sm" onClick={onChooseAnother} className="border border-border dark:border-dark-border shadow-2xs">
           Choose another PDF
         </Button>
       </div>

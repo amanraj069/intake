@@ -10,7 +10,7 @@ interface SidebarHeaderProps {
 }
 
 const ICON_BUTTON_CLASSES =
-  "flex h-9 w-9 items-center justify-center border border-transparent cursor-pointer text-text-secondary transition-colors duration-150 hover:border-border hover:text-text-primary dark:text-dark-text-secondary dark:hover:border-dark-border dark:hover:text-dark-text";
+  "flex h-9 w-9 items-center justify-center border border-transparent cursor-pointer text-text-secondary transition-all duration-150 hover:border-border hover:text-text-primary dark:text-dark-text-secondary dark:hover:border-dark-border dark:hover:text-dark-text active:scale-90";
 
 /**
  * The sidebar's top row. When expanded it shows the full wordmark with theme

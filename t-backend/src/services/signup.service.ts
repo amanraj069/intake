@@ -60,6 +60,16 @@ async function findUnverifiedUser(userId: string): Promise<IUserDocument> {
 /** Mails a fresh signup code to the signed-in user's own address. */
 export async function resendSignupOtp(userId: string): Promise<string> {
   const user = await findUnverifiedUser(userId);
+
+  if (user.otpResentAt) {
+    const elapsedSeconds = Math.floor((Date.now() - user.otpResentAt.getTime()) / 1000);
+    if (elapsedSeconds < 60) {
+      const secondsLeft = 60 - elapsedSeconds;
+      throw new AppError(`Please wait ${secondsLeft}s before requesting another code.`, 429);
+    }
+  }
+
+  user.otpResentAt = new Date();
   await issueOtp(user, 'verify-email', user.email);
   return user.email;
 }

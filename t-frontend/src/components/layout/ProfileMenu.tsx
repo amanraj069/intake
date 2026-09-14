@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTheme } from "@/contexts/ThemeContext";
-import { LogoutIcon, MoonIcon, SettingsIcon, SunIcon, UserIcon } from "@/components/icons";
+import { LogoutIcon, MoonIcon, SunIcon, UserIcon } from "@/components/icons";
 
 interface ProfileMenuProps {
   /** Anchors the panel beside the rail instead of above a full-width row. */
@@ -23,9 +23,7 @@ const DIVIDED_ITEM = "border-t border-border dark:border-dark-border";
 
 /**
  * Actions for the signed-in account, opened from the three-dot trigger in the
- * sidebar's profile block. Profile and Settings are separate destinations: one
- * shows who the account is, the other changes how it is signed in to. The theme
- * switch stays here as a shortcut for the control on the settings page.
+ * sidebar's profile block.
  */
 export default function ProfileMenu({
   expanded,
@@ -47,16 +45,6 @@ export default function ProfileMenu({
       <Link href="/profile" role="menuitem" onClick={onSelect} className={NEUTRAL_ITEM}>
         <UserIcon className="h-4 w-4 shrink-0" />
         Profile
-      </Link>
-
-      <Link
-        href="/settings"
-        role="menuitem"
-        onClick={onSelect}
-        className={`${NEUTRAL_ITEM} ${DIVIDED_ITEM}`}
-      >
-        <SettingsIcon className="h-4 w-4 shrink-0" />
-        Settings
       </Link>
 
       <button

@@ -34,7 +34,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
         </div>
 
         {/* Right panel - form */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 bg-bg-primary dark:bg-dark-bg">
+        <div className="w-full lg:w-1/2 flex items-center justify-center px-8 py-6 sm:px-6 sm:py-12 bg-bg-primary dark:bg-dark-bg">
           <div className="w-full max-w-[420px]">{children}</div>
         </div>
       </div>

@@ -17,18 +17,18 @@ interface PlanReviewProps {
 /** The recommended plan, shown for confirmation before it becomes the user's goal. */
 export default function PlanReview({ plan, saving, onEdit, onAccept }: PlanReviewProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5 sm:space-y-6">
       <BmiSummary plan={plan} />
 
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-bold text-text-primary dark:text-dark-text">Daily targets</h2>
-          <Badge variant={plan.source === "ai" ? "success" : "neutral"} className="rounded-full">
+          <h2 className="text-xs sm:text-sm font-bold text-text-primary dark:text-dark-text">Daily targets</h2>
+          <Badge variant={plan.source === "ai" ? "success" : "neutral"} className="rounded-full text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5">
             {plan.source === "ai" ? "Personalised by AI" : "Standard formula"}
           </Badge>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {NUTRITION_METRIC_KEYS.map((key) => (
             <PlanTargetTile
               key={key}
@@ -39,7 +39,7 @@ export default function PlanReview({ plan, saving, onEdit, onAccept }: PlanRevie
         </div>
       </div>
 
-      <p className="text-sm font-light leading-relaxed text-text-secondary dark:text-dark-text-secondary">
+      <p className="text-xs sm:text-sm font-light leading-normal sm:leading-relaxed text-text-secondary dark:text-dark-text-secondary">
         {plan.rationale}
       </p>
 
@@ -50,7 +50,7 @@ export default function PlanReview({ plan, saving, onEdit, onAccept }: PlanRevie
         </p>
       )}
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row">
+      <div className="flex flex-col-reverse gap-2 sm:gap-3 sm:flex-row">
         <Button variant="secondary" onClick={onEdit} disabled={saving} className="sm:flex-1">
           Edit details
         </Button>

@@ -1,5 +1,5 @@
 /** Mirrors the server's diary upload limit, so a bad file fails before the round trip. */
-export const MAX_FOOD_DIARY_PDF_BYTES = 10 * 1024 * 1024;
+export const MAX_FOOD_DIARY_PDF_BYTES = 5 * 1024 * 1024;
 
 export const PDF_FILE_ACCEPT = "application/pdf,.pdf";
 
@@ -8,7 +8,7 @@ export function foodDiaryPdfFileError(file: File): string | null {
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
 
   if (!isPdf) return "Choose a PDF file.";
-  if (file.size > MAX_FOOD_DIARY_PDF_BYTES) return "The PDF must be 10MB or smaller.";
+  if (file.size > MAX_FOOD_DIARY_PDF_BYTES) return "The PDF must be 5MB or smaller.";
 
   return null;
 }

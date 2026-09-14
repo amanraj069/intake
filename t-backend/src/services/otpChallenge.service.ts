@@ -23,6 +23,7 @@ export function clearOtpState(user: IUserDocument): void {
   user.otpPurpose = undefined;
   user.otpAttempts = undefined;
   user.pendingEmail = undefined;
+  user.otpResentAt = undefined;
 }
 
 /**

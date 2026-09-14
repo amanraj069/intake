@@ -29,10 +29,10 @@ export default function TrendReadout({ bar, metric, target }: TrendReadoutProps)
   const isOverTarget = bar.isOverTarget;
 
   return (
-    <div className="flex flex-col gap-3 px-6 pt-6 sm:flex-row sm:items-baseline sm:justify-between sm:px-7">
-      <div className="flex items-baseline gap-3">
+    <div className="flex flex-col gap-2 px-4 pt-4 sm:flex-row sm:items-baseline sm:justify-between sm:px-7 sm:pt-6">
+      <div className="flex items-baseline gap-2.5">
         <p
-          className={`text-2xl font-semibold tracking-tight ${
+          className={`text-xl sm:text-2xl font-semibold tracking-tight ${
             isOverTarget
               ? colourFor(metric.key as NutritionMetricKey).text +
                 " " +
@@ -47,7 +47,7 @@ export default function TrendReadout({ bar, metric, target }: TrendReadoutProps)
         </p>
       </div>
 
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
+      <div className="flex flex-wrap items-baseline gap-x-4 sm:gap-x-6 gap-y-1 text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
         <span>
           {bar.percentOfTarget === null
             ? "No target set"

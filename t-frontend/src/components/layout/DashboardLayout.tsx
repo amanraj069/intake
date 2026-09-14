@@ -42,16 +42,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         type="button"
         aria-label="Close navigation"
         onClick={closeDrawer}
-        className={`lg:hidden fixed inset-0 z-40 bg-black/40 dark:bg-black/60 cursor-default transition-opacity duration-300 ease-[cubic-bezier(0.2,1,0.2,1)] ${
-          drawerOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        className={`lg:hidden fixed inset-0 z-40 bg-black/35 dark:bg-black/50 backdrop-blur-[2px] cursor-default transition-opacity duration-300 ease-out ${
+          drawerOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border dark:border-dark-border bg-bg-card dark:bg-dark-bg-card max-lg:w-64 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border dark:border-dark-border bg-bg-card dark:bg-dark-bg-card max-lg:w-72 max-lg:shadow-[4px_0_24px_rgba(0,0,0,0.15)] dark:max-lg:shadow-[4px_0_30px_rgba(0,0,0,0.6)] lg:translate-x-0 transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
           expanded ? "lg:w-64" : "lg:w-16"
         } ${drawerOpen ? "translate-x-0" : "-translate-x-full"} ${
-          hydrated ? "transition-[width,transform] duration-300 ease-[cubic-bezier(0.2,1,0.2,1)]" : ""
+          hydrated ? "lg:transition-[width,transform]" : ""
         }`}
       >
         <SidebarHeader
@@ -89,7 +89,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         <SidebarNav expanded={expanded || drawerOpen} onNavigate={closeDrawer} />
 
-        {user && <SidebarProfile user={user} expanded={expanded || drawerOpen} />}
+        {user && (
+          <SidebarProfile
+            user={user}
+            expanded={expanded || drawerOpen}
+            onNavigate={closeDrawer}
+          />
+        )}
       </aside>
 
       <main
@@ -97,8 +103,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           hydrated ? "transition-[margin] duration-300 ease-[cubic-bezier(0.2,1,0.2,1)]" : ""
         }`}
       >
-        <div className="px-4 py-8 sm:px-8 lg:p-12">
-          <div className="w-full max-w-5xl mx-auto space-y-10 sm:space-y-12 pb-24">
+        <div className="px-4 py-5 sm:px-8 sm:py-8 lg:p-12">
+          <div className="w-full max-w-5xl mx-auto space-y-6 sm:space-y-12 pb-24">
             {children}
           </div>
         </div>

@@ -14,21 +14,23 @@ export type SignupStep = "email" | "details" | "verify";
 export interface SignupFlow {
   step: SignupStep;
   email: string;
+  firstName: string;
+  lastName: string;
   busy: boolean;
   /** Set when step one finds the address already registered. */
   emailTaken: boolean;
   /** Field messages the server returned for the details step. */
   serverFieldErrors: Record<string, string>;
-  submitEmail: (email: string) => Promise<void>;
-  submitDetails: (details: SignupDetailsValues) => Promise<void>;
+  submitStep1: (data: { firstName: string; lastName: string; email: string }) => Promise<void>;
+  submitEmail: (data: { firstName: string; lastName: string; email: string }) => Promise<void>;
+  submitDetails: (details: { password: string; confirmPassword: string; firstName?: string; lastName?: string }) => Promise<void>;
   verifyCode: (otp: string) => Promise<void>;
   resendCode: () => Promise<void>;
   editEmail: () => void;
-  skipVerification: () => void;
 }
 
 /**
- * Local signup as three screens: claim an email, fill in name and password
+ * Local signup as three screens: claim an email & name, choose password
  * (which creates the account and mails a code), then redeem that code. Every
  * finished path leads to onboarding, which a brand-new account always needs.
  */
@@ -39,6 +41,8 @@ export function useSignupFlow(): SignupFlow {
 
   const [step, setStep] = useState<SignupStep>("email");
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [busy, setBusy] = useState(false);
   const [emailTaken, setEmailTaken] = useState(false);
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
@@ -58,13 +62,15 @@ export function useSignupFlow(): SignupFlow {
     [toast]
   );
 
-  const submitEmail = useCallback(
-    (candidate: string) =>
+  const submitStep1 = useCallback(
+    (data: { firstName: string; lastName: string; email: string }) =>
       runStep(async () => {
-        const normalised = candidate.trim().toLowerCase();
+        const normalised = data.email.trim().toLowerCase();
         const response = await api.checkEmail(normalised);
         const available = response.data?.available ?? false;
 
+        setFirstName(data.firstName.trim());
+        setLastName(data.lastName.trim());
         setEmail(normalised);
         setEmailTaken(!available);
         if (available) setStep("details");
@@ -73,13 +79,15 @@ export function useSignupFlow(): SignupFlow {
   );
 
   const submitDetails = useCallback(
-    (details: SignupDetailsValues) =>
+    (details: { password: string; confirmPassword: string; firstName?: string; lastName?: string }) =>
       runStep(async () => {
         setServerFieldErrors({});
+        const fn = details.firstName?.trim() || firstName;
+        const ln = details.lastName?.trim() || lastName;
         const { verificationCodeSent } = await signup({
           email,
-          firstName: details.firstName.trim(),
-          lastName: details.lastName.trim(),
+          firstName: fn,
+          lastName: ln,
           password: details.password,
         });
 
@@ -90,7 +98,7 @@ export function useSignupFlow(): SignupFlow {
           toast.error("Your account is ready, but the code email failed. Try resending it.");
         }
       }, "Could not create your account. Please try again."),
-    [runStep, signup, email, toast]
+    [runStep, signup, email, firstName, lastName, toast]
   );
 
   const verifyCode = useCallback(
@@ -98,6 +106,11 @@ export function useSignupFlow(): SignupFlow {
       runStep(async () => {
         const response = await api.confirmSignupOtp(otp);
         if (response.data?.user) setSessionUser(response.data.user);
+        try {
+          sessionStorage.removeItem("intake_signup_otp_cooldown");
+        } catch {
+          // ignore
+        }
         toast.success("Email verified. Let's set up your goals.");
         router.replace("/onboarding");
       }, "Could not verify that code. Please try again."),
@@ -119,19 +132,19 @@ export function useSignupFlow(): SignupFlow {
     setStep("email");
   }, []);
 
-  const skipVerification = useCallback(() => router.replace("/onboarding"), [router]);
-
   return {
     step,
     email,
+    firstName,
+    lastName,
     busy,
     emailTaken,
     serverFieldErrors,
-    submitEmail,
+    submitStep1,
+    submitEmail: submitStep1,
     submitDetails,
     verifyCode,
     resendCode,
     editEmail,
-    skipVerification,
   };
 }
