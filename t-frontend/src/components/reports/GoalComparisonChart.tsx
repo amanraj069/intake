@@ -1,5 +1,4 @@
-"use client";
-
+import { memo, useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -20,7 +19,7 @@ interface GoalComparisonChartProps {
 }
 
 /** Actual vs. target calories: bars for actual, reference line for target. */
-export default function GoalComparisonChart({ data }: GoalComparisonChartProps) {
+function GoalComparisonChart({ data }: GoalComparisonChartProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -29,22 +28,29 @@ export default function GoalComparisonChart({ data }: GoalComparisonChartProps) 
   const gridColour = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
   const textColour = isDark ? "#9CA3AF" : "#6B6659";
 
-  const targetCalories = data.length > 0 ? data[0].targetCalories : null;
+  const targetCalories = useMemo(
+    () => (data.length > 0 ? data[0].targetCalories : null),
+    [data]
+  );
 
-  const formatted = data.map((d) => ({
-    ...d,
-    label: formatChartDate(d.date),
-  }));
+  const formatted = useMemo(
+    () =>
+      data.map((d) => ({
+        ...d,
+        label: formatChartDate(d.date),
+      })),
+    [data]
+  );
 
   return (
-    <section className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-6 sm:p-7">
-      <h3 className="text-xs font-bold text-text-secondary dark:text-dark-text-secondary mb-6">
+    <section className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-4 sm:p-7">
+      <h3 className="text-xs font-bold text-text-secondary dark:text-dark-text-secondary mb-3.5 sm:mb-6">
         Goal vs Actual
       </h3>
 
-      <div className="h-52 sm:h-64">
+      <div className="h-48 sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={formatted} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+          <BarChart data={formatted} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColour} vertical={false} />
             <XAxis
               dataKey="label"
@@ -75,7 +81,7 @@ export default function GoalComparisonChart({ data }: GoalComparisonChartProps) 
             <Legend
               wrapperStyle={{ fontSize: 10, fontWeight: 700, paddingTop: 16 }}
             />
-            <Bar dataKey="actualCalories" name="Actual" fill={actualColour} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="actualCalories" name="Actual" fill={actualColour} radius={[4, 4, 0, 0]} isAnimationActive={true} animationDuration={300} />
             {targetCalories !== null && (
               <ReferenceLine
                 y={targetCalories}
@@ -101,3 +107,5 @@ export default function GoalComparisonChart({ data }: GoalComparisonChartProps) 
     </section>
   );
 }
+
+export default memo(GoalComparisonChart);

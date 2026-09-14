@@ -38,22 +38,12 @@ export default function MealFilters({
   return (
     <section
       aria-label="Filter entries"
-      className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-3.5 sm:p-4"
+      className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-3 sm:p-4"
     >
-      <div className="flex flex-col md:flex-row items-stretch md:items-end gap-3 sm:gap-4 w-full">
-        <div className="w-full md:w-[280px] lg:w-[320px] shrink-0">
-          <DateRangeField
-            label="Period"
-            startDate={values.startDate}
-            endDate={values.endDate}
-            onStartDateChange={onStartDateChange}
-            onEndDateChange={onEndDateChange}
-          />
-        </div>
-
+      <div className="flex flex-col md:flex-row items-stretch md:items-end gap-2.5 sm:gap-4 w-full">
         <div className="flex-1 min-w-0 w-full">
           <FieldLabel>Meal</FieldLabel>
-          <div className="mt-2 w-full">
+          <div className="mt-1.5 sm:mt-2 w-full">
             <OptionPills
               label="Meal type"
               options={MEAL_TYPE_OPTIONS}
@@ -64,11 +54,46 @@ export default function MealFilters({
           </div>
         </div>
 
+        <div className="w-full md:w-[280px] lg:w-[320px] shrink-0">
+          <DateRangeField
+            label="Period"
+            startDate={values.startDate}
+            endDate={values.endDate}
+            onStartDateChange={onStartDateChange}
+            onEndDateChange={onEndDateChange}
+            rightElement={
+              <button
+                type="button"
+                onClick={onReset}
+                disabled={isDefault}
+                className="md:hidden h-10 px-3.5 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:hover:bg-red-500/25 border border-red-500/20 dark:border-red-500/30 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                title="Reset filters"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18"></path>
+                  <path d="m6 6 12 12"></path>
+                </svg>
+                <span>Reset</span>
+              </button>
+            }
+          />
+        </div>
+
         <button
           type="button"
           onClick={onReset}
           disabled={isDefault}
-          className="h-9 px-4 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:hover:bg-red-500/25 border border-red-500/20 dark:border-red-500/30 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0 self-stretch md:self-auto"
+          className="hidden md:flex h-10 px-4 items-center justify-center gap-1.5 text-xs font-semibold rounded-xl bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:hover:bg-red-500/25 border border-red-500/20 dark:border-red-500/30 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
           title="Reset filters"
         >
           <svg

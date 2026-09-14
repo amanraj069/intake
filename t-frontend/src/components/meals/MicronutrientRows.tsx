@@ -63,15 +63,25 @@ function MicronutrientRowFields({ row, error, disabled, onRemove, onChange }: Si
       <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
         {/* Nutrient Selector */}
         <div className="flex-1 space-y-2">
-          <label
-            htmlFor={`${row.id}-select`}
-            className="block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary"
-          >
-            Nutrient
-            <span className="text-red-500 ml-1 font-bold" aria-hidden="true">
-              *
-            </span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor={`${row.id}-select`}
+              className="block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary"
+            >
+              Nutrient
+              <span className="text-red-500 ml-1 font-bold" aria-hidden="true">
+                *
+              </span>
+            </label>
+            <div className="sm:hidden -mr-1 -my-1">
+              <RemoveIconButton
+                label={`Remove ${row.name.trim() || "micronutrient"}`}
+                disabled={disabled}
+                onClick={onRemove}
+                className="!h-8 !w-8"
+              />
+            </div>
+          </div>
 
           <div className="relative">
             <select
@@ -172,12 +182,12 @@ function MicronutrientRowFields({ row, error, disabled, onRemove, onChange }: Si
           />
         </div>
 
-        {/* Remove Button */}
+        {/* Remove Button (desktop) */}
         <RemoveIconButton
           label={`Remove ${row.name.trim() || "micronutrient"}`}
           disabled={disabled}
           onClick={onRemove}
-          className="self-start sm:mt-[24px] !h-[46px] !w-[46px]"
+          className="hidden sm:flex self-start sm:mt-[24px] !h-[46px] !w-[46px]"
         />
       </div>
 

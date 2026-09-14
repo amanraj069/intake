@@ -72,7 +72,7 @@ ${jsonText.trim()}`;
   }
 
   return (
-    <div className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm border border-black/5 dark:border-white/10 p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
+    <div className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm border border-black/5 dark:border-white/10 p-4 sm:p-8 space-y-4 sm:space-y-6 animate-in fade-in duration-200">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-base font-bold text-text-primary dark:text-dark-text">
           Fill with JSON
@@ -145,13 +145,13 @@ ${jsonText.trim()}`;
           )}
         </div>
 
-        <div className="flex items-center gap-3 justify-end flex-wrap">
+        <div className="flex items-center gap-3 justify-end flex-wrap sm:flex-nowrap w-full sm:w-auto">
           <Button
             type="button"
             variant="secondary"
             size="md"
             onClick={onClose}
-            className="!rounded-lg !h-10 sm:!h-11 !px-5 !py-0 !text-sm font-semibold shadow-xs"
+            className="!rounded-lg !h-10 sm:!h-11 !px-5 !py-0 !text-sm font-semibold shadow-xs w-full sm:w-auto"
           >
             Fill the form
           </Button>
@@ -161,7 +161,7 @@ ${jsonText.trim()}`;
             loading={submitting}
             disabled={Boolean(parseError)}
             onClick={onSubmit}
-            className="!rounded-lg !h-10 sm:!h-11 !px-6 !py-0 !text-sm font-semibold shadow-sm hover:shadow-md"
+            className="!rounded-lg !h-10 sm:!h-11 !px-6 !py-0 !text-sm font-semibold shadow-sm hover:shadow-md w-full sm:w-auto"
           >
             {submitLabel}
           </Button>

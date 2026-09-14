@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -25,9 +27,18 @@ function pluralEntries(count: number): string {
 /** The plain outcome of an import: what was saved, and each row that was not, with the reason. */
 export default function ImportSummary({ result, rowNumbers, onImportAnother }: ImportSummaryProps) {
   const { importedCount, skipped } = result;
+  const router = useRouter();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.push("/meals");
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [router]);
 
   return (
-    <Card className="space-y-8 sm:p-8">
+    <Card className="bg-bg-card dark:bg-dark-bg-card space-y-8 sm:p-8">
       <div>
         <h2 className="text-xl font-extrabold text-text-primary dark:text-dark-text">Import finished</h2>
         <p className="mt-2 text-sm font-light text-text-secondary dark:text-dark-text-secondary">

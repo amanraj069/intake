@@ -59,13 +59,13 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthLayout>
-      <div className="space-y-8">
+      <div className="space-y-4 sm:space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-text-primary dark:text-dark-text">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-text-primary dark:text-dark-text">
             {step === 1 ? "Reset password" : "Enter verification code"}
           </h1>
-          <p className="mt-2 text-sm text-text-secondary dark:text-dark-text-secondary">
+          <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-text-secondary dark:text-dark-text-secondary">
             {step === 1
               ? "Enter your email and we'll send you a 6-digit verification code"
               : `Enter the code sent to ${email} along with your new password`}
@@ -73,11 +73,11 @@ export default function ForgotPasswordPage() {
         </div>
 
         {step === 1 ? (
-          <form onSubmit={handleRequestOtp} className="space-y-5">
+          <form onSubmit={handleRequestOtp} className="space-y-3.5 sm:space-y-5">
             <Input
               label="Email"
               type="email"
-              placeholder="you@example.com"
+              placeholder="aarav.sharma@gmail.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
               Send Code
             </Button>
 
-            <p className="text-center text-sm text-text-secondary dark:text-dark-text-secondary">
+            <p className="text-center text-xs sm:text-sm text-text-secondary dark:text-dark-text-secondary">
               Remember your password?{" "}
               <Link
                 href="/login"
@@ -99,7 +99,7 @@ export default function ForgotPasswordPage() {
             </p>
           </form>
         ) : (
-          <form onSubmit={handleVerifyOtp} className="space-y-5">
+          <form onSubmit={handleVerifyOtp} className="space-y-3.5 sm:space-y-5">
             <Input
               label="Verification Code"
               type="text"

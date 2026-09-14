@@ -15,10 +15,10 @@ const STEP_NUMBERS: Record<SignupStep, number> = { email: 1, details: 2, verify:
 
 function stepCopy(step: SignupStep, email: string): { title: string; description: string } {
   if (step === "email") {
-    return { title: "Create account", description: "Start with your email, or continue with Google." };
+    return { title: "Create account", description: "Start with your details, or continue with Google." };
   }
   if (step === "details") {
-    return { title: "Tell us about you", description: "Your name and a password for signing in." };
+    return { title: "Set a password", description: "Choose a secure password for signing in." };
   }
   return { title: "Check your inbox", description: `Enter the 6-digit code we sent to ${email}.` };
 }
@@ -42,7 +42,7 @@ export default function SignupPage() {
 
   return (
     <AuthLayout>
-      <div className="space-y-8">
+      <div className="space-y-4 sm:space-y-8">
         <AuthStepHeader
           title={title}
           description={description}
@@ -51,16 +51,20 @@ export default function SignupPage() {
 
         {flow.step === "email" && (
           <SignupEmailStep
+            initialFirstName={flow.firstName}
+            initialLastName={flow.lastName}
             initialEmail={flow.email}
             busy={flow.busy}
             emailTaken={flow.emailTaken}
-            onSubmit={flow.submitEmail}
+            onSubmit={flow.submitStep1}
           />
         )}
 
         {flow.step === "details" && (
           <SignupDetailsStep
             email={flow.email}
+            firstName={flow.firstName}
+            lastName={flow.lastName}
             busy={flow.busy}
             serverFieldErrors={flow.serverFieldErrors}
             onEditEmail={flow.editEmail}
@@ -73,7 +77,6 @@ export default function SignupPage() {
             busy={flow.busy}
             onVerify={flow.verifyCode}
             onResend={flow.resendCode}
-            onSkip={flow.skipVerification}
           />
         )}
       </div>

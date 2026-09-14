@@ -5,16 +5,18 @@ import ErrorState from "@/components/ui/ErrorState";
 import OptionPills, { type PillOption } from "@/components/ui/OptionPills";
 import SkeletonRows from "@/components/ui/SkeletonRows";
 import { useDailyIntakeSeries } from "@/hooks/useDailyIntakeSeries";
-import { daysBefore, formatDayAndMonth, todayAsInputValue } from "@/lib/formatDate";
-import { buildTrendChart, summariseTrend } from "@/lib/intakeTrend";
+import { daysBefore, formatDayAndMonth, formatShortDate, todayAsInputValue } from "@/lib/formatDate";
+import { formatAmount } from "@/lib/formatNumber";
+import { buildTrendChart, summariseTrend, type TrendBar } from "@/lib/intakeTrend";
+import { colourFor } from "@/lib/metricColours";
 import {
   NUTRITION_METRICS,
   NUTRITION_METRIC_KEYS,
   targetFor,
+  type NutritionMetric,
   type NutritionMetricKey,
 } from "@/lib/nutritionMetrics";
 import TrendColumns from "./TrendColumns";
-import TrendReadout from "./TrendReadout";
 import TrendSummaryRow from "./TrendSummaryRow";
 
 const TREND_DAY_COUNT = 7;
@@ -33,29 +35,91 @@ function PanelHeader({
   rangeLabel,
   metricKey,
   onMetricChange,
+  selectedBar,
+  metric,
+  target,
 }: {
   rangeLabel: string;
   metricKey: NutritionMetricKey;
   onMetricChange: (key: NutritionMetricKey) => void;
+  selectedBar: TrendBar | null;
+  metric: NutritionMetric;
+  target: number | null;
 }) {
-  return (
-    <header className="flex flex-col gap-5 border-b border-border dark:border-dark-border p-6 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-      <div>
-        <h2 className="text-sm font-extrabold   text-text-primary dark:text-dark-text">
-          Last {TREND_DAY_COUNT} days
-        </h2>
-        <p className="mt-2 text-[11px] font-light   text-text-secondary dark:text-dark-text-secondary">
-          {rangeLabel}
-        </p>
-      </div>
+  const readoutValue = selectedBar
+    ? target !== null && target > 0
+      ? `${formatAmount(selectedBar.actual)}/${formatAmount(target)}${metric.unit}`
+      : `${formatAmount(selectedBar.actual)}${metric.unit}`
+    : null;
 
-      <div className="sm:flex sm:justify-end">
-        <OptionPills
-          label="Measure to plot"
-          options={METRIC_OPTIONS}
-          value={metricKey}
-          onChange={onMetricChange}
-        />
+  const readoutDate = selectedBar
+    ? selectedBar.isToday
+      ? "Today"
+      : formatShortDate(selectedBar.date)
+    : null;
+
+  const isOverTarget = selectedBar?.isOverTarget ?? false;
+  const valueColourClass = isOverTarget
+    ? `${colourFor(metric.key).text} ${colourFor(metric.key).darkText}`
+    : "text-text-primary dark:text-dark-text";
+
+  return (
+    <header className="border-b border-border dark:border-dark-border p-4 sm:p-6 sm:px-7">
+      <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+        {/* Left / Mobile Title Row */}
+        <div className="flex items-start justify-between sm:justify-start w-full sm:w-auto">
+          <div>
+            <h2 className="text-sm font-extrabold text-text-primary dark:text-dark-text">
+              Last {TREND_DAY_COUNT} days
+            </h2>
+            <p className="mt-0.5 sm:mt-1 text-[11px] font-light text-text-secondary dark:text-dark-text-secondary">
+              {rangeLabel}
+            </p>
+          </div>
+
+          {/* Phone View: Readout at the extreme right of header */}
+          {readoutValue && (
+            <div className="text-right sm:hidden">
+              <p className={`text-sm font-bold ${valueColourClass}`}>
+                {readoutValue}
+              </p>
+              <p className="mt-0.5 text-[11px] font-semibold text-text-secondary dark:text-dark-text-secondary">
+                {readoutDate}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Right Controls: Desktop Readout to the left of OptionPills with vertical line divider */}
+        <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-5 w-full sm:w-auto">
+          {/* Desktop View: Readout to the left of selector */}
+          {readoutValue && (
+            <div className="hidden sm:block text-right shrink-0">
+              <p className={`text-sm font-bold whitespace-nowrap ${valueColourClass}`}>
+                {readoutValue}
+              </p>
+              <p className="mt-0.5 text-[11px] font-semibold text-text-secondary dark:text-dark-text-secondary whitespace-nowrap">
+                {readoutDate}
+              </p>
+            </div>
+          )}
+
+          {/* Small vertical line divider beside the selector in desktop mode */}
+          {readoutValue && (
+            <div
+              className="hidden sm:block h-6 w-px bg-border dark:bg-dark-border shrink-0"
+              aria-hidden="true"
+            />
+          )}
+
+          <OptionPills
+            label="Measure to plot"
+            options={METRIC_OPTIONS}
+            value={metricKey}
+            className="w-full sm:w-auto"
+            onChange={onMetricChange}
+          />
+        </div>
       </div>
     </header>
   );
@@ -98,6 +162,9 @@ export default function WeeklyProgressPanel() {
         rangeLabel={rangeLabel}
         metricKey={metricKey}
         onMetricChange={setMetricKey}
+        selectedBar={selectedBar}
+        metric={metric}
+        target={target}
       />
 
       {loading && (
@@ -114,9 +181,7 @@ export default function WeeklyProgressPanel() {
 
       {!loading && !loadError && chart && (
         <>
-          <TrendReadout bar={selectedBar} metric={metric} target={target} />
-
-          <div className="px-4 pb-8 pt-6 sm:px-7">
+          <div className="px-2 pt-3 pb-3 sm:px-7 sm:pt-6 sm:pb-8">
             <TrendColumns
               bars={chart.bars}
               targetRatio={chart.targetRatio}

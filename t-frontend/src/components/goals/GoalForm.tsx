@@ -74,19 +74,19 @@ export default function GoalForm({ goal, saving, onSave }: GoalFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-12">
+    <form onSubmit={handleSubmit} noValidate className="space-y-6 sm:space-y-10">
       <FormSection
         title="Daily Energy"
         description="How much you intend to eat each day, and the weight you are working towards."
       >
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="grid gap-3.5 sm:gap-6 sm:grid-cols-2">
           {renderAmountField("dailyCalorieTarget")}
           {renderAmountField("weightGoalKg")}
         </div>
       </FormSection>
 
       <FormSection title="Macronutrient Targets" description="Grams per day.">
-        <div className="grid gap-6 sm:grid-cols-3">
+        <div className="grid gap-3.5 sm:gap-6 sm:grid-cols-3">
           {renderAmountField("proteinTargetG")}
           {renderAmountField("carbTargetG")}
           {renderAmountField("fatTargetG")}
@@ -95,11 +95,11 @@ export default function GoalForm({ goal, saving, onSave }: GoalFormProps) {
 
       {submitError && <FormError message={submitError} />}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 border-t border-black/10 dark:border-white/10 pt-8">
-        <p className="text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
+      <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-6 border-t border-black/10 dark:border-white/10 pt-5 sm:pt-8">
+        <p className="text-[10px] sm:text-xs font-bold text-center sm:text-left text-text-secondary dark:text-dark-text-secondary">
           {goal ? `Last updated ${formatLongDate(goal.updatedAt)}` : "No goal set yet"}
         </p>
-        <Button type="submit" loading={saving} className="w-full sm:w-auto">
+        <Button type="submit" loading={saving} className="w-full sm:w-auto px-6 py-3 text-sm font-semibold">
           {goal ? "Update Goal" : "Set Goal"}
         </Button>
       </div>

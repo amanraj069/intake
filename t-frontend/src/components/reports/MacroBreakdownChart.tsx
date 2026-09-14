@@ -1,5 +1,4 @@
-"use client";
-
+import { memo, useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -20,7 +19,7 @@ interface MacroBreakdownChartProps {
 }
 
 /** Stacked bar chart: protein (coral), carbs (amber), fat (lavender) per day/week. */
-export default function MacroBreakdownChart({ data }: MacroBreakdownChartProps) {
+function MacroBreakdownChart({ data }: MacroBreakdownChartProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -30,20 +29,24 @@ export default function MacroBreakdownChart({ data }: MacroBreakdownChartProps) 
   const gridColour = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
   const textColour = isDark ? "#9CA3AF" : "#6B6659";
 
-  const formatted = data.map((d) => ({
-    ...d,
-    label: d.period.includes("-W") ? d.period : formatChartDate(d.period),
-  }));
+  const formatted = useMemo(
+    () =>
+      data.map((d) => ({
+        ...d,
+        label: d.period.includes("-W") ? d.period : formatChartDate(d.period),
+      })),
+    [data]
+  );
 
   return (
-    <section className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-6 sm:p-7">
-      <h3 className="text-xs font-bold text-text-secondary dark:text-dark-text-secondary mb-6">
+    <section className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-4 sm:p-7">
+      <h3 className="text-xs font-bold text-text-secondary dark:text-dark-text-secondary mb-3.5 sm:mb-6">
         Macro Breakdown
       </h3>
 
-      <div className="h-52 sm:h-64">
+      <div className="h-48 sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={formatted} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+          <BarChart data={formatted} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColour} vertical={false} />
             <XAxis
               dataKey="label"
@@ -80,12 +83,14 @@ export default function MacroBreakdownChart({ data }: MacroBreakdownChartProps) 
             <Legend
               wrapperStyle={{ fontSize: 10, fontWeight: 700, paddingTop: 16 }}
             />
-            <Bar dataKey="proteinG" name="Protein" stackId="macros" fill={proteinColour} radius={[2, 2, 0, 0]} />
-            <Bar dataKey="carbG" name="Carbs" stackId="macros" fill={carbsColour} radius={[2, 2, 0, 0]} />
-            <Bar dataKey="fatG" name="Fat" stackId="macros" fill={fatColour} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="proteinG" name="Protein" stackId="macros" fill={proteinColour} radius={[2, 2, 0, 0]} isAnimationActive={true} animationDuration={300} />
+            <Bar dataKey="carbG" name="Carbs" stackId="macros" fill={carbsColour} radius={[2, 2, 0, 0]} isAnimationActive={true} animationDuration={300} />
+            <Bar dataKey="fatG" name="Fat" stackId="macros" fill={fatColour} radius={[4, 4, 0, 0]} isAnimationActive={true} animationDuration={300} />
           </BarChart>
         </ResponsiveContainer>
       </div>
     </section>
   );
 }
+
+export default memo(MacroBreakdownChart);

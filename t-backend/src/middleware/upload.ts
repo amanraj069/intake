@@ -4,7 +4,7 @@ import { AppError } from './errorHandler';
 
 export const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 export const MAX_FOOD_IMAGE_BYTES = 8 * 1024 * 1024;
-export const MAX_FOOD_DIARY_PDF_BYTES = 10 * 1024 * 1024;
+export const MAX_FOOD_DIARY_PDF_BYTES = 5 * 1024 * 1024;
 
 const AVATAR_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 /** Phone cameras default to HEIC on iOS, and Gemini reads it natively. */

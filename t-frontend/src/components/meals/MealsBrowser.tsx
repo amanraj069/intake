@@ -14,6 +14,7 @@ import { useFoodEntries } from "@/hooks/useFoodEntries";
 import { useMealFilters } from "@/hooks/useMealFilters";
 import { toErrorMessage } from "@/lib/errorMessage";
 import type { FoodEntry } from "@/types/nutrition";
+import { EmptyPlateIcon } from "@/components/icons";
 import FoodEntryList from "./FoodEntryList";
 import MealFilters from "./MealFilters";
 
@@ -47,7 +48,7 @@ export default function MealsBrowser() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 sm:space-y-8">
       <MealFilters
         values={values}
         isDefault={isDefault}
@@ -63,11 +64,15 @@ export default function MealsBrowser() {
 
       {!loading && !loadError && entries.length === 0 && (
         <EmptyState
-          title="Nothing logged"
+          icon={
+            <EmptyPlateIcon className="w-24 h-24 sm:w-44 sm:h-44 lg:w-52 lg:h-52 text-text-secondary/40 dark:text-dark-text-secondary/40" />
+          }
           description="No entries match this date range and meal type. Widen the range, or log what you ate."
           action={
             <Link href="/log-meal">
-              <Button size="sm">Log a meal</Button>
+              <Button size="sm" className="sm:px-6 sm:py-3 sm:text-sm">
+                Log a meal
+              </Button>
             </Link>
           }
         />

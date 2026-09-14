@@ -62,13 +62,13 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
-      <div className="space-y-8">
+      <div className="space-y-4 sm:space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-text-primary dark:text-dark-text">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-text-primary dark:text-dark-text">
             Welcome back
           </h1>
-          <p className="mt-2 text-sm text-text-secondary dark:text-dark-text-secondary">
+          <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-text-secondary dark:text-dark-text-secondary">
             Sign in to your account to continue
           </p>
         </div>
@@ -79,11 +79,11 @@ export default function LoginPage() {
         <AuthDivider />
 
         {/* Login form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-5">
           <Input
             label="Email"
             type="email"
-            placeholder="you@example.com"
+            placeholder="aarav.sharma@gmail.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -100,7 +100,7 @@ export default function LoginPage() {
             autoComplete="current-password"
           />
 
-          <div className="flex justify-end">
+          <div className="flex justify-end -mt-1 sm:mt-0">
             <Link
               href="/forgot-password"
               className="text-xs   text-accent dark:text-accent-dark hover:underline"
@@ -115,7 +115,7 @@ export default function LoginPage() {
         </form>
 
         {/* Footer */}
-        <p className="text-center text-sm text-text-secondary dark:text-dark-text-secondary">
+        <p className="text-center text-xs sm:text-sm text-text-secondary dark:text-dark-text-secondary">
           Don&apos;t have an account?{" "}
           <Link
             href="/signup"

@@ -101,10 +101,10 @@ export default function NutritionRings({ calories, protein, carbs, fat }: Nutrit
   }).join(", ");
 
   return (
-    <div className="flex flex-col items-center gap-6">
+    <div className="flex flex-col items-center gap-3.5 sm:gap-4 w-full">
       {/* ── Rings SVG ────────────────────────────────────────────── */}
       <div
-        className="w-[220px] h-[220px] sm:w-[260px] sm:h-[260px]"
+        className="w-[275px] h-[275px] max-w-full sm:w-[290px] sm:h-[290px] lg:w-[310px] lg:h-[310px]"
         role="img"
         aria-label={ariaSegments}
       >
@@ -176,24 +176,34 @@ export default function NutritionRings({ calories, protein, carbs, fat }: Nutrit
         </svg>
       </div>
 
-      {/* ── Legend row ───────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+      {/* ── 2x2 Metric Grid ──────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-2.5 w-full">
         {RING_DEFS.map((def, i) => {
           const p = pairs[i];
           const colour = colourFor(def.key);
           return (
-            <div key={def.key} className="flex items-center gap-1.5">
-              <span
-                className={`inline-block h-2 w-2 rounded-full shrink-0 ${colour.solidBg} dark:${colour.darkSolidBg}`}
-                aria-hidden="true"
-              />
-              <span className="text-xs font-medium text-text-primary dark:text-dark-text whitespace-nowrap">
+            <div
+              key={def.key}
+              className="flex items-center justify-between rounded-xl bg-bg-surface dark:bg-dark-surface px-2.5 py-2 sm:px-3 sm:py-2.5 gap-1.5"
+            >
+              <div className="flex items-center gap-0 sm:gap-1.5 shrink-0">
+                <span
+                  className={`hidden sm:inline-block h-2 w-2 rounded-full shrink-0 ${colour.solidBg} dark:${colour.darkSolidBg}`}
+                  aria-hidden="true"
+                />
+                <span
+                  className={`text-[11px] sm:text-xs font-semibold ${colour.text} dark:${colour.darkText}`}
+                >
+                  {def.label}
+                </span>
+              </div>
+              <p className="text-[11px] sm:text-xs font-semibold text-text-primary dark:text-dark-text whitespace-nowrap text-right tabular-nums">
                 {formatAmount(p.consumed)}
-                <span className="text-text-secondary dark:text-dark-text-secondary font-normal">
+                <span className="text-text-secondary dark:text-dark-text-secondary font-normal text-[10px] sm:text-[11px]">
                   {" / "}
                   {p.target !== null ? `${formatAmount(p.target)}${def.unit}` : `—${def.unit}`}
                 </span>
-              </span>
+              </p>
             </div>
           );
         })}

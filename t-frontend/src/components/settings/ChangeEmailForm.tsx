@@ -60,7 +60,7 @@ export default function ChangeEmailForm({ currentEmail }: ChangeEmailFormProps) 
                 label="New email"
                 type="email"
                 autoComplete="email"
-                placeholder="you@example.com"
+                placeholder="new.email@gmail.com"
                 value={newEmail}
                 onChange={(event) => setNewEmail(event.target.value)}
                 disabled={flow.busy}

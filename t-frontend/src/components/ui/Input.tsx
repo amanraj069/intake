@@ -6,7 +6,7 @@ export type FieldDensity = "comfortable" | "compact";
 
 /** Compact fields suit dense grids, such as rows of an editable table. */
 export const FIELD_DENSITY_CLASSES: Record<FieldDensity, string> = {
-  comfortable: "px-4 py-3",
+  comfortable: "px-3.5 py-2.5 sm:px-4 sm:py-3",
   compact: "px-2.5 py-2",
 };
 
@@ -41,7 +41,7 @@ function InputComponent(
       {label && (
         <label
           htmlFor={inputId}
-          className={`block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary mb-2 ${labelClassName}`}
+          className={`block text-xs font-semibold text-text-secondary dark:text-dark-text-secondary mb-1.5 sm:mb-2 ${labelClassName}`}
         >
           {label}
           {props.required && (

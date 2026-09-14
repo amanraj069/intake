@@ -26,7 +26,7 @@ const VARIANT_CLASSES = {
 
 const SIZE_CLASSES = {
   sm: "px-4 py-2 text-xs",
-  md: "px-6 py-3 text-sm",
+  md: "px-5 py-2.5 sm:px-6 sm:py-3 text-sm",
   lg: "px-8 py-4 text-sm",
 } as const;
 

@@ -1,5 +1,4 @@
-"use client";
-
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -29,17 +28,34 @@ function formatNutrientName(raw: string): string {
 }
 
 /** Horizontal bar chart showing summed micronutrients across the date range. */
-export default function MicroSummaryChart({ data }: MicroSummaryChartProps) {
+function MicroSummaryChart({ data }: MicroSummaryChartProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const textColour = isDark ? "#9CA3AF" : "#6B6659";
   const palette = isDark ? PALETTE_DARK : PALETTE_LIGHT;
 
+  const formatted = useMemo(
+    () =>
+      data.map((d) => ({
+        ...d,
+        label: `${formatNutrientName(d.nutrient)} (${d.unit})`,
+      })),
+    [data]
+  );
+
   if (data.length === 0) {
     return (
-      <section className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-6 sm:p-7">
-        <h3 className="text-xs font-bold text-text-secondary dark:text-dark-text-secondary mb-6">
+      <section className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-4 sm:p-7">
+        <h3 className="text-xs font-bold text-text-secondary dark:text-dark-text-secondary mb-3.5 sm:mb-6">
           Micronutrients
         </h3>
         <p className="text-sm text-text-secondary dark:text-dark-text-secondary">
@@ -49,14 +65,9 @@ export default function MicroSummaryChart({ data }: MicroSummaryChartProps) {
     );
   }
 
-  const formatted = data.map((d) => ({
-    ...d,
-    label: `${formatNutrientName(d.nutrient)} (${d.unit})`,
-  }));
-
   return (
-    <section className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-6 sm:p-7">
-      <h3 className="text-xs font-bold text-text-secondary dark:text-dark-text-secondary mb-6">
+    <section className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm p-4 sm:p-7">
+      <h3 className="text-xs font-bold text-text-secondary dark:text-dark-text-secondary mb-3.5 sm:mb-6">
         Micronutrients
       </h3>
 
@@ -79,7 +90,7 @@ export default function MicroSummaryChart({ data }: MicroSummaryChartProps) {
               tick={{ fontSize: 10, fill: textColour }}
               tickLine={false}
               axisLine={false}
-              width={140}
+              width={isMobile ? 110 : 140}
             />
             <Tooltip
               contentStyle={{
@@ -96,7 +107,7 @@ export default function MicroSummaryChart({ data }: MicroSummaryChartProps) {
                 [`${value} ${props.payload.unit}`, "Amount"]
               }
             />
-            <Bar dataKey="amount" name="Amount" barSize={16} radius={[0, 4, 4, 0]}>
+            <Bar dataKey="amount" name="Amount" barSize={16} radius={[0, 4, 4, 0]} isAnimationActive={true} animationDuration={300}>
               {formatted.map((_, index) => (
                 <Cell key={index} fill={palette[index % palette.length]} />
               ))}
@@ -107,3 +118,5 @@ export default function MicroSummaryChart({ data }: MicroSummaryChartProps) {
     </section>
   );
 }
+
+export default memo(MicroSummaryChart);

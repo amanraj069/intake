@@ -66,7 +66,7 @@ export default function FoodItemEditor({
   const fieldId = (field: string) => `${item.id}-${field}`;
 
   return (
-    <li className="space-y-5 rounded-2xl border border-black/5 dark:border-white/10 bg-bg-card dark:bg-dark-bg-card p-4 sm:p-6 shadow-sm">
+    <li className="space-y-4 sm:space-y-5 rounded-2xl border border-black/5 dark:border-white/10 bg-bg-card dark:bg-dark-bg-card p-3.5 sm:p-6 shadow-sm">
       {variant === 'dish' && (
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-bold text-text-primary dark:text-dark-text">
@@ -85,7 +85,7 @@ export default function FoodItemEditor({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-[minmax(0,1fr)_8rem_10rem]">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-[minmax(0,1fr)_8rem_10rem]">
         <div className="col-span-2 sm:col-span-1">
           <Input
             id={fieldId('name')}
@@ -117,7 +117,7 @@ export default function FoodItemEditor({
         />
       </div>
 
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-4">
         {NUTRITION_FIELDS.map(({ field, unit }) => (
           <AmountInput
             key={field}
@@ -141,7 +141,9 @@ export default function FoodItemEditor({
         >
           {showMicros
             ? 'Hide micronutrients'
-            : `Micronutrients${microCount > 0 ? ` (${microCount})` : ': optional, in mg'}`}
+            : microCount > 0
+            ? `Micronutrients (${microCount})`
+            : 'Add micronutrients: Optional (in mg)'}
         </button>
 
         {showMicros && (

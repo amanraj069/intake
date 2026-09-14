@@ -154,7 +154,7 @@ export function ShieldIcon(props: IconProps) {
 export function LogoutIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M9 21H3V3h6" />
       <path d="M16 17l5-5-5-5" />
       <path d="M21 12H9" />
     </Icon>
@@ -266,6 +266,20 @@ export function DocumentIcon(props: IconProps) {
   );
 }
 
+/**
+ * An entity on the left splitting / breaking outward into multiple forward streams,
+ * depicting parsing or decomposing a single source into multiple components.
+ */
+export function ParseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2" y="9.5" width="5" height="5" />
+      <path d="M7 12h2.5 M9.5 12l4-6h5.5 M9.5 12h9.5 M9.5 12l4 6h5.5" />
+      {/* <path d="M16.5 3.5l3 2.5-3 2.5 M16.5 9.5l3 2.5-3 2.5 M16.5 15.5l3 2.5-3 2.5" /> */}
+    </Icon>
+  );
+}
+
 export function AlertIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -280,6 +294,67 @@ export function CheckIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M4 12l5 5L20 6" />
+    </Icon>
+  );
+}
+
+export function EmptyPlateIcon(props: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      {/* Fork on the left */}
+      <path d="M10 18v8a2.5 2.5 0 0 0 2.5 2.5h0a2.5 2.5 0 0 0 2.5-2.5v-8" />
+      <path d="M12.5 18v8" />
+      <path d="M12.5 28.5v17.5" />
+
+      {/* Empty Plate */}
+      <circle cx="32" cy="32" r="16" />
+      <circle cx="32" cy="32" r="10.5" strokeWidth={1.5} strokeDasharray="3 3" opacity={0.6} />
+
+      {/* Knife on the right */}
+      <path d="M51.5 18c-2 2.5-3 6.5-3 10.5 0 1.5.5 2.5 1.5 3.5v14" />
+    </svg>
+  );
+}
+
+export function GoogleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 18 18" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"
+        fill="#4285F4"
+      />
+      <path
+        d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
+        fill="#34A853"
+      />
+      <path
+        d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
+
+export function RefreshIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 2v6h-6" />
+      <path d="M3 12a9 9 0 0 1 15.5-6.7L21 8" />
+      <path d="M3 22v-6h6" />
+      <path d="M21 12a9 9 0 0 1-15.5 6.7L3 16" />
     </Icon>
   );
 }

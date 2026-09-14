@@ -11,10 +11,10 @@ export default function Card({ children, className = "" }: CardProps) {
   return (
     <div
       className={`
-        bg-bg-surface border border-border rounded-2xl
+        bg-bg-card border border-border rounded-2xl
         shadow-sm
         p-6
-        dark:bg-dark-surface dark:border-dark-border
+        dark:bg-dark-bg-card dark:border-dark-border
         dark:shadow-none
         ${className}
       `}

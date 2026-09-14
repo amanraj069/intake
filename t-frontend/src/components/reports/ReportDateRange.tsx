@@ -34,7 +34,7 @@ function detectPreset(range: DateRange): RangePreset {
 }
 
 const DATE_INPUT_CLASSES =
-  "bg-accent-muted dark:bg-accent-dark-muted border border-black/5 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs font-bold text-white shadow-sm transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/20 cursor-pointer hover:brightness-110";
+  "calendar-icon-white bg-accent-muted dark:bg-accent-dark-muted border border-black/5 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs font-bold text-white shadow-sm transition-colors [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/20 cursor-pointer hover:brightness-110";
 
 /** Date range selector with sliding OptionPills and collapsible custom date inputs. */
 export default function ReportDateRange({ value, onChange }: ReportDateRangeProps) {
@@ -62,16 +62,24 @@ export default function ReportDateRange({ value, onChange }: ReportDateRangeProp
   }
 
   return (
-    <div className="flex flex-col items-start sm:items-end gap-2.5">
+    <div className="flex flex-col sm:flex-col-reverse items-start sm:items-end gap-2 w-full sm:w-auto">
+      <OptionPills
+        label="Date range"
+        options={RANGE_OPTIONS}
+        value={activeTab}
+        className="w-full sm:w-auto"
+        onChange={handleTabChange}
+      />
+
       {activeTab === "custom" && (
-        <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-xl border border-input-border dark:border-dark-input-border bg-black/[0.03] dark:bg-[#11141D] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-1 duration-200">
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border border-border dark:border-dark-border bg-bg-card dark:bg-dark-bg-card shadow-2xs animate-in fade-in slide-in-from-top-2 sm:slide-in-from-bottom-2 duration-200 w-full sm:w-auto">
           <input
             type="date"
             aria-label="Start date"
             value={value.startDate}
             max={value.endDate || undefined}
             onChange={(e) => onChange({ ...value, startDate: e.target.value })}
-            className={DATE_INPUT_CLASSES}
+            className={`${DATE_INPUT_CLASSES} flex-1 sm:flex-initial text-center`}
           />
           <span className="text-xs text-text-secondary dark:text-dark-text-secondary font-medium select-none px-0.5">
             to
@@ -83,17 +91,10 @@ export default function ReportDateRange({ value, onChange }: ReportDateRangeProp
             min={value.startDate || undefined}
             max={todayAsInputValue()}
             onChange={(e) => onChange({ ...value, endDate: e.target.value })}
-            className={DATE_INPUT_CLASSES}
+            className={`${DATE_INPUT_CLASSES} flex-1 sm:flex-initial text-center`}
           />
         </div>
       )}
-
-      <OptionPills
-        label="Date range"
-        options={RANGE_OPTIONS}
-        value={activeTab}
-        onChange={handleTabChange}
-      />
     </div>
   );
 }

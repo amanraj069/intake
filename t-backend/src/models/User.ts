@@ -36,6 +36,7 @@ export interface IUserDocument extends Document {
   otpExpiresAt?: Date;
   otpPurpose?: OtpPurpose;
   otpAttempts?: number;
+  otpResentAt?: Date;
   pendingEmail?: string;
 }
 
@@ -102,6 +103,7 @@ const userSchema = new Schema<IUserDocument>(
     // Wrong guesses against the current code, so a six-digit secret cannot be
     // brute-forced across its ten-minute window.
     otpAttempts: Number,
+    otpResentAt: Date,
     // The address a change-email code was sent to, promoted to `email` only
     // once that code is verified.
     pendingEmail: String,

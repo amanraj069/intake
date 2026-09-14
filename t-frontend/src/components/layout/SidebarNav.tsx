@@ -26,7 +26,7 @@ export default function SidebarNav({ expanded, onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Main" className="flex-1 flex flex-col gap-1 py-2">
+    <nav aria-label="Main" className="flex-1 flex flex-col gap-1 py-2 overflow-y-auto min-h-0">
       {NAV_ITEMS.map((item) => {
         const active = isNavItemActive(item, pathname);
         const { Icon } = item;

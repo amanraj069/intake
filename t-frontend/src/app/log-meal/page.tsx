@@ -49,8 +49,10 @@ function LogMealContent() {
               title="Log Meal"
               description="Record what you ate, with macros and any micronutrients you track."
               showBackButton
+              hideDescriptionOnMobile
+              stackOnMobile
               action={
-                <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                <div className="grid grid-cols-2 sm:flex sm:flex-row sm:items-start gap-2 w-full sm:w-auto">
                   {dateField}
                   <JsonModeToggle
                     jsonMode={jsonMode}

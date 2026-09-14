@@ -8,7 +8,7 @@ import type { FoodEntry } from "@/types/nutrition";
 
 /** Column track shared by header and every row so values stay aligned down the list. */
 export const ENTRY_GRID_CLASSES =
-  "grid grid-cols-[6.5rem_5.5rem_minmax(130px,1fr)_7rem_4.5rem_4.5rem_4.5rem_5.5rem_6rem] items-center gap-x-4";
+  "grid grid-cols-[4.5rem_4.5rem_minmax(160px,1fr)_4.75rem_3.5rem_3.5rem_3.25rem_4.5rem_2.25rem] items-center gap-x-3 sm:gap-x-4";
 
 interface FoodEntryRowProps {
   entry: FoodEntry;

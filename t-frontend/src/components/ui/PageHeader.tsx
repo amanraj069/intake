@@ -5,13 +5,21 @@ import BackButton from "./BackButton";
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
+  description?: ReactNode;
   /** Tiny line above the title, e.g. the date the dashboard is showing. */
   eyebrow?: string;
   /** Shown when the page is a detail view the user navigated into. */
   showBackButton?: boolean;
   /** Page-level action, e.g. a "Log Meal" link on the list view. */
   action?: ReactNode;
+  /** Optional class name for the action wrapper container. */
+  actionClassName?: string;
+  /** When true, hides description on mobile so title and action sit on one compact row. */
+  hideDescriptionOnMobile?: boolean;
+  /** When true, stacks title and action vertically on mobile, giving action full width. */
+  stackOnMobile?: boolean;
+  /** When true, keeps action directly on the same vertical level as the title row. */
+  alignActionWithTitle?: boolean;
 }
 
 /** The stark title block every signed-in page opens with. */
@@ -21,29 +29,85 @@ export default function PageHeader({
   eyebrow,
   showBackButton = false,
   action,
+  actionClassName,
+  hideDescriptionOnMobile = false,
+  stackOnMobile = false,
+  alignActionWithTitle = false,
 }: PageHeaderProps) {
-  return (
-    <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-      <div>
+  if (alignActionWithTitle) {
+    return (
+      <header className="space-y-1.5 sm:space-y-2">
         {eyebrow && (
-          <p className="mb-3 text-[10px] font-bold   text-text-secondary dark:text-dark-text-secondary">
+          <p className="mb-1 sm:mb-2 text-[10px] sm:text-xs font-bold text-text-secondary dark:text-dark-text-secondary">
             {eyebrow}
           </p>
         )}
-        <div className="flex items-center gap-4">
-          {showBackButton && <BackButton size="md" className="-ml-2" />}
-          <h1 className="text-3xl sm:text-4xl font-extrabold   text-text-primary dark:text-dark-text">
+        <div className="flex items-center justify-between gap-3 sm:gap-6">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            {showBackButton && <BackButton size="md" className="pl-0 sm:pl-0" />}
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-text-primary dark:text-dark-text truncate">
+              {title}
+            </h1>
+          </div>
+          {action && (
+            <div className={`shrink-0 ${actionClassName ?? ""}`}>
+              {action}
+            </div>
+          )}
+        </div>
+        {description && (
+          <p
+            className={`mt-1 sm:mt-1.5 text-xs sm:text-sm font-light text-text-secondary dark:text-dark-text-secondary line-clamp-2 sm:line-clamp-none leading-relaxed ${
+              hideDescriptionOnMobile ? "hidden sm:block" : ""
+            }`}
+          >
+            {description}
+          </p>
+        )}
+      </header>
+    );
+  }
+
+  return (
+    <header
+      className={`flex justify-between gap-3 sm:gap-6 ${
+        stackOnMobile
+          ? "flex-col sm:flex-row sm:items-end"
+          : hideDescriptionOnMobile
+          ? "flex-row items-center sm:items-end"
+          : description
+          ? "flex-col sm:flex-row sm:items-end"
+          : "flex-row items-center"
+      }`}
+    >
+      <div>
+        {eyebrow && (
+          <p className="mb-1 sm:mb-3 text-[10px] sm:text-xs font-bold text-text-secondary dark:text-dark-text-secondary">
+            {eyebrow}
+          </p>
+        )}
+        <div className="flex items-center gap-3 sm:gap-4">
+          {showBackButton && <BackButton size="md" className="pl-0 sm:pl-0" />}
+          <h1 className="text-2xl sm:text-4xl font-extrabold text-text-primary dark:text-dark-text">
             {title}
           </h1>
         </div>
         {description && (
-          <p className="mt-3 text-sm font-light text-text-secondary dark:text-dark-text-secondary">
+          <p
+            className={`mt-1.5 sm:mt-3 text-xs sm:text-sm font-light text-text-secondary dark:text-dark-text-secondary line-clamp-2 sm:line-clamp-none leading-relaxed ${
+              hideDescriptionOnMobile ? "hidden sm:block" : ""
+            }`}
+          >
             {description}
           </p>
         )}
       </div>
 
-      {action && <div className="shrink-0">{action}</div>}
+      {action && (
+        <div className={`shrink-0 ${stackOnMobile ? "w-full sm:w-auto" : ""} ${actionClassName ?? ""}`}>
+          {action}
+        </div>
+      )}
     </header>
   );
 }

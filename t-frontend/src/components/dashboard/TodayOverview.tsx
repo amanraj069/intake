@@ -35,16 +35,26 @@ export default function TodayOverview() {
   const { summary, loading, loadError, reload } = useDailyIntake();
 
   return (
-    <section className="space-y-8">
+    <section className="space-y-3.5 sm:space-y-8">
       <PageHeader
         eyebrow={formatGreetingDate(new Date())}
         title={toGreeting(user ? firstNameOrFallback(user) : null)}
-        description={toTodayStatusLine(loading ? null : summary)}
+        description={
+          <>
+            <span className="sm:hidden">
+              {toTodayStatusLine(loading ? null : summary, { mobile: true })}
+            </span>
+            <span className="hidden sm:inline">
+              {toTodayStatusLine(loading ? null : summary, { mobile: false })}
+            </span>
+          </>
+        }
         action={
-          <Link href="/log-meal">
+          <Link href="/log-meal" className="hidden sm:inline-flex">
             <Button>Log Meal</Button>
           </Link>
         }
+        actionClassName="hidden sm:block"
       />
 
       {loading && (

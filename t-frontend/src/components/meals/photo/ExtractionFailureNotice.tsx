@@ -39,12 +39,9 @@ export default function ExtractionFailureNotice({
 
       <div className="min-w-0 flex-1 space-y-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-error dark:bg-error-dark" aria-hidden="true" />
-            <p className="text-sm font-bold text-error dark:text-error-dark">
-              {TITLES[failure.code] ?? "Could not read the photo"}
-            </p>
-          </div>
+          <p className="text-sm font-bold text-error dark:text-error-dark">
+            {TITLES[failure.code] ?? "Could not read the photo"}
+          </p>
           <p className="mt-1.5 text-sm font-light leading-relaxed text-text-primary dark:text-dark-text">
             {failure.message}
           </p>

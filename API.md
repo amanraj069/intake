@@ -476,7 +476,7 @@ confirm (save the reviewed rows). Both use the same Gemini integration as photo 
 Extracts the PDF's text with `pdf-parse`, asks Gemini for one row per food eaten, and returns
 the rows for review. **Saves nothing.**
 
-- Body: `multipart/form-data` with `file` (required) - one PDF, 10MB and 20 pages max, with a
+- Body: `multipart/form-data` with `file` (required) - one PDF, 5MB and 10 pages max, with a
   text layer. The bytes are checked for a PDF signature, not just the declared type.
 - Response `200` `data`:
 
@@ -537,10 +537,10 @@ Errors, each with a `code`:
 | `400` | `UNSUPPORTED_FILE_TYPE` | Declared type is not `application/pdf` |
 | `400` | `UPLOAD_UNREADABLE` | Malformed multipart body or unexpected field |
 | `401` | - | Not signed in |
-| `413` | `PDF_TOO_LARGE` | File over 10MB |
+| `413` | `PDF_TOO_LARGE` | File over 5MB |
 | `422` | `PDF_UNREADABLE` | Not a PDF, or damaged |
 | `422` | `PDF_ENCRYPTED` | Password protected |
-| `422` | `PDF_TOO_LONG` | Over 20 pages or 50,000 characters of text |
+| `422` | `PDF_TOO_LONG` | Over 10 pages or 50,000 characters of text |
 | `422` | `PDF_NO_TEXT` | No text layer (a scan or photo) |
 | `422` | `PDF_UNPROCESSABLE` | The AI provider rejected the request |
 | `422` | `NOT_A_FOOD_DIARY` | The text is not a food log; `message` is the model's reason |
