@@ -89,11 +89,11 @@ export default function GoogleButton({ email: emailProp, avatarUrl: avatarProp }
               )}
               <span className="truncate">{label}</span>
             </span>
-            <GoogleIcon />
+            <GoogleIcon className="w-[18px] h-[18px] shrink-0" />
           </>
         ) : (
           <>
-            <GoogleIcon />
+            <GoogleIcon className="w-[18px] h-[18px] shrink-0" />
             <span className="flex-1 text-center">{label}</span>
             {/* Invisible spacer to keep text centered */}
             <span className="w-[18px] shrink-0" aria-hidden="true" />

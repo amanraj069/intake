@@ -15,10 +15,10 @@ export default function JsonModeToggle({ jsonMode, formLabel, jsonLabel, onToggl
     <button
       type="button"
       onClick={onToggle}
-      className="inline-flex items-center justify-center sm:justify-start gap-2 sm:gap-2.5 h-11 px-2.5 sm:px-5 rounded-xl border border-input-border dark:border-dark-input-border bg-bg-card dark:bg-dark-bg-card hover:bg-black/[0.06] dark:hover:bg-[#1A1F2C] text-xs sm:text-sm font-semibold text-text-primary dark:text-dark-text transition-all duration-150 cursor-pointer shadow-sm active:scale-[0.98] whitespace-nowrap w-full sm:w-auto"
+      className="inline-flex items-center justify-center gap-1.5 sm:gap-2.5 h-11 px-2.5 sm:px-5 rounded-xl border border-input-border dark:border-dark-input-border bg-bg-card dark:bg-dark-bg-card hover:bg-black/[0.06] dark:hover:bg-[#1A1F2C] text-xs sm:text-sm font-semibold text-text-primary dark:text-dark-text transition-all duration-150 cursor-pointer shadow-sm active:scale-[0.98] whitespace-nowrap w-full sm:w-auto min-w-0"
     >
       <svg
-        className="w-4 h-4 text-text-secondary dark:text-dark-text-secondary"
+        className="w-4 h-4 text-text-secondary dark:text-dark-text-secondary shrink-0"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -41,7 +41,8 @@ export default function JsonModeToggle({ jsonMode, formLabel, jsonLabel, onToggl
           </>
         )}
       </svg>
-      <span>{jsonMode ? formLabel : jsonLabel}</span>
+      <span className="sm:hidden truncate">{jsonMode ? "Form" : "JSON"}</span>
+      <span className="hidden sm:inline truncate">{jsonMode ? formLabel : jsonLabel}</span>
     </button>
   );
 }

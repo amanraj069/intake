@@ -75,6 +75,80 @@
     0% { transform: translateX(-100%); }
     100% { transform: translateX(300%); }
   }
+
+  /* Soft shimmer animation for icons on hover - white in light mode, emerald in dark mode */
+  --animate-icon-shimmer: icon-shimmer 0.65s ease-in-out;
+
+  @keyframes icon-shimmer {
+    0% {
+      filter: drop-shadow(0 0 0 transparent);
+    }
+    45% {
+      filter: drop-shadow(0 0 1px var(--color-icon-shimmer, #ffffff))
+              drop-shadow(0 0 5px var(--color-icon-shimmer, #ffffff))
+              drop-shadow(0 0 9px var(--color-icon-shimmer-glow, rgba(255, 255, 255, 0.85)));
+    }
+    100% {
+      filter: drop-shadow(0 0 2px var(--color-icon-shimmer, #ffffff));
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+  --color-icon-shimmer: #ffffff;
+  --color-icon-shimmer-glow: rgba(255, 255, 255, 0.85);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.22);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.38);
+  --scrollbar-track: transparent;
+}
+
+html.dark,
+.dark {
+  color-scheme: dark;
+  --color-icon-shimmer: #0b5d3f;
+  --color-icon-shimmer-glow: rgba(9, 63, 43, 0.45);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.38);
+  --scrollbar-track: transparent;
+}
+
+/* Global scrollbars styled cleanly across browsers */
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+@layer utilities {
+  .group:hover .group-hover-shimmer {
+    animation: icon-shimmer 0.65s ease-in-out forwards;
+  }
+  .scrollbar-none {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 }
 
 /* Base styles */

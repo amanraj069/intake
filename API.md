@@ -1,6 +1,7 @@
 # API Reference
 
-Base URL: `http://localhost:9000`
+**Deployed Application:** [https://intake.aman-raj.me/](https://intake.aman-raj.me/)  
+**Base URL:** `http://localhost:9000`
 
 All responses share one envelope:
 
@@ -611,17 +612,22 @@ store `date`. Totals are rounded to one decimal; micronutrients to three.
 
 ## Chat
 
-All three require authentication. The assistant uses Gemini function calling over the goal, food
+All chat endpoints require authentication. The assistant uses Gemini native function calling over the goal, food
 entry, daily intake and report services. Read tools run during the request; writes come back as
 a `pendingAction` that is only carried out by `confirm-action`.
 
 ### `POST /api/chat`
 
-Sends one message and returns the assistant's reply. The user message is stored first, then
-removed again if no reply can be produced.
+Sends one message and returns the assistant's reply. The user message is stored first. If no reply
+can be produced, the message stays stored with `replyError: { message, code }`, and the error
+response carries it as `details.userMessage` so the client can retry it by id.
 
-- Body: `{ "message": "I had 2 eggs for breakfast", "today": "2026-09-14" }`
-  - `message` (required) - trimmed, 1 to 2,000 characters.
+- Body: JSON `{ "message": "I had 2 eggs for breakfast", "today": "2026-09-14" }`, or
+  `multipart/form-data` with the same fields plus an `image` file to attach a food photo.
+  - `message` - trimmed, up to 2,000 characters. Required unless an `image` is attached, when it
+    is an optional caption.
+  - `image` (optional, multipart only) - JPEG, PNG, WebP or HEIC, 8 MB max. Uploaded to Cloudinary
+    and stored on the user message as `imageUrl`, then passed to the model with the message.
   - `today` (optional) - the client's local `YYYY-MM-DD`, used to resolve "today" and relative
     dates. Ignored if more than a day from the server's UTC date.
 - Response `200` `data`:
@@ -630,7 +636,8 @@ removed again if no reply can be produced.
 {
   "userMessage": { "_id": "...", "role": "user", "content": "I had 2 eggs for breakfast", "createdAt": "..." },
   "assistantMessage": { "_id": "...", "role": "assistant", "content": "Log breakfast for today: Egg x2: 156 kcal (protein 12.6 g, carbs 1.2 g, fat 10.6 g)",
-                        "action": { "tool": "logMeal", "status": "pending" }, "createdAt": "..." },
+                        "action": { "tool": "logMeal", "status": "pending", "args": { "...": "same as pendingAction.args" } },
+                        "createdAt": "..." },
   "pendingAction": {
     "tool": "logMeal",
     "args": { "mealType": "breakfast", "date": "2026-09-14", "source": "ai-chat",
@@ -644,9 +651,41 @@ removed again if no reply can be produced.
   `pendingAction` is `null` for an ordinary reply, including a clarifying question. For `setGoal`,
   `args` is the complete goal (`dailyCalorieTarget`, `proteinTargetG`, `carbTargetG`, `fatTargetG`,
   optional `weightGoalKg`) with the changed targets applied over the saved ones.
-- Errors: `400` validation; `503 AI_UNAVAILABLE` (no key or model answered within 60 seconds);
+- Errors: `400` validation; `400 MESSAGE_REQUIRED` (no text and no photo); `400
+  UNSUPPORTED_IMAGE_TYPE`, `413 IMAGE_TOO_LARGE`, `422 IMAGE_UNREADABLE` (bad photo);
+  `502 IMAGE_UPLOAD_FAILED` or `503` (Cloudinary failed or is not configured); `503 AI_UNAVAILABLE` (no key or model answered within 60 seconds);
   `422 CHAT_REJECTED` (the provider refused the request); `502 AI_BAD_RESPONSE` (empty reply);
   `502 CHAT_STEP_LIMIT` (no answer after 5 model calls).
+
+### `POST /api/chat/messages/:messageId/retry`
+
+Produces the reply again for the caller's latest message, reusing its text and stored photo. The
+message's `replyError` is cleared and `replyRequestedAt` set in one atomic update, so two retries
+cannot run at once.
+
+- Params: `messageId` - a user message owned by the caller.
+- Body: `{ "today": "2026-09-14" }` (optional, as for `POST /api/chat`).
+- Response `200` `data`: the same exchange as `POST /api/chat`.
+- Errors: `404 MESSAGE_NOT_FOUND`; `409 MESSAGE_NOT_LATEST` when newer messages exist;
+  `409 REPLY_IN_PROGRESS` when the message has no recorded failure and its reply started under 2
+  minutes ago; `502 IMAGE_FETCH_FAILED` when the stored photo cannot be downloaded; otherwise the
+  same AI errors as `POST /api/chat`, again with the failure recorded and `details.userMessage`.
+
+### `DELETE /api/chat/messages/:messageId`
+
+Soft-deletes a message from the authenticated user's view of the chat thread. Deleting a message does not alter or undo any previously confirmed actions (such as a logged meal or goal change) triggered by that message.
+
+- Params: `messageId` - ObjectId of a chat message in the caller's thread.
+- Response `200` `data`: the updated `ChatMessage` document with `deletedAt` set.
+- Errors: `400` invalid message ID; `401` unauthenticated; `404 MESSAGE_NOT_FOUND` if the message does not exist or does not belong to the user.
+
+### `POST /api/chat/messages/:messageId/restore`
+
+Restores a previously soft-deleted message back into the caller's active chat thread view.
+
+- Params: `messageId` - ObjectId of a chat message in the caller's thread.
+- Response `200` `data`: the updated `ChatMessage` document with `deletedAt` cleared.
+- Errors: `400` invalid message ID; `401` unauthenticated; `404 MESSAGE_NOT_FOUND` if the message does not exist or does not belong to the user.
 
 ### `POST /api/chat/confirm-action`
 
@@ -670,3 +709,6 @@ trusted. The proposing reply is marked `action.status: "confirmed"`; no new mess
 - Query: `page` (default `1`), `limit` (default `20`, max `100`).
 - Response: the standard pagination envelope, `data` holding `ChatMessage` records sorted by
   `createdAt` descending, so page 1 is the most recent and "load earlier" requests the next page.
+  A user message with a photo carries `imageUrl`, one whose reply failed carries `replyError`, and
+  every user message carries `replyRequestedAt` (when its reply last started); a reply that proposed a change carries
+  `action: { tool, status, args }`.

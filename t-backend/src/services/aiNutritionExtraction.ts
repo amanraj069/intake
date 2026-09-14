@@ -10,7 +10,7 @@ import {
   ScoredImageKind,
   assessConfidence,
 } from '../lib/extractionConfidence';
-import { detectImageType } from '../lib/imageSignature';
+import { toInlineImage } from '../lib/inlineImage';
 import { normaliseAiMicronutrients } from '../lib/aiMicronutrients';
 import { MICRONUTRIENT_NAMES } from '../lib/micronutrientCatalog';
 import {
@@ -132,21 +132,6 @@ export interface ExtractionAnalysis {
 export interface NutritionExtraction {
   extraction: FoodEntryDraft;
   analysis: ExtractionAnalysis;
-}
-
-/** The bytes decide the media type, not the client's declared Content-Type. */
-function toInlineImage(imageBytes: Buffer): InlineImage {
-  const detectedType = detectImageType(imageBytes);
-
-  if (!detectedType) {
-    throw new AppError(
-      'That file is not a readable image. Try a JPEG or PNG photo.',
-      422,
-      'IMAGE_UNREADABLE'
-    );
-  }
-
-  return { mimeType: detectedType, data: imageBytes };
 }
 
 const PHOTO_FAILURE_COPY = {

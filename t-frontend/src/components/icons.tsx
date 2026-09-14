@@ -80,9 +80,9 @@ export function AssistantIcon(props: IconProps) {
 
 export function SendIcon(props: IconProps) {
   return (
-    <Icon {...props}>
-      <path d="M12 20V5" />
-      <path d="M5 12l7-7 7 7" />
+    <Icon {...props} strokeWidth={2.5}>
+      <path d="M12 18.5V5.5" />
+      <path d="M6 11.5l6-6 6 6" />
     </Icon>
   );
 }
@@ -379,6 +379,8 @@ export function RefreshIcon(props: IconProps) {
   );
 }
 
+export { GeminiAiLogo } from "./chat/AiAvatar";
+
 /** Four-pointed sparkle icon for the AI assistant avatar. */
 export function SparkleIcon(props: IconProps) {
   return (
@@ -405,3 +407,24 @@ export function ImageAttachIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function CopyIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="9" y="9" width="12" height="12" rx="1" />
+      <path d="M5 15V4a1 1 0 0 1 1-1h11" />
+    </Icon>
+  );
+}
+
+/** History / clock rewind icon for loading previous chats. */
+export function HistoryIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </Icon>
+  );
+}
+

@@ -1,6 +1,6 @@
 import { User } from '../models/User';
 import { AppError } from '../middleware/errorHandler';
-import { deleteAvatarImage, uploadAvatarImage } from '../lib/cloudinary';
+import { deleteUploadedImage, uploadAvatarImage } from '../lib/cloudinary';
 import { toUserResponse, type UserResponse } from '../lib/userResponse';
 
 /**
@@ -50,7 +50,7 @@ export async function removeAvatar(userId: string): Promise<UserResponse> {
   await user.save();
 
   if (publicId) {
-    await deleteAvatarImage(publicId).catch((error: unknown) => {
+    await deleteUploadedImage(publicId).catch((error: unknown) => {
       console.error('[Cloudinary] Failed to delete avatar asset:', error);
     });
   }

@@ -73,19 +73,21 @@ function TrendColumns({
         tickLine={false}
         axisLine={false}
         dy={8}
+        padding={{ left: 8, right: 8 }}
       />
       <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax, target || 0) * 1.08]} />
       <Tooltip
         contentStyle={{
           backgroundColor: isDark ? "#1A1A1A" : "#FCF8EF",
-          border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
+          border: isDark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.08)",
           borderRadius: "0.875rem",
           boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
           fontSize: 11,
           padding: "8px 12px",
+          color: isDark ? "#FFFFFF" : "#1A1A1A",
         }}
-        labelStyle={{ fontWeight: 700, paddingBottom: 2, color: isDark ? "#fff" : "#000" }}
-        itemStyle={{ fontWeight: 500 }}
+        labelStyle={{ fontWeight: 700, paddingBottom: 2, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
+        itemStyle={{ fontWeight: 500, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
         cursor={{ fill: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)" }}
         labelFormatter={(_label, payload) =>
           payload && payload.length > 0 ? payload[0].payload.fullDate : _label

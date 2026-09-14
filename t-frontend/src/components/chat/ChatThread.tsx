@@ -4,20 +4,21 @@ import { useEffect, useRef, useState } from "react";
 import ErrorState from "@/components/ui/ErrorState";
 import Spinner from "@/components/ui/Spinner";
 import { useChatThread } from "@/hooks/useChatThread";
+import { HistoryIcon } from "@/components/icons";
 import ChatComposer from "./ChatComposer";
 import ChatEmptyState from "./ChatEmptyState";
 import ChatMessageList from "./ChatMessageList";
-import { api } from "@/lib/api";
+import DeletedMessageToast from "./DeletedMessageToast";
 
 const AWAITING_DECISION_MESSAGE = "Confirm or cancel the proposed change to keep chatting.";
 
 export default function ChatThread() {
   const thread = useChatThread();
   const [draft, setDraft] = useState("");
-  const [extractingImage, setExtractingImage] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-confirm logMeal actions so the user gets the receipt instantly
+  // A meal is only proposed when the user asked to log it, so it is saved straight away and shown as a receipt.
   useEffect(() => {
     const pendingLogMeal = thread.messages.find(
       (m) => m.action?.status === "pending" && m.action.payload.tool === "logMeal"
@@ -26,6 +27,23 @@ export default function ChatThread() {
       thread.confirmAction(pendingLogMeal.id);
     }
   }, [thread.messages, thread.confirmAction]);
+
+
+  // When switching between tabs, return to "How can I help?" only when the chatbot is not answering.
+  useEffect(() => {
+    function handleTabSwitch() {
+      if (document.visibilityState === "visible" && !thread.sending) {
+        setShowHistory(false);
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleTabSwitch);
+    window.addEventListener("focus", handleTabSwitch);
+    return () => {
+      document.removeEventListener("visibilitychange", handleTabSwitch);
+      window.removeEventListener("focus", handleTabSwitch);
+    };
+  }, [thread.sending]);
 
   function fillComposer(text: string) {
     setDraft(text);
@@ -36,40 +54,16 @@ export default function ChatThread() {
     const text = draft.trim();
     if (!text) return;
     setDraft("");
+    setShowHistory(true);
     thread.send(text);
   }
 
-  async function handleSendWithImage(image: File, caption: string) {
-    setExtractingImage(true);
-
-    try {
-      // 1. Send the image to the extraction API
-      const response = await api.extractNutritionFromImage(image, caption);
-      const { extraction } = response.data!;
-      
-      // 2. Synthesize a prompt that forces the AI to use this exact data
-      const prompt = [
-        caption ? `I had this: ${caption}.` : "I had this meal.",
-        "Please log this meal with the following exact details:",
-        ...extraction.items.map(
-          (item) =>
-            `- ${item.quantity} ${item.unit} ${item.name}: ${Math.round(item.calories)} kcal, ${item.macros.proteinG}g protein, ${item.macros.carbG}g carbs, ${item.macros.fatG}g fat`
-        ),
-      ].join("\n");
-      
-      // 3. Send it to the chat flow (it will propose a logMeal and auto-confirm)
-      thread.send(prompt);
-    } catch (error) {
-      // If extraction fails, fallback to just sending the text caption
-      if (caption) {
-        thread.send(caption);
-      }
-    } finally {
-      setExtractingImage(false);
-    }
+  function handleSendWithImage(image: File, caption: string) {
+    setShowHistory(true);
+    thread.send(caption, image);
   }
 
-  if (thread.loadError) {
+  if (thread.loadError && showHistory) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-8">
         <ErrorState message={thread.loadError} onRetry={thread.reload} />
@@ -77,30 +71,55 @@ export default function ChatThread() {
     );
   }
 
-  const isEmpty = thread.messages.length === 0 && !thread.sending && !extractingImage;
+  const hasHistory = thread.messages.length > 0;
+  const isViewingEmptyState = !showHistory && !thread.sending;
 
   return (
-    <section aria-label="Assistant" className="flex h-full flex-col">
-      {thread.loading ? (
+    <section aria-label="Chat" className="relative flex h-full flex-col">
+      {hasHistory && isViewingEmptyState && (
+        <div className="pointer-events-none absolute inset-x-0 top-4 sm:top-6 z-20 px-3 sm:px-8 lg:px-12">
+          <div className="mx-auto flex w-full max-w-5xl justify-end">
+            <button
+              type="button"
+              onClick={() => setShowHistory(true)}
+              className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-border dark:border-dark-border bg-bg-card/90 dark:bg-dark-bg-card/90 backdrop-blur-xs px-4 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-semibold text-text-primary dark:text-dark-text hover:bg-bg-app dark:hover:bg-dark-surface hover:border-accent/50 dark:hover:border-accent-dark/50 cursor-pointer transition-all duration-150 shadow-xs"
+              title="Load previous chats"
+            >
+              <HistoryIcon className="h-4 w-4 text-accent dark:text-accent-dark" />
+              <span>Load previous chats</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isViewingEmptyState ? (
+        <ChatEmptyState onPickPrompt={fillComposer} />
+      ) : thread.loading ? (
         <div className="flex flex-1 items-center justify-center text-text-secondary dark:text-dark-text-secondary">
           <Spinner />
         </div>
-      ) : isEmpty ? (
-        <ChatEmptyState onPickPrompt={fillComposer} />
       ) : (
         <ChatMessageList
           messages={thread.messages}
-          sending={thread.sending || extractingImage}
-          sendFailure={thread.sendFailure}
+          sending={thread.sending}
           hasEarlier={thread.hasEarlier}
           loadingEarlier={thread.loadingEarlier}
           earlierError={thread.earlierError}
           onLoadEarlier={thread.loadEarlier}
           onRetryFailed={thread.retryFailedMessage}
-          onEditFailed={() => fillComposer(thread.takeBackFailedMessage())}
+          onEditFailed={(messageId) => fillComposer(thread.takeBackFailedMessage(messageId))}
           onConfirmAction={thread.confirmAction}
           onCancelAction={thread.cancelAction}
+          onDeleteMessage={thread.deleteMessage}
           onLogAnother={() => fillComposer("")}
+        />
+      )}
+
+      {thread.deletedMessage && (
+        <DeletedMessageToast
+          key={thread.deletedMessage.id}
+          onUndo={thread.undoDelete}
+          onDismiss={thread.dismissDeletedMessage}
         />
       )}
 
@@ -109,7 +128,7 @@ export default function ChatThread() {
         onChange={setDraft}
         onSend={handleSend}
         onSendWithImage={handleSendWithImage}
-        sending={thread.sending || thread.loading || extractingImage}
+        sending={thread.sending || (showHistory && thread.loading)}
         blockedReason={thread.awaitingDecision ? AWAITING_DECISION_MESSAGE : null}
         inputRef={inputRef}
       />

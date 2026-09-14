@@ -6,6 +6,7 @@ import { upsertGoalSchema } from '../../schemas/goal.schema';
 import * as goalService from '../goal.service';
 import { goalValuesMatch, previewLogMeal, previewSetGoal } from './actionPreview';
 import { ChatWriteToolDefinition, describeValidationError } from './chatToolTypes';
+import { toItemsInput } from './itemArgs';
 
 /**
  * The exact schemas behind `POST /api/food-entries` and `POST /api/goals`. A
@@ -15,23 +16,12 @@ import { ChatWriteToolDefinition, describeValidationError } from './chatToolType
 export const logMealArgsSchema = createFoodEntrySchema.shape.body;
 export const setGoalArgsSchema = upsertGoalSchema.shape.body;
 
-/**
- * The model describes items with flat macro fields, which it fills far more
- * reliably than nested objects. Anything that is not an item-shaped object is
- * passed through untouched for the schema to reject with a readable message.
- */
-function toItemInput(rawItem: unknown): unknown {
-  if (typeof rawItem !== 'object' || rawItem === null) return rawItem;
-  const { proteinG, carbG, fatG, ...rest } = rawItem as Record<string, unknown>;
-  return { ...rest, macros: { proteinG, carbG, fatG } };
-}
-
 function toLogMealCandidate(rawArgs: Record<string, unknown>, today: CalendarDay) {
   return {
     mealType: rawArgs.mealType,
     name: rawArgs.name,
     date: rawArgs.date ?? today,
-    items: Array.isArray(rawArgs.items) ? rawArgs.items.map(toItemInput) : rawArgs.items,
+    items: toItemsInput(rawArgs.items),
     source: 'ai-chat',
   };
 }
@@ -41,7 +31,7 @@ const logMeal: ChatWriteToolDefinition = {
   declaration: {
     name: 'logMeal',
     description:
-      'Proposes logging one meal. The user reviews and confirms it before anything is saved. Estimate realistic nutrition for each item when the user does not state it.',
+      'Logs one meal. Call it only when the user asked to log food or said what they ate at a meal, never just to answer a question about nutrition. Estimate realistic nutrition for each item when the user does not state it.',
     parameters: {
       type: 'OBJECT',
       properties: {

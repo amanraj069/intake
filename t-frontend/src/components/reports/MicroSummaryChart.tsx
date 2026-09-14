@@ -95,13 +95,14 @@ function MicroSummaryChart({ data }: MicroSummaryChartProps) {
             <Tooltip
               contentStyle={{
                 backgroundColor: isDark ? "#1A1A1A" : "#FCF8EF",
-                border: "none",
+                border: isDark ? "1px solid rgba(255,255,255,0.12)" : "none",
                 borderRadius: "1rem",
                 boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
                 fontSize: 12,
+                color: isDark ? "#FFFFFF" : "#1A1A1A",
               }}
-              labelStyle={{ fontWeight: 700, paddingBottom: 4, color: isDark ? "#fff" : "#000" }}
-              itemStyle={{ fontWeight: 500 }}
+              labelStyle={{ fontWeight: 700, paddingBottom: 4, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
+              itemStyle={{ fontWeight: 500, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
               cursor={{ fill: isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)" }}
               formatter={(value: any, _name: any, props: any) =>
                 [`${value} ${props.payload.unit}`, "Amount"]

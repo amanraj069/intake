@@ -50,7 +50,7 @@ function GoalComparisonChart({ data }: GoalComparisonChartProps) {
 
       <div className="h-48 sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={formatted} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+          <BarChart data={formatted} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColour} vertical={false} />
             <XAxis
               dataKey="label"
@@ -58,24 +58,26 @@ function GoalComparisonChart({ data }: GoalComparisonChartProps) {
               tickLine={false}
               axisLine={false}
               dy={8}
-              minTickGap={25}
+              minTickGap={20}
+              padding={{ left: 8, right: 8 }}
             />
             <YAxis
               tick={{ fontSize: 10, fill: textColour }}
               tickLine={false}
               axisLine={false}
-              width={48}
+              width={42}
             />
             <Tooltip
               contentStyle={{
                 backgroundColor: isDark ? "#1A1A1A" : "#FCF8EF",
-                border: "none",
+                border: isDark ? "1px solid rgba(255,255,255,0.12)" : "none",
                 borderRadius: "1rem",
                 boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
                 fontSize: 12,
+                color: isDark ? "#FFFFFF" : "#1A1A1A",
               }}
-              labelStyle={{ fontWeight: 700, paddingBottom: 4, color: isDark ? "#fff" : "#000" }}
-              itemStyle={{ fontWeight: 500 }}
+              labelStyle={{ fontWeight: 700, paddingBottom: 4, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
+              itemStyle={{ fontWeight: 500, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
               cursor={{ fill: isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)" }}
             />
             <Legend

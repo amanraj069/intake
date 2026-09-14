@@ -8,6 +8,7 @@ import { Goal } from '../src/models/Goal';
 import { AppError } from '../src/middleware/errorHandler';
 import { ConversationTurnGenerator, ConversationTurnRequest, GeminiContent } from '../src/lib/gemini/geminiConversation';
 import { MAX_AGENT_ITERATIONS, runChatTurn, toConversationContents } from '../src/services/chatAgent';
+import { extractPublicIdFromUrl } from '../src/lib/cloudinary';
 
 /**
  * The agent loop runs against a scripted model, so tool dispatch, pending
@@ -96,6 +97,31 @@ describe('conversation contents', () => {
   });
 });
 
+describe('photo messages', () => {
+  const photo = { mimeType: 'image/jpeg', data: Buffer.from('jpeg-bytes') };
+
+  test('send the new photo ahead of its caption', () => {
+    const [message] = toConversationContents([], 'calories in this?', photo);
+
+    assert.deepEqual(message.parts[0], { inlineData: { mimeType: 'image/jpeg', data: photo.data.toString('base64') } });
+    assert.equal(message.parts[1].text, 'calories in this?');
+  });
+
+  test('describe a photo sent without a caption instead of sending empty text', () => {
+    const [message] = toConversationContents([], '', photo);
+
+    assert.match(String(message.parts[1].text), /no message/);
+  });
+
+  test('note an earlier photo rather than re-sending it', () => {
+    const [earlier] = toConversationContents([{ role: 'user', content: '', hadImage: true }], 'log it as lunch');
+
+    assert.equal(earlier.parts.length, 2);
+    assert.match(String(earlier.parts[0].text), /attached a food photo/);
+    assert.equal('inlineData' in earlier.parts[0], false);
+  });
+});
+
 describe('agent loop', () => {
   test('a read tool runs at once and its real numbers reach the model', async () => {
     await server.request(userA, 'POST', '/api/goals', {
@@ -130,6 +156,22 @@ describe('agent loop', () => {
     assert.equal(result.pendingAction?.tool, 'logMeal');
     assert.match(result.reply, /Log breakfast for today: Egg x2: 156 kcal/);
     assert.equal(result.pendingAction?.args.date, TODAY);
+    assert.deepEqual((result.pendingAction?.args.items as { macros: unknown }[])[0].macros, {
+      proteinG: 12.6, carbG: 1.2, fatG: 10.6,
+    });
+    assert.equal(await FoodEntry.countDocuments({}), 0);
+  });
+
+  test('a nutrition question becomes a resolved estimate, never a pending confirmation', async () => {
+    const model = scriptedModel([modelCall('estimateNutrition', { items: EGGS_MEAL.items })]);
+
+    const result = await runChatTurn({
+      history: [], message: 'how many calories in 2 eggs?', context: { userId: userA.id, today: TODAY },
+      generateTurn: model.generateTurn,
+    });
+
+    assert.equal(result.pendingAction?.tool, 'estimateNutrition');
+    assert.match(result.reply, /Estimated nutrition: Egg x2: 156 kcal/);
     assert.deepEqual((result.pendingAction?.args.items as { macros: unknown }[])[0].macros, {
       proteinG: 12.6, carbG: 1.2, fatG: 10.6,
     });
@@ -189,12 +231,62 @@ describe('POST /api/chat', () => {
     assert.equal((await server.request(null, 'POST', '/api/chat', { message: 'hi' })).status, 401);
   });
 
-  test('an unavailable provider returns 503 and leaves no unanswered message behind', async () => {
+  test('an unavailable provider returns 503 and keeps the message with its failure, for a retry', async () => {
     const result = await server.request(userA, 'POST', '/api/chat', { message: 'how am I doing?' });
 
     assert.equal(result.status, 503);
     assert.equal(result.body.code, 'AI_UNAVAILABLE');
-    assert.equal(await ChatMessage.countDocuments({ userId: userA.id }), 0);
+    const stored = await ChatMessage.findOne({ userId: userA.id });
+    assert.equal(stored?.content, 'how am I doing?');
+    assert.equal(stored?.replyError?.code, 'AI_UNAVAILABLE');
+    assert.equal(result.body.details.userMessage._id, stored?._id.toString());
+  });
+});
+
+describe('POST /api/chat/messages/:messageId/retry', () => {
+  function failedMessage(user: TestUser, content: string) {
+    return ChatMessage.create({
+      userId: user.id, role: 'user', content, replyError: { message: 'unavailable', code: 'AI_UNAVAILABLE' },
+    });
+  }
+
+  test('runs the same message again and records the new failure on it, without a duplicate', async () => {
+    const message = await failedMessage(userA, 'how am I doing?');
+
+    const result = await server.request(userA, 'POST', `/api/chat/messages/${message._id}/retry`, {});
+
+    assert.equal(result.status, 503);
+    assert.equal(result.body.details.userMessage._id, message._id.toString());
+    assert.equal(await ChatMessage.countDocuments({ userId: userA.id }), 1);
+    assert.equal((await ChatMessage.findById(message._id))?.replyError?.code, 'AI_UNAVAILABLE');
+  });
+
+  test('refuses a message that is not the latest', async () => {
+    const older = await failedMessage(userA, 'first');
+    await ChatMessage.create({ userId: userA.id, role: 'user', content: 'second' });
+
+    const result = await server.request(userA, 'POST', `/api/chat/messages/${older._id}/retry`, {});
+
+    assert.equal(result.status, 409);
+    assert.equal(result.body.code, 'MESSAGE_NOT_LATEST');
+  });
+
+  test('refuses a message whose reply is still in flight', async () => {
+    const inFlight = await ChatMessage.create({ userId: userA.id, role: 'user', content: 'hi', replyRequestedAt: new Date() });
+
+    const result = await server.request(userA, 'POST', `/api/chat/messages/${inFlight._id}/retry`, {});
+
+    assert.equal(result.status, 409);
+    assert.equal(result.body.code, 'REPLY_IN_PROGRESS');
+  });
+
+  test("cannot retry another user's message", async () => {
+    const message = await failedMessage(userB, 'mine');
+
+    const result = await server.request(userA, 'POST', `/api/chat/messages/${message._id}/retry`, {});
+
+    assert.equal(result.status, 404);
+    assert.ok((await ChatMessage.findById(message._id))?.replyError);
   });
 });
 
@@ -303,3 +395,86 @@ describe('GET /api/chat/history', () => {
     assert.ok(!JSON.stringify(otherUser.body).includes('A 1'));
   });
 });
+
+describe('DELETE /api/chat/messages/:messageId', () => {
+  test('hides a message from history and from what the model is shown, without touching what it did', async () => {
+    const logged = await ChatMessage.create({
+      userId: userA.id, role: 'assistant', content: 'Log breakfast for today: Egg x2',
+      action: { tool: 'logMeal', status: 'confirmed', args: EGGS_MEAL },
+    });
+    const entry = await FoodEntry.create({
+      userId: userA.id, mealType: 'breakfast', name: 'Egg', date: TODAY, source: 'ai-chat',
+      items: [{ name: 'Egg', unit: 'count', quantity: 2, calories: 156, macros: { proteinG: 12.6, carbG: 1.2, fatG: 10.6 } }],
+      calories: 156, macros: { proteinG: 12.6, carbG: 1.2, fatG: 10.6 },
+    });
+
+    const result = await server.request(userA, 'DELETE', `/api/chat/messages/${logged._id}`);
+
+    assert.equal(result.status, 200);
+    assert.ok((await ChatMessage.findById(logged._id))?.deletedAt);
+    assert.equal((await server.request(userA, 'GET', '/api/chat/history')).body.total, 0);
+    assert.ok(await FoodEntry.exists({ _id: entry._id }), 'the logged meal is untouched');
+  });
+
+  test('cannot delete another user\'s message, and a missing one 404s', async () => {
+    const theirs = await ChatMessage.create({ userId: userB.id, role: 'user', content: 'mine' });
+
+    assert.equal((await server.request(userA, 'DELETE', `/api/chat/messages/${theirs._id}`)).status, 404);
+    assert.equal((await server.request(userA, 'DELETE', '/api/chat/messages/000000000000000000000000')).status, 404);
+    assert.ok(!(await ChatMessage.findById(theirs._id))?.deletedAt);
+  });
+
+  test('deleting twice, or restoring what was never deleted, 404s', async () => {
+    const message = await ChatMessage.create({ userId: userA.id, role: 'user', content: 'hi' });
+
+    assert.equal((await server.request(userA, 'POST', `/api/chat/messages/${message._id}/restore`)).status, 404);
+    assert.equal((await server.request(userA, 'DELETE', `/api/chat/messages/${message._id}`)).status, 200);
+    assert.equal((await server.request(userA, 'DELETE', `/api/chat/messages/${message._id}`)).status, 404);
+  });
+
+  test('deleting a message with a picture attached marks it deleted and cleans up', async () => {
+    const message = await ChatMessage.create({
+      userId: userA.id,
+      role: 'user',
+      content: 'photo caption',
+      imageUrl: 'https://res.cloudinary.com/demo/image/upload/v12345/intake/chat/userA/photo123.jpg',
+      imagePublicId: 'intake/chat/userA/photo123',
+    });
+
+    const result = await server.request(userA, 'DELETE', `/api/chat/messages/${message._id}`);
+    assert.equal(result.status, 200);
+    const updated = await ChatMessage.findById(message._id);
+    assert.ok(updated?.deletedAt);
+  });
+});
+
+describe('extractPublicIdFromUrl', () => {
+  test('extracts public ID from standard and transformed Cloudinary URLs', () => {
+    assert.equal(
+      extractPublicIdFromUrl('https://res.cloudinary.com/cloud/image/upload/v12345/intake/chat/user/pic.jpg'),
+      'intake/chat/user/pic'
+    );
+    assert.equal(
+      extractPublicIdFromUrl('https://res.cloudinary.com/cloud/image/upload/intake/chat/user/pic.jpg'),
+      'intake/chat/user/pic'
+    );
+    assert.equal(
+      extractPublicIdFromUrl('https://not-cloudinary.com/some/image.png'),
+      undefined
+    );
+  });
+});
+
+describe('POST /api/chat/messages/:messageId/restore', () => {
+  test('undoes a delete, bringing the message back into history', async () => {
+    const message = await ChatMessage.create({ userId: userA.id, role: 'user', content: 'hi' });
+    await server.request(userA, 'DELETE', `/api/chat/messages/${message._id}`);
+
+    const result = await server.request(userA, 'POST', `/api/chat/messages/${message._id}/restore`);
+
+    assert.equal(result.status, 200);
+    assert.equal((await ChatMessage.findById(message._id))?.deletedAt, undefined);
+    assert.equal((await server.request(userA, 'GET', '/api/chat/history')).body.total, 1);
+  });
+});
+

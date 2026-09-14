@@ -11,13 +11,18 @@ export const MAX_CHAT_MESSAGE_LENGTH = 2000;
  */
 const clientTodayField = calendarDaySchema.optional();
 
+/**
+ * The body arrives as JSON, or as multipart form fields when a photo is
+ * attached. With a photo the text is an optional caption, so an empty message
+ * is allowed here and the controller rejects a request with neither.
+ */
 export const sendChatMessageSchema = z.object({
   body: z.object({
     message: z
-      .string({ required_error: 'Message is required', invalid_type_error: 'Message must be text' })
+      .string({ invalid_type_error: 'Message must be text' })
       .trim()
-      .min(1, 'Message cannot be empty')
-      .max(MAX_CHAT_MESSAGE_LENGTH, `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer`),
+      .max(MAX_CHAT_MESSAGE_LENGTH, `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer`)
+      .default(''),
     today: clientTodayField,
   }),
 });
@@ -36,6 +41,15 @@ export const confirmChatActionSchema = z.object({
     }),
     args: z.record(z.unknown(), { invalid_type_error: 'Args must be an object' }),
   }),
+});
+
+export const retryChatMessageSchema = z.object({
+  params: z.object({ messageId: objectIdSchema }),
+  body: z.object({ today: clientTodayField }),
+});
+
+export const chatMessageIdSchema = z.object({
+  params: z.object({ messageId: objectIdSchema }),
 });
 
 export const chatHistorySchema = z.object({

@@ -7,11 +7,14 @@ export class AppError extends Error {
   statusCode: number;
   /** A stable identifier for failures the client reacts to differently, e.g. `NO_FOOD_DETECTED`. */
   code?: string;
+  /** Extra state the client needs to recover, e.g. the stored chat message whose reply failed. */
+  details?: Record<string, unknown>;
 
-  constructor(message: string, statusCode: number, code?: string) {
+  constructor(message: string, statusCode: number, code?: string, details?: Record<string, unknown>) {
     super(message);
     this.statusCode = statusCode;
     this.code = code;
+    this.details = details;
     this.name = 'AppError';
   }
 }
@@ -36,6 +39,7 @@ export function errorHandler(
       success: false,
       message: err.message,
       ...(err.code ? { code: err.code } : {}),
+      ...(err.details ? { details: err.details } : {}),
     });
     return;
   }

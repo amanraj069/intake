@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
-import OtpField, { OTP_LENGTH } from "@/components/settings/OtpField";
+import OtpField, { OTP_LENGTH } from "./OtpField";
 import Button from "@/components/ui/Button";
 
 interface SignupVerifyStepProps {
