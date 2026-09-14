@@ -26,15 +26,24 @@ function describeItem(item: FoodItemInput): string {
   return `${item.name} (${formatWholeNumber(item.quantity)} ${item.unit})`;
 }
 
-function describeMealContents(entry: CreateFoodEntryInput): string {
-  const totals = sumItemNutrition(entry.items);
+function describeItemsNutrition(items: readonly FoodItemInput[]): string {
+  const totals = sumItemNutrition(items);
   const { proteinG, carbG, fatG } = totals.macros;
-  const items = entry.items.map(describeItem).join(', ');
-  return `${items}: ${formatWholeNumber(totals.calories)} kcal (protein ${roundToTenth(proteinG)} g, carbs ${roundToTenth(carbG)} g, fat ${roundToTenth(fatG)} g)`;
+  const list = items.map(describeItem).join(', ');
+  return `${list}: ${formatWholeNumber(totals.calories)} kcal (protein ${roundToTenth(proteinG)} g, carbs ${roundToTenth(carbG)} g, fat ${roundToTenth(fatG)} g)`;
 }
 
 export function previewLogMeal(entry: CreateFoodEntryInput, today: CalendarDay): string {
-  return `Log ${entry.mealType} for ${describeDay(entry.date, today)}: ${describeMealContents(entry)}`;
+  return `Log ${entry.mealType} for ${describeDay(entry.date, today)}: ${describeItemsNutrition(entry.items)}`;
+}
+
+/**
+ * The one-line description stored for a nutrition estimate: never persisted as
+ * a meal, but kept as the reply's text so a later "log this" turn still has
+ * the exact foods and numbers to reuse.
+ */
+export function previewNutritionEstimate(items: readonly FoodItemInput[]): string {
+  return `Estimated nutrition: ${describeItemsNutrition(items)}`;
 }
 
 const GOAL_FIELDS: readonly { key: keyof UpsertGoalInput; label: string; unit: string }[] = [

@@ -19,8 +19,8 @@ const TOTAL_BUDGET_MS = 25 * 1000;
  * when an earlier model is overloaded, or out of quota on every key at once.
  */
 const DEFAULT_MODELS = [
-  'gemini-3.8-flash',
-  'gemini-3.7-flash',
+  // 'gemini-3.8-flash',
+  // 'gemini-3.7-flash',
   'gemini-3.6-flash',
   'gemini-3.5-flash',
   'gemini-3.5-flash-lite',

@@ -9,11 +9,13 @@ import {
   generateConversationTurn,
   textIn,
 } from '../lib/gemini/geminiConversation';
+import { InlineImage } from '../lib/gemini/geminiClient';
 import { GeminiUnavailableError } from '../lib/gemini/geminiErrors';
 import { buildChatSystemInstruction } from '../lib/chatPrompt';
 import { toPlainChatText } from '../lib/chatReplyText';
 import { ChatActionStatus, ChatRole } from '../models/ChatMessage';
 import { ChatTool, ChatToolContext, PendingChatAction, ToolOutcome } from './chat/chatToolTypes';
+import { ESTIMATE_TOOLS } from './chat/estimateTools';
 import { READ_TOOLS } from './chat/readTools';
 import { WRITE_TOOLS } from './chat/writeTools';
 
@@ -30,7 +32,7 @@ const ATTEMPT_TIMEOUT_MS = 20 * 1000;
 /** Caps the whole turn, across every model call and tool run in it. */
 const TURN_BUDGET_MS = 60 * 1000;
 
-const TOOLS: readonly ChatTool[] = [...READ_TOOLS, ...WRITE_TOOLS];
+const TOOLS: readonly ChatTool[] = [...READ_TOOLS, ...WRITE_TOOLS, ...ESTIMATE_TOOLS];
 const TOOLS_BY_NAME = new Map(TOOLS.map((tool) => [tool.declaration.name, tool]));
 const FUNCTION_DECLARATIONS = TOOLS.map((tool) => tool.declaration);
 
@@ -44,6 +46,8 @@ const CHAT_FAILURE_COPY = {
 export interface ChatHistoryTurn {
   role: ChatRole;
   content: string;
+  /** Earlier photos are not re-sent, so the model is only told one was there. */
+  hadImage?: boolean;
   /** Set on a reply that proposed a change, so the model knows whether that change was saved. */
   actionStatus?: ChatActionStatus;
 }
@@ -56,10 +60,25 @@ export interface ChatHistoryTurn {
 const ACTION_OUTCOME_NOTES: Record<ChatActionStatus, string> = {
   pending: '(Not saved: the user did not confirm this change.)',
   confirmed: '(Saved: the user confirmed this change.)',
+  estimate: '(Not saved: this only answered a nutrition question.)',
 };
 
+const EARLIER_PHOTO_NOTE = '(The user attached a food photo to this message.)';
+const PHOTO_WITHOUT_CAPTION = '(The user sent this photo with no message.)';
+
 function turnText(turn: ChatHistoryTurn): string {
-  return turn.actionStatus ? `${turn.content}\n${ACTION_OUTCOME_NOTES[turn.actionStatus]}` : turn.content;
+  const notes = [
+    turn.hadImage ? EARLIER_PHOTO_NOTE : null,
+    turn.actionStatus ? ACTION_OUTCOME_NOTES[turn.actionStatus] : null,
+  ].filter(Boolean);
+  return [turn.content, ...notes].filter(Boolean).join('\n');
+}
+
+/** The new message's parts: its photo first, as Gemini reads images best ahead of the text about them. */
+function newMessageParts(message: string, image?: InlineImage): GeminiPart[] {
+  if (!image) return [{ text: message }];
+  const imagePart = { inlineData: { mimeType: image.mimeType, data: image.data.toString('base64') } };
+  return [imagePart, { text: message || PHOTO_WITHOUT_CAPTION }];
 }
 
 export interface ChatTurnResult {
@@ -69,7 +88,9 @@ export interface ChatTurnResult {
 
 export interface RunChatTurnOptions {
   history: readonly ChatHistoryTurn[];
+  /** Empty when the user sent only a photo. */
   message: string;
+  image?: InlineImage;
   context: ChatToolContext;
   /** Defaults to the live Gemini call; tests pass a scripted model. */
   generateTurn?: ConversationTurnGenerator;
@@ -83,20 +104,21 @@ export interface RunChatTurnOptions {
  */
 export function toConversationContents(
   history: readonly ChatHistoryTurn[],
-  message: string
+  message: string,
+  image?: InlineImage
 ): GeminiContent[] {
   const contents: GeminiContent[] = [];
+  const turns = history.map((turn) => ({ role: turn.role, parts: [{ text: turnText(turn) }] as GeminiPart[] }));
 
-  for (const turn of [...history, { role: 'user' as const, content: message }]) {
+  for (const turn of [...turns, { role: 'user' as const, parts: newMessageParts(message, image) }]) {
     const role = turn.role === 'user' ? 'user' : 'model';
     const previous = contents[contents.length - 1];
-    const text = turnText(turn);
 
     if (!previous && role === 'model') continue;
     if (previous?.role === role) {
-      previous.parts.push({ text });
+      previous.parts.push(...turn.parts);
     } else {
-      contents.push({ role, parts: [{ text }] });
+      contents.push({ role, parts: turn.parts });
     }
   }
 
@@ -112,9 +134,9 @@ type CallsOutcome = { pendingAction: PendingChatAction } | { responseParts: Gemi
 
 /**
  * Runs one model turn's calls in order. Reads execute immediately; the first
- * write that validates ends the turn as a pending action without saving. A
- * write that fails validation is reported back like any other tool error, so
- * the model can correct itself or ask the user.
+ * write or estimate that validates ends the turn as a pending action without
+ * saving anything. A call that fails validation is reported back like any
+ * other tool error, so the model can correct itself or ask the user.
  */
 async function executeFunctionCalls(
   calls: readonly GeminiFunctionCall[],
@@ -131,7 +153,7 @@ async function executeFunctionCalls(
       continue;
     }
 
-    if (tool.kind === 'write') {
+    if (tool.kind === 'write' || tool.kind === 'estimate') {
       const prepared = await tool.prepare(args, context);
       if (prepared.ok) return { pendingAction: prepared.value };
       responseParts.push(toFunctionResponsePart(call, prepared));
@@ -181,18 +203,20 @@ function finalReply(modelTurn: GeminiContent): ChatTurnResult {
 
 /**
  * Produces the assistant's reply to one user message, calling read tools as
- * the model asks for them. Never writes: a write the model proposes comes back
- * as `pendingAction`, with its preview as the reply.
+ * the model asks for them. Never writes: a write the model proposes, or a
+ * nutrition estimate it produces, comes back as `pendingAction`, with its
+ * preview as the reply.
  *
  * @throws AppError AI_UNAVAILABLE, CHAT_REJECTED, AI_BAD_RESPONSE or CHAT_STEP_LIMIT.
  */
 export async function runChatTurn({
   history,
   message,
+  image,
   context,
   generateTurn = generateConversationTurn,
 }: RunChatTurnOptions): Promise<ChatTurnResult> {
-  const contents = toConversationContents(history, message);
+  const contents = toConversationContents(history, message, image);
   const turnStartedAt = Date.now();
 
   for (let iteration = 0; iteration < MAX_AGENT_ITERATIONS; iteration += 1) {

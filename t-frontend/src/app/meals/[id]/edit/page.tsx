@@ -52,25 +52,26 @@ function EditMealContent({ entryId }: { entryId: string }) {
         title="Edit Meal"
         description="Change what was logged, or correct the amounts."
         showBackButton
+        hideDescriptionOnMobile
+        stackOnMobile
         action={
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+          <div className="grid grid-cols-[1fr_auto_auto] sm:flex sm:flex-row sm:items-start gap-2 w-full sm:w-auto">
             {dateField}
-            <div className="flex items-center gap-2">
-              <JsonModeToggle
-                jsonMode={jsonMode}
-                formLabel="Update with form"
-                jsonLabel="Update with JSON"
-                onToggle={() => setJsonMode(!jsonMode)}
-              />
-              <button
-                type="button"
-                onClick={() => setPendingDeletion(true)}
-                className="inline-flex items-center gap-2.5 h-11 px-4 sm:px-5 rounded-xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/20 text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400 transition-all duration-150 cursor-pointer shadow-sm active:scale-[0.98]"
-              >
-                <TrashIcon className="w-4 h-4" />
-                <span>Delete</span>
-              </button>
-            </div>
+            <JsonModeToggle
+              jsonMode={jsonMode}
+              formLabel="Form"
+              jsonLabel="JSON"
+              onToggle={() => setJsonMode(!jsonMode)}
+            />
+            <button
+              type="button"
+              onClick={() => setPendingDeletion(true)}
+              aria-label="Delete entry"
+              className="inline-flex items-center justify-center gap-2 h-11 px-3 sm:px-5 rounded-xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/20 text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400 transition-all duration-150 cursor-pointer shadow-sm active:scale-[0.98]"
+            >
+              <TrashIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
           </div>
         }
       />

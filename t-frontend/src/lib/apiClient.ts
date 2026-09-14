@@ -7,6 +7,8 @@ export interface ApiResponse<T = undefined> {
   errors?: Record<string, string[]>;
   /** A stable failure identifier, present on errors the client may handle specially. */
   code?: string;
+  /** Extra state sent with some failures so the client can recover, e.g. a stored chat message. */
+  details?: Record<string, unknown>;
 }
 
 /**
@@ -24,13 +26,21 @@ export class ApiError extends Error {
   status: number;
   errors?: Record<string, string[]>;
   code?: string;
+  details?: Record<string, unknown>;
 
-  constructor(message: string, status: number, errors?: Record<string, string[]>, code?: string) {
+  constructor(
+    message: string,
+    status: number,
+    errors?: Record<string, string[]>,
+    code?: string,
+    details?: Record<string, unknown>
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.errors = errors;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -99,7 +109,8 @@ async function send<TResponse extends ApiResponse<unknown>>(
             retryBody.message || "Something went wrong",
             retryResponse.status,
             retryBody.errors,
-            retryBody.code
+            retryBody.code,
+            retryBody.details
           );
         }
         return retryBody;
@@ -112,7 +123,7 @@ async function send<TResponse extends ApiResponse<unknown>>(
   const body = await parseBody<TResponse>(response);
 
   if (!response.ok) {
-    throw new ApiError(body.message || "Something went wrong", response.status, body.errors, body.code);
+    throw new ApiError(body.message || "Something went wrong", response.status, body.errors, body.code, body.details);
   }
 
   return body;

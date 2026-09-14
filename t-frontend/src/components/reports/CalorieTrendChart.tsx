@@ -42,7 +42,7 @@ function CalorieTrendChart({ data }: CalorieTrendChartProps) {
 
       <div className="h-48 sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={formatted} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+          <AreaChart data={formatted} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
             <defs>
               <linearGradient id="colorCalories" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={strokeColour} stopOpacity={isDark ? 0.4 : 0.2} />
@@ -56,24 +56,26 @@ function CalorieTrendChart({ data }: CalorieTrendChartProps) {
               tickLine={false}
               axisLine={false}
               dy={8}
-              minTickGap={25}
+              minTickGap={20}
+              padding={{ left: 8, right: 8 }}
             />
             <YAxis
               tick={{ fontSize: 10, fill: textColour }}
               tickLine={false}
               axisLine={false}
-              width={48}
+              width={42}
             />
             <Tooltip
               contentStyle={{
                 backgroundColor: isDark ? "#1A1A1A" : "#FCF8EF",
-                border: "none",
+                border: isDark ? "1px solid rgba(255,255,255,0.12)" : "none",
                 borderRadius: "1rem",
                 boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
                 fontSize: 12,
+                color: isDark ? "#FFFFFF" : "#1A1A1A",
               }}
-              labelStyle={{ fontWeight: 700, paddingBottom: 4, color: isDark ? "#fff" : "#000" }}
-              itemStyle={{ fontWeight: 500 }}
+              labelStyle={{ fontWeight: 700, paddingBottom: 4, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
+              itemStyle={{ fontWeight: 500, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
               cursor={{ stroke: gridColour, strokeWidth: 1, strokeDasharray: "3 3" }}
             />
             <Area

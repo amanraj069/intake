@@ -166,7 +166,7 @@ export default function MealEntryForm({
   }
 
   const dateField = (
-    <div className="w-full sm:w-44">
+    <div className="w-full sm:w-44 min-w-0">
       <Input
         id="date"
         label="Date eaten"
@@ -176,6 +176,7 @@ export default function MealEntryForm({
         error={errors.fields.date}
         disabled={submitting}
         required
+        className="!h-11 !rounded-xl text-xs sm:text-sm font-medium"
         onChange={(event) => updateDetails({ date: event.target.value })}
       />
     </div>
@@ -189,7 +190,7 @@ export default function MealEntryForm({
       <>
         {renderHeader(dateField)}
         {banner}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           <FillWithJson
             details={jsonDetails}
             items={items}
