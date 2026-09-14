@@ -59,3 +59,16 @@ export function enumerateCalendarDays(
     new Date(startMs + index * MILLISECONDS_PER_DAY).toISOString().slice(0, 10)
   );
 }
+
+/**
+ * The client's calendar day when it is plausible, otherwise the server's. Every
+ * timezone is within a day of UTC, so anything further out is a wrong clock or
+ * a tampered request, and must not decide which day an entry is logged against.
+ */
+export function resolveClientToday(clientDay: CalendarDay | undefined): CalendarDay {
+  const serverDay = today();
+  if (!clientDay) return serverDay;
+
+  const offsetDays = Math.abs(countCalendarDays(serverDay, clientDay) - 1);
+  return offsetDays <= 1 ? clientDay : serverDay;
+}

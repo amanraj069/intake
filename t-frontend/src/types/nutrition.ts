@@ -1,7 +1,7 @@
 export const MEAL_TYPES = ["breakfast", "lunch", "snack", "dinner"] as const;
 export type MealType = (typeof MEAL_TYPES)[number];
 
-export type FoodEntrySource = "manual" | "ai-image" | "pdf-import";
+export type FoodEntrySource = "manual" | "ai-image" | "pdf-import" | "ai-chat";
 
 export interface Goal {
   _id: string;

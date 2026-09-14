@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -13,6 +13,18 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Intake",
   description: "Keep track of your calories",
+};
+
+/**
+ * maximumScale stops iOS Safari auto-zooming into inputs with text under 16px,
+ * which the compact phone typography uses. viewportFit exposes the safe-area
+ * insets the chat composer pads against.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

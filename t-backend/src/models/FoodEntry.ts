@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export const MEAL_TYPES = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
 export type MealType = (typeof MEAL_TYPES)[number];
 
-export const FOOD_ENTRY_SOURCES = ['manual', 'ai-image', 'pdf-import'] as const;
+export const FOOD_ENTRY_SOURCES = ['manual', 'ai-image', 'pdf-import', 'ai-chat'] as const;
 export type FoodEntrySource = (typeof FOOD_ENTRY_SOURCES)[number];
 
 /**

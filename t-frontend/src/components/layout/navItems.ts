@@ -1,5 +1,12 @@
 import type { ComponentType, SVGProps } from "react";
-import { GoalsIcon, LogMealIcon, MealsIcon, OverviewIcon, ReportsIcon } from "@/components/icons";
+import {
+  AssistantIcon,
+  GoalsIcon,
+  LogMealIcon,
+  MealsIcon,
+  OverviewIcon,
+  ReportsIcon,
+} from "@/components/icons";
 
 /** The signed-in navigation, in the order it reads in the sidebar. */
 export interface NavItem {
@@ -15,6 +22,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/meals", label: "Meals", Icon: MealsIcon },
   { href: "/log-meal", label: "Log Meal", Icon: LogMealIcon },
   { href: "/goals", label: "Goals", Icon: GoalsIcon },
+  { href: "/chat", label: "Assistant", Icon: AssistantIcon },
 ];
 
 /** A nested route such as `/meals/:id/edit` keeps its parent link highlighted. */

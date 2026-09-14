@@ -25,7 +25,7 @@ intake/
 | Validation | zod (every route body and param) |
 | Auth | JWT access/refresh tokens in httpOnly cookies, bcrypt, Passport (Google OAuth) |
 | Email | Resend |
-| AI | Gemini (photo extraction, onboarding plans, PDF import) |
+| AI | Gemini (photo extraction, onboarding plans, PDF import, chat assistant via native function calling) |
 | PDF text | pdf-parse |
 
 ### Backend layering
@@ -48,13 +48,14 @@ lib/           shared helpers (jwt, cookies, email, authenticated-user lookup)
 app/            routes, thin: they compose a shell, a hook and a form
 components/ui/  reusable primitives (Button, Input, Card, AmountInput, SegmentedControl, ...)
 components/<feature>/  feature components (GoalForm, MealEntryForm, MicronutrientRows,
-                       TodayPanel, CalorieDial, WeeklyProgressPanel, TrendColumns)
+                       TodayPanel, CalorieDial, WeeklyProgressPanel, TrendColumns,
+                       ChatThread, PendingActionCard)
 components/layout/     app shell: DashboardLayout, SidebarHeader, SidebarNav,
                        SidebarProfile, ProfileMenu, BrandMark, nav definitions
 components/icons.tsx   the project's inline SVG icon set
 hooks/          data-fetching and list/form state (useGoal, useFoodEntries, useMealFilters,
                 useDailyIntake, useDailyIntakeSeries, useFoodEntry, useCreateFoodEntry,
-                useMicronutrientRows)
+                useMicronutrientRows, useChatHistory, useChatThread)
 lib/            api client, per-domain API modules, client-side validation, formatters
 types/          shared domain types
 ```
@@ -102,6 +103,13 @@ types/          shared domain types
   row is edited or marked "Looks right" and every row is valid. Rows can be removed. The import
   ends with a summary of how many entries were saved and which were skipped and why (invalid, or
   an exact duplicate of something already logged)
+- **Assistant chat** - `/chat` is one continuous conversation per user. Ask "how am I doing
+  this week" or "what's my goal" and the assistant answers with real numbers from the same
+  services the dashboard and reports use. Say "I had 2 eggs and toast for breakfast" or "set my
+  protein to 150 g" and it proposes the change as a preview card; nothing is saved until
+  Confirm is pressed, and Cancel discards it. General nutrition questions are answered directly.
+  The thread is stored in MongoDB, so it survives a refresh, with "Load earlier messages" paging
+  back through older turns
 - **Reports** - `/reports` charts daily calories, a stacked macro breakdown, calories against the
   goal target line, and summed micronutrients for the last 7, 14 or 30 days or a custom range
 - **Meals log** - a filterable, paginated list of every entry with inline edit and a
@@ -219,6 +227,7 @@ cd t-backend  && npm run build && npm start   # compile to dist/ and run
 cd t-backend  && npm run lint                 # eslint
 cd t-backend  && npm test                     # backend test suites (needs MongoDB running)
 cd t-backend  && npm run migrate:food-items   # preview converting old single-food entries; add -- --apply to run
+cd t-backend  && npm run migrate:chat-confirmations  # preview merging old "Logged ..." chat messages into their proposal cards; add -- --apply to run
 cd t-frontend && npm run build && npm start   # production build and serve
 cd t-frontend && npm run lint                 # eslint
 ```
@@ -240,6 +249,7 @@ cd t-frontend && npm run lint                 # eslint
 | `/meals` | yes | Filter, page through, edit and delete logged entries |
 | `/meals/:id/edit` | yes | The meal form pre-filled with a saved entry |
 | `/meals/import` | yes | Bulk import from a food diary PDF: upload, parse, review and edit rows, confirm |
+| `/chat` | yes | The assistant: conversational logging, progress questions and nutrition advice, with confirm/cancel cards for any change |
 
 ## API Routes
 
@@ -284,6 +294,9 @@ Full parameter and response shapes are in [API.md](./API.md).
 | `GET` | `/api/reports/macros` | yes | Protein/carb/fat totals by day or ISO week |
 | `GET` | `/api/reports/micros` | yes | Each micronutrient summed across a range |
 | `GET` | `/api/reports/goal-comparison` | yes | Daily calories next to the goal's calorie target |
+| `POST` | `/api/chat` | yes | Send a message; returns the stored reply, plus a `pendingAction` when it proposes a change (saves no entry or goal) |
+| `POST` | `/api/chat/confirm-action` | yes | Re-validate and carry out a confirmed `logMeal` or `setGoal` action |
+| `GET` | `/api/chat/history` | yes | The user's thread, paginated newest page first |
 
 ## Data Model
 
@@ -332,12 +345,26 @@ calories:      number - sum of the items, written by the server
 macros:        { proteinG, carbG, fatG } - sums of the items, written by the server
 micros:        Map<string, { amount, unit }> - per-nutrient sums of the items
 date:          Date (required) - the day the food was eaten
-source:        'manual' | 'ai-image' | 'pdf-import' (default 'manual')
+source:        'manual' | 'ai-image' | 'pdf-import' | 'ai-chat' (default 'manual')
 createdAt, updatedAt: Date
 ```
 
 Compound index on `{ userId, date }` for "what did I eat on this day" reads, which also
 serves the date-range list query and the daily summary aggregation.
+
+### `ChatMessage`
+
+```
+userId:        ObjectId -> User (required)
+role:          'user' | 'assistant' (required)
+content:       string (required) - the visible text only, never a tool payload
+action:        { tool: 'logMeal' | 'setGoal', status: 'pending' | 'confirmed' } - only on a reply
+               that proposed a change; confirming flips it to 'confirmed'
+createdAt:     Date
+```
+
+Compound index on `{ userId, createdAt: -1, _id: -1 }`, which serves both history pages and
+loading the most recent turns as model context.
 
 ---
 
@@ -642,6 +669,69 @@ Decisions made where the spec left room for interpretation:
   with `lib/gemini/aiFailure.ts`. Gemini rejects `maxItems` on a large array of objects as too
   complex, so the row cap is applied in the service rather than in the response schema.
 
+### Assistant chat
+
+- **Only visible turns are stored.** Each `ChatMessage` is a user message or the assistant's
+  reply. The function calls and tool results produced while answering exist only inside that
+  request. A new message replays the last 20 stored turns as plain history, not the old tool
+  internals; if the model needs fresh numbers it calls a read tool again.
+- **Reads run immediately; writes need confirmation.** `getGoal`, `listMeals`,
+  `getTodaySummary`, `getWeeklySummary`, `getMacroBreakdown` and `getGoalComparison` call the
+  existing goal, food entry, daily intake and report services directly. `logMeal` and `setGoal`
+  are validated and previewed, then the turn ends with a `pendingAction`, and the preview text is
+  saved as the assistant's message with `action.status: "pending"`. This is the same "AI proposes, user reviews, user commits"
+  pattern as photo extraction and PDF import.
+- **Tool arguments are validated with the endpoint's own zod schema**, when proposed and again
+  in `POST /api/chat/confirm-action`: `createFoodEntrySchema` for meals, `upsertGoalSchema` for
+  goals, and the list, summary and report query schemas for reads. A call that fails validation
+  goes back to the model as an error it can correct, or turn into a clarifying question, rather
+  than failing the request. Confirming a hand-edited or stale action that no longer validates
+  returns `400 INVALID_CHAT_ACTION` and saves nothing.
+- **Confirming marks the proposal; it does not add a message.** `confirm-action` takes the
+  proposing reply's `messageId` and flips its `action.status` from `pending` to `confirmed` in one
+  atomic update before writing, so the thread shows each change once, as a card reading "Saved".
+  A second confirm of the same proposal (double click, second tab) gets `409
+  ACTION_ALREADY_CONFIRMED` and saves nothing; if the write itself fails the proposal is reopened.
+  When history is replayed to the model, each proposal is annotated as saved or not saved, so the
+  model never claims an unconfirmed meal was logged.
+- **No tool accepts a user id.** Every tool is bound to the session user on the server, so no
+  wording of a message can reach another account's data.
+- **The model describes items with flat `proteinG`/`carbG`/`fatG` fields**, which it fills more
+  reliably than nested objects. The server reshapes them into the standard item shape before
+  validating, so what is confirmed is exactly a `POST /api/food-entries` body.
+- **A goal change can name a single target.** Saving a goal replaces all of it (see above), so
+  `setGoal` lays the model's changed targets over the saved goal, including the weight goal,
+  and the preview lists only what changes ("protein 130 g to 150 g"). With no saved goal, all
+  four daily targets are required. A change identical to the saved goal is refused.
+- **"Today" is the user's day.** The client sends its local `YYYY-MM-DD` with each chat request.
+  It sets the date in the system prompt and the default for meal dates and report ranges. A
+  value more than a day from the server's UTC date is ignored in favour of the server's. Meals
+  cannot be proposed for a future date.
+- **Chat meals are stored with `source: "ai-chat"`**, set by the server on confirm whatever the
+  echoed args say.
+- **One change per reply.** If the model asks for several writes in one turn, only the first
+  valid one becomes the pending action, and the prompt tells it to offer the rest afterwards.
+  While a card is undecided the composer is disabled, so a follow-up cannot refer to it
+  ambiguously.
+- **Confirmed cards survive a refresh; undecided ones do not.** A confirmed proposal comes back
+  from history as its card with "Saved" and a link to Meals or Goals. A proposal's arguments are
+  not stored, so an undecided one shows after a refresh as an ordinary assistant message without
+  Confirm/Cancel; asking again produces a fresh card. Cancelling is local to the page and logs
+  nothing.
+- **A message whose reply fails is removed again.** The user message is saved before the model
+  is called, per the spec. If the turn then fails (provider down, empty reply, loop cap), that
+  message is deleted, so the thread never holds an unanswered question and resending does not
+  duplicate it. The UI keeps the failed message on screen with "Try again" and "Edit message".
+- **Limits:** messages up to 2,000 characters; at most 5 model calls per message (then
+  `502 CHAT_STEP_LIMIT`); 60 seconds for the whole turn (then `503 AI_UNAVAILABLE`); tool
+  listings capped at 20 meals and report ranges at 92 days.
+- **Replies are plain text.** The prompt asks for no Markdown, and stray `**bold**`, headings and
+  `*` bullets are stripped on the server before saving, since the thread renders text as typed.
+- **No agent framework.** The loop in `services/chatAgent.ts` calls Gemini's native function
+  calling through `lib/gemini/geminiConversation.ts`, which shares the key pool and model
+  failover with every other AI feature. The model's function-call turns are replayed verbatim
+  within a turn, because Gemini 3 attaches thought signatures that must be sent back.
+
 ## Data isolation
 
 Every user's goal and food entries are private to them. This was audited deliberately rather
@@ -661,6 +751,9 @@ than assumed:
 - **Import is scoped the same way.** Confirm saves under the session user, ignores any `userId`
   in the body, and only checks the caller's own entries for duplicates
   (`t-backend/tests/foodEntryImport.test.ts` covers all three).
+- **Chat is scoped the same way.** History and context are read by `{ userId }`, and every
+  chat tool is bound to the session user on the server. `t-backend/tests/chat.test.ts` checks
+  that one user's history never appears in another's.
 - **Verified by test.** `t-backend/tests/dataIsolation.test.ts` (`npm test`) boots the app
   in-process against a throwaway database, creates two users with an entry and a goal each,
   and checks that user A gets `403`/`404` reading, editing or deleting user B's entry (and that
@@ -674,6 +767,18 @@ reveals that the id exists. No field of the entry is ever returned, so this was 
 clearer client errors; switching to a `{ _id, userId }` lookup would make both cases `404`.
 
 ## Known gaps
+
+- Chat automated tests (`t-backend/tests/chat.test.ts`) drive the agent loop with a scripted
+  model: read tools run and return stored numbers, a write becomes a pending action with nothing
+  saved, invalid arguments go back to the model, partial goal changes merge, and the iteration
+  cap holds. The HTTP tests cover validation, `401`, provider-down `503` with the user message
+  rolled back, confirm (tampered args, double confirm, another user's proposal) and history paging and isolation. Against live
+  Gemini, the flow was checked end to end on a throwaway database: a breakfast description became
+  a two-item pending action that saved on confirm, "how am I doing today" and "what did I eat this
+  week" answered with the stored numbers, "change my protein target to 150g" produced a one-field
+  goal diff, a protein question was answered without tools, and a nonsense message got a polite
+  redirect. Replies took 3-5 seconds normally. While Gemini returned 503 "high demand", some turns
+  took 25-50 seconds and two hit the 60-second budget, failing cleanly with `503`.
 
 - Automated tests cover data isolation, multi-item create and edit (totals summed from items,
   client totals ignored), item totals and the legacy-entry migration, PDF import confirm
@@ -700,8 +805,8 @@ clearer client errors; switching to a `{ _id, userId }` lookup would make both c
   check before either writes. The UI disables the button while saving, so this needs a second tab
   or a script; a unique index would close it but would also forbid legitimately logging the same
   food twice in a day.
-- `POST /api/onboarding/plan`, `POST /api/ai/extract-nutrition` and
-  `POST /api/food-entries/import/preview` have no rate limit. Each
+- `POST /api/onboarding/plan`, `POST /api/ai/extract-nutrition`,
+  `POST /api/food-entries/import/preview` and `POST /api/chat` have no rate limit. Each
   call can use Gemini quota (photo extraction especially), so a per-user limit would be worth
   adding before production.
 - Photo nutrition is an estimate. Labels were read exactly in testing, but meal portions are

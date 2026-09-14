@@ -11,6 +11,7 @@ import foodEntryRoutes from './routes/foodEntries';
 import reportRoutes from './routes/reports';
 import onboardingRoutes from './routes/onboarding';
 import aiRoutes from './routes/ai';
+import chatRoutes from './routes/chat';
 import { errorHandler } from './middleware/errorHandler';
 
 /**
@@ -43,6 +44,7 @@ export function createApp(): Express {
   app.use('/api/reports', reportRoutes);
   app.use('/api/onboarding', onboardingRoutes);
   app.use('/api/ai', aiRoutes);
+  app.use('/api/chat', chatRoutes);
 
   app.use(errorHandler);
 

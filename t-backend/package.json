@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "migrate:food-items": "tsx scripts/migrateFoodEntriesToItems.ts",
+    "migrate:chat-confirmations": "tsx scripts/migrateChatConfirmations.ts",
     "lint": "eslint src/",
     "format": "prettier --write \"src/**/*.ts\""
   },

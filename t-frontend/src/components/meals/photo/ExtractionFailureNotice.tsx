@@ -22,27 +22,25 @@ interface ExtractionFailureNoticeProps {
   failure: ExtractionFailure;
   onRetry: () => void;
   onChooseAnother: () => void;
-  onEnterManually: () => void;
 }
 
-/** Explains why a photo could not be used, and offers every way forward, including skipping the photo. */
+/** Explains why a photo could not be used, and offers every way forward. */
 export default function ExtractionFailureNotice({
   previewUrl,
   failure,
   onRetry,
   onChooseAnother,
-  onEnterManually,
 }: ExtractionFailureNoticeProps) {
   return (
-    <div role="alert" className="flex flex-col sm:flex-row gap-4 sm:gap-5">
+    <div role="alert" className="flex flex-row gap-4 sm:gap-5">
       <PhotoThumbnail src={previewUrl} />
 
-      <div className="min-w-0 flex-1 space-y-4">
+      <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
         <div>
           <p className="text-sm font-bold text-error dark:text-error-dark">
             {TITLES[failure.code] ?? "Could not read the photo"}
           </p>
-          <p className="mt-1.5 text-sm font-light leading-relaxed text-text-primary dark:text-dark-text">
+          <p className="mt-1 text-xs sm:text-sm font-light leading-relaxed text-text-primary dark:text-dark-text">
             {failure.message}
           </p>
         </div>
@@ -56,11 +54,9 @@ export default function ExtractionFailureNotice({
           <Button type="button" variant="secondary" size="sm" onClick={onChooseAnother}>
             Choose another photo
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={onEnterManually}>
-            Enter manually
-          </Button>
         </div>
       </div>
     </div>
   );
 }
+
