@@ -608,3 +608,65 @@ store `date`. Totals are rounded to one decimal; micronutrients to three.
 - Response `data`: `[{ "date": "2026-09-08", "actualCalories": 950.4, "targetCalories": 2000 }, ...]`
   - one element per day (zero-filled). `targetCalories` is the current goal's
   `dailyCalorieTarget`, or `null` on every day if no goal is set.
+
+## Chat
+
+All three require authentication. The assistant uses Gemini function calling over the goal, food
+entry, daily intake and report services. Read tools run during the request; writes come back as
+a `pendingAction` that is only carried out by `confirm-action`.
+
+### `POST /api/chat`
+
+Sends one message and returns the assistant's reply. The user message is stored first, then
+removed again if no reply can be produced.
+
+- Body: `{ "message": "I had 2 eggs for breakfast", "today": "2026-09-14" }`
+  - `message` (required) - trimmed, 1 to 2,000 characters.
+  - `today` (optional) - the client's local `YYYY-MM-DD`, used to resolve "today" and relative
+    dates. Ignored if more than a day from the server's UTC date.
+- Response `200` `data`:
+
+```json
+{
+  "userMessage": { "_id": "...", "role": "user", "content": "I had 2 eggs for breakfast", "createdAt": "..." },
+  "assistantMessage": { "_id": "...", "role": "assistant", "content": "Log breakfast for today: Egg x2: 156 kcal (protein 12.6 g, carbs 1.2 g, fat 10.6 g)",
+                        "action": { "tool": "logMeal", "status": "pending" }, "createdAt": "..." },
+  "pendingAction": {
+    "tool": "logMeal",
+    "args": { "mealType": "breakfast", "date": "2026-09-14", "source": "ai-chat",
+              "items": [{ "name": "Egg", "quantity": 2, "unit": "count", "calories": 156,
+                          "macros": { "proteinG": 12.6, "carbG": 1.2, "fatG": 10.6 } }] },
+    "preview": "Log breakfast for today: Egg x2: 156 kcal (protein 12.6 g, carbs 1.2 g, fat 10.6 g)"
+  }
+}
+```
+
+  `pendingAction` is `null` for an ordinary reply, including a clarifying question. For `setGoal`,
+  `args` is the complete goal (`dailyCalorieTarget`, `proteinTargetG`, `carbTargetG`, `fatTargetG`,
+  optional `weightGoalKg`) with the changed targets applied over the saved ones.
+- Errors: `400` validation; `503 AI_UNAVAILABLE` (no key or model answered within 60 seconds);
+  `422 CHAT_REJECTED` (the provider refused the request); `502 AI_BAD_RESPONSE` (empty reply);
+  `502 CHAT_STEP_LIMIT` (no answer after 5 model calls).
+
+### `POST /api/chat/confirm-action`
+
+Carries out a pending action the user confirmed. `args` is validated again against the schema of
+`POST /api/food-entries` (`logMeal`) or `POST /api/goals` (`setGoal`); the client copy is never
+trusted. The proposing reply is marked `action.status: "confirmed"`; no new message is stored.
+
+- Body: `{ "messageId": "...", "tool": "logMeal" | "setGoal", "args": { ... } }` - `messageId` is
+  the `assistantMessage._id` that carried the `pendingAction`; `tool` and `args` exactly as
+  received.
+- Response `201` `data`: `{ "tool": "logMeal", "message": ChatMessage, "foodEntry": FoodEntry }` or
+  `{ "tool": "setGoal", "message": ChatMessage, "goal": Goal }`, where `message` is the proposal
+  with its updated `action`. Meals are saved with `source: "ai-chat"`.
+- Errors: `400` for a missing or malformed `messageId`, an unknown tool or a non-object `args`;
+  `400 INVALID_CHAT_ACTION` when `args` no longer validates; `404 ACTION_NOT_FOUND` when the message
+  is not the caller's proposal for that tool; `409 ACTION_ALREADY_CONFIRMED` when it was already
+  confirmed. Nothing is saved in any of these cases.
+
+### `GET /api/chat/history`
+
+- Query: `page` (default `1`), `limit` (default `20`, max `100`).
+- Response: the standard pagination envelope, `data` holding `ChatMessage` records sorted by
+  `createdAt` descending, so page 1 is the most recent and "load earlier" requests the next page.

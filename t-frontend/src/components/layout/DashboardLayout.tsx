@@ -11,6 +11,8 @@ import SidebarProfile from "./SidebarProfile";
 
 interface DashboardLayoutProps {
   children: ReactNode;
+  /** Hands the page the whole viewport, unpadded, for screens that manage their own scrolling (e.g. chat). */
+  fullHeight?: boolean;
 }
 
 const TOGGLE_BUTTON_CLASSES =
@@ -21,7 +23,7 @@ const TOGGLE_BUTTON_CLASSES =
  * it can be retracted to an icon rail, and slides in over the content below
  * that, where a fixed 16rem column would leave nothing for the page itself.
  */
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, fullHeight = false }: DashboardLayoutProps) {
   const { user, loading } = useAuth();
   const { expanded, hydrated, toggle } = useSidebarExpansion();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -103,11 +105,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           hydrated ? "transition-[margin] duration-300 ease-[cubic-bezier(0.2,1,0.2,1)]" : ""
         }`}
       >
-        <div className="px-4 py-5 sm:px-8 sm:py-8 lg:p-12">
-          <div className="w-full max-w-5xl mx-auto space-y-6 sm:space-y-12 pb-24">
-            {children}
+        {fullHeight ? (
+          <div className="h-[calc(100dvh-3.5rem)] lg:h-dvh">{children}</div>
+        ) : (
+          <div className="px-4 py-5 sm:px-8 sm:py-8 lg:p-12">
+            <div className="w-full max-w-5xl mx-auto space-y-6 sm:space-y-12 pb-24">
+              {children}
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

@@ -1,5 +1,6 @@
 import { aiApi } from "./aiApi";
 import { authApi } from "./authApi";
+import { chatApi } from "./chatApi";
 import { importApi } from "./importApi";
 import { nutritionApi } from "./nutritionApi";
 import { onboardingApi } from "./onboardingApi";
@@ -9,6 +10,7 @@ import { reportsApi } from "./reportsApi";
 export const api = {
   ...aiApi,
   ...authApi,
+  ...chatApi,
   ...importApi,
   ...nutritionApi,
   ...onboardingApi,

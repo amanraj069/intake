@@ -75,40 +75,59 @@ function buildUserParts(request: StructuredGenerationRequest) {
   return [...imageParts, { text: request.prompt }];
 }
 
-async function postGenerateContent(
+/**
+ * POSTs one `generateContent` request and returns the parsed success payload.
+ * Transport failures and non-2xx responses surface as typed Gemini errors, so
+ * the failover loop can decide whether another key or model is worth trying.
+ */
+export async function postGenerateContent(
   model: string,
   apiKey: string,
-  request: StructuredGenerationRequest,
-  deadline: AbortSignal
-): Promise<Response> {
+  requestBody: Record<string, unknown>,
+  deadline: AbortSignal,
+  attemptTimeoutMs: number = ATTEMPT_TIMEOUT_MS
+): Promise<unknown> {
   if (deadline.aborted) {
     throw new GeminiUnavailableError('The Gemini time budget ran out before a key succeeded');
   }
 
-  const attemptTimeoutMs = request.attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS;
-
+  let response: Response;
   try {
-    return await fetch(`${API_BASE}/${model}:generateContent`, {
+    response = await fetch(`${API_BASE}/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       signal: AbortSignal.any([deadline, AbortSignal.timeout(attemptTimeoutMs)]),
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: request.systemInstruction }] },
-        contents: [{ role: 'user', parts: buildUserParts(request) }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: 'application/json',
-          responseSchema: request.responseSchema,
-          // Extended reasoning adds several seconds and buys little for a
-          // bounded, schema-constrained answer the caller validates anyway.
-          thinkingConfig: { thinkingLevel: 'low' },
-        },
-      }),
+      body: JSON.stringify(requestBody),
     });
   } catch (cause) {
     const reason = cause instanceof Error ? cause.message : 'network error';
     throw new GeminiRequestError(`Gemini request did not complete: ${reason}`, 'unavailable');
   }
+
+  if (!response.ok) {
+    throw await toGeminiRequestError(response);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    throw new GeminiRequestError('Gemini returned a body that is not JSON', 'bad-response');
+  }
+}
+
+function buildStructuredRequestBody(request: StructuredGenerationRequest): Record<string, unknown> {
+  return {
+    systemInstruction: { parts: [{ text: request.systemInstruction }] },
+    contents: [{ role: 'user', parts: buildUserParts(request) }],
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: 'application/json',
+      responseSchema: request.responseSchema,
+      // Extended reasoning adds several seconds and buys little for a
+      // bounded, schema-constrained answer the caller validates anyway.
+      thinkingConfig: { thinkingLevel: 'low' },
+    },
+  };
 }
 
 function extractJson(payload: GenerateContentResponse): unknown {
@@ -127,47 +146,41 @@ function extractJson(payload: GenerateContentResponse): unknown {
   }
 }
 
-async function generateWithModel(
-  model: string,
-  apiKey: string,
-  request: StructuredGenerationRequest,
-  deadline: AbortSignal
-): Promise<unknown> {
-  const response = await postGenerateContent(model, apiKey, request, deadline);
-
-  if (!response.ok) {
-    throw await toGeminiRequestError(response);
-  }
-
-  return extractJson((await response.json()) as GenerateContentResponse);
-}
-
 function canTryNextModel(cause: unknown): boolean {
   if (cause instanceof GeminiKeysExhaustedError) return true;
   return cause instanceof GeminiRequestError && cause.canSwitchModel;
 }
 
+/** One attempt against a specific model and key, sharing the caller's overall deadline. */
+export type ModelAttempt<TResult> = (
+  model: string,
+  apiKey: string,
+  deadline: AbortSignal
+) => Promise<TResult>;
+
 /**
- * Asks Gemini for JSON matching `responseSchema`, failing over across keys and
- * models. Key-specific failures (quota, bad key) rotate keys; an overloaded or
- * missing model moves straight to the next model on the same key, since other
- * keys would hit the same shared capacity. Resolves with the parsed but
- * *unvalidated* JSON: the caller owns the domain rules for what is acceptable.
+ * Runs `attempt` across every configured model and key until one succeeds.
+ * Key-specific failures (quota, bad key) rotate keys; an overloaded or missing
+ * model moves straight to the next model on the same key, since other keys
+ * would hit the same shared capacity.
  *
  * @throws GeminiUnavailableError when no key/model combination succeeds in time.
  * @throws GeminiRequestError with kind `invalid-request` when the request itself is wrong.
  */
-export async function generateStructuredJson(request: StructuredGenerationRequest): Promise<unknown> {
+export async function runAcrossModels<TResult>(
+  totalBudgetMs: number,
+  attempt: ModelAttempt<TResult>
+): Promise<TResult> {
   const pool = getKeyPool();
   if (pool.size === 0) {
     throw new GeminiUnavailableError('No Gemini API keys are configured (GEMINI_KEY1, GEMINI_KEY2, ...)');
   }
 
-  const deadline = AbortSignal.timeout(request.totalBudgetMs ?? TOTAL_BUDGET_MS);
+  const deadline = AbortSignal.timeout(totalBudgetMs);
 
   for (const model of getModels()) {
     try {
-      return await pool.run((apiKey) => generateWithModel(model, apiKey, request, deadline));
+      return await pool.run((apiKey) => attempt(model, apiKey, deadline));
     } catch (cause) {
       if (!canTryNextModel(cause)) throw cause;
       console.warn(`[Gemini] Model ${model} could not serve the request: ${(cause as Error).message}`);
@@ -175,4 +188,21 @@ export async function generateStructuredJson(request: StructuredGenerationReques
   }
 
   throw new GeminiUnavailableError('Every configured Gemini model and key failed');
+}
+
+/**
+ * Asks Gemini for JSON matching `responseSchema`, failing over across keys and
+ * models (see `runAcrossModels`). Resolves with the parsed but *unvalidated*
+ * JSON: the caller owns the domain rules for what is acceptable.
+ *
+ * @throws GeminiUnavailableError when no key/model combination succeeds in time.
+ * @throws GeminiRequestError with kind `invalid-request` when the request itself is wrong.
+ */
+export async function generateStructuredJson(request: StructuredGenerationRequest): Promise<unknown> {
+  const requestBody = buildStructuredRequestBody(request);
+
+  return runAcrossModels(request.totalBudgetMs ?? TOTAL_BUDGET_MS, async (model, apiKey, deadline) => {
+    const payload = await postGenerateContent(model, apiKey, requestBody, deadline, request.attemptTimeoutMs);
+    return extractJson(payload as GenerateContentResponse);
+  });
 }

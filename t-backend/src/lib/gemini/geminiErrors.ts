@@ -53,9 +53,14 @@ export class GeminiRequestError extends Error {
     return KEY_ROTATABLE_KINDS.has(this.kind);
   }
 
-  /** Whether the model itself is the problem, so the next model should be tried. */
+  /** Whether a different model might succeed where this one failed. */
   get canSwitchModel(): boolean {
-    return this.kind === 'model-unavailable' || this.kind === 'model-overloaded';
+    return (
+      this.kind === 'model-unavailable' ||
+      this.kind === 'model-overloaded' ||
+      this.kind === 'unavailable' ||
+      this.kind === 'bad-response'
+    );
   }
 }
 

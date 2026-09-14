@@ -67,6 +67,26 @@ export function LogMealIcon(props: IconProps) {
   );
 }
 
+/** A square-cornered speech bubble with two lines of text, for the assistant thread. */
+export function AssistantIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 4h18v13H10l-5 4v-4H3z" />
+      <path d="M7.5 9h9" />
+      <path d="M7.5 12.5h5" />
+    </Icon>
+  );
+}
+
+export function SendIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 20V5" />
+      <path d="M5 12l7-7 7 7" />
+    </Icon>
+  );
+}
+
 export function MenuIcon(props: IconProps) {
   return (
     <Icon {...props} strokeWidth={2.5}>
@@ -355,6 +375,33 @@ export function RefreshIcon(props: IconProps) {
       <path d="M3 12a9 9 0 0 1 15.5-6.7L21 8" />
       <path d="M3 22v-6h6" />
       <path d="M21 12a9 9 0 0 1-15.5 6.7L3 16" />
+    </Icon>
+  );
+}
+
+/** Four-pointed sparkle icon for the AI assistant avatar. */
+export function SparkleIcon(props: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      stroke="none"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M12 2l2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4z" />
+      <path d="M18 3l1 2.5L21.5 6.5 19 7.5 18 10l-1-2.5L14.5 6.5 17 5.5z" opacity={0.6} />
+    </svg>
+  );
+}
+
+/** Image/photo attachment icon for the chat composer. */
+export function ImageAttachIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="M21 15l-5-5-8 8" />
     </Icon>
   );
 }

@@ -78,7 +78,6 @@ export default function PhotoExtractPanel({
           failure={failure}
           onRetry={handleRetry}
           onChooseAnother={choosePhoto}
-          onEnterManually={handleEnterManually}
         />
       );
     }
