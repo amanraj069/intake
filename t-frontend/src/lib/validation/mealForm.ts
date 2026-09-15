@@ -28,6 +28,7 @@ export type { MicronutrientRow } from "./micronutrientRows";
 export interface MealDetails {
   mealType: MealType;
   date: string;
+  time?: string;
   /** Only edited for a meal of several dishes; a single food is named by the food itself. */
   name: string;
 }
@@ -64,7 +65,7 @@ export interface ItemFormErrors {
   microsSummary?: string;
 }
 
-type MealFieldName = "date" | "items" | "name";
+type MealFieldName = "date" | "time" | "items" | "name";
 
 export interface MealFormErrors {
   fields: FieldErrors<MealFieldName>;
@@ -126,7 +127,12 @@ export function modeFor(name: string | undefined, items: readonly Pick<FoodItemI
 /** Opens the form on exactly what was stored. */
 export function entryToFormState(entry: FoodEntry): MealFormState {
   return {
-    details: { mealType: entry.mealType, date: toDateInputValue(entry.date), name: entry.name },
+    details: {
+      mealType: entry.mealType,
+      date: toDateInputValue(entry.date),
+      time: entry.time ?? "",
+      name: entry.name,
+    },
     items: entry.items.map(itemToFormValues),
     mode: modeFor(entry.name, entry.items),
   };
@@ -184,6 +190,13 @@ function findDetailErrors(details: MealDetails, itemCount: number, mode: EntryMo
   if (!details.date.trim()) errors.date = "Date is required";
   else if (Number.isNaN(Date.parse(details.date))) errors.date = "Enter a valid date";
 
+  if (details.time && details.time.trim()) {
+    const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!timeRegex.test(details.time.trim())) {
+      errors.time = "Enter time in HH:mm format";
+    }
+  }
+
   if (mode === "multiple" && details.name.trim().length > LIMITS.itemNameLength) errors.name = "Meal name is too long";
 
   if (itemCount === 0) errors.items = "Add at least one item";
@@ -218,6 +231,7 @@ export function validateMealForm(
     payload: {
       mealType: details.mealType,
       date: details.date,
+      time: details.time?.trim() || undefined,
       // A single food is named by itself; a blank meal name lets the server name it after its dishes.
       name: mode === "single" ? payloadItems[0].name : details.name.trim() || undefined,
       items: payloadItems,

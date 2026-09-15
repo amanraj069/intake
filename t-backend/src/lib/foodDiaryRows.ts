@@ -98,6 +98,7 @@ function findMissingValueIssues(values: ImportRowValues): string[] {
 function findEstimateIssues(row: AiDiaryRow, items: readonly ImportItemValues[]): string[] {
   const issues: string[] = [];
   const estimated = items.filter((_, index) => row.items[index]?.quantityEstimated);
+  const nutritionEstimated = items.filter((_, index) => row.items[index]?.nutritionEstimated);
 
   if (row.nutritionSplitEstimated && items.length > 1) {
     issues.push(
@@ -106,6 +107,9 @@ function findEstimateIssues(row: AiDiaryRow, items: readonly ImportItemValues[])
   }
   if (estimated.length > 0) {
     issues.push(`The amount of ${listNames(estimated)} is estimated: the PDF gives a household measure, not a weight.`);
+  }
+  if (nutritionEstimated.length > 0) {
+    issues.push(`Nutrition for ${listNames(nutritionEstimated)} was estimated by AI: verify before importing.`);
   }
 
   return issues;

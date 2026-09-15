@@ -1,5 +1,6 @@
 import { GeminiResponseSchema, postGenerateContent, runAcrossModels } from './geminiClient';
 import { GeminiRequestError } from './geminiErrors';
+import { postStreamGenerateContent } from './geminiStream';
 
 /**
  * Gemini's native function-calling dialect: multi-turn `contents`, tool
@@ -52,8 +53,15 @@ export interface ConversationTurnRequest {
   totalBudgetMs: number;
 }
 
+export interface ConversationStreamCallbacks {
+  onTextDelta?: (delta: string) => void;
+}
+
 /** Produces the model's next turn. Injectable so the agent loop can be tested without the network. */
-export type ConversationTurnGenerator = (request: ConversationTurnRequest) => Promise<GeminiContent>;
+export type ConversationTurnGenerator = (
+  request: ConversationTurnRequest,
+  callbacks?: ConversationStreamCallbacks
+) => Promise<GeminiContent>;
 
 interface ConversationResponsePayload {
   candidates?: { content?: { parts?: GeminiPart[] }; finishReason?: string }[];
@@ -98,6 +106,54 @@ export const generateConversationTurn: ConversationTurnGenerator = (request) => 
   });
 };
 
+/**
+ * Streaming version of `generateConversationTurn`: calls Gemini's SSE endpoint
+ * and invokes `callbacks.onTextDelta` in real-time as text tokens arrive,
+ * while still collecting and returning the complete `GeminiContent` for tool
+ * calls, thought signatures, and history.
+ */
+export const generateConversationTurnStream: ConversationTurnGenerator = (request, callbacks) => {
+  const requestBody = buildConversationBody(request);
+
+  return runAcrossModels(request.totalBudgetMs, async (model, apiKey, deadline) => {
+    const accumulatedParts: GeminiPart[] = [];
+
+    await postStreamGenerateContent(
+      model,
+      apiKey,
+      requestBody,
+      deadline,
+      (chunk) => {
+        const candidate = chunk.candidates?.[0];
+        const parts = candidate?.content?.parts ?? [];
+
+        for (const part of parts) {
+          if (typeof part.text === 'string') {
+            if (!part.thought) {
+              callbacks?.onTextDelta?.(part.text);
+            }
+            const lastPart = accumulatedParts[accumulatedParts.length - 1];
+            if (lastPart && typeof lastPart.text === 'string' && Boolean(lastPart.thought) === Boolean(part.thought)) {
+              lastPart.text += part.text;
+            } else {
+              accumulatedParts.push({ ...part });
+            }
+          } else {
+            accumulatedParts.push({ ...part });
+          }
+        }
+      },
+      request.attemptTimeoutMs
+    );
+
+    if (accumulatedParts.length === 0) {
+      throw new GeminiRequestError('Gemini returned an empty stream turn', 'bad-response');
+    }
+
+    return { role: 'model', parts: accumulatedParts };
+  });
+};
+
 export function functionCallsIn(content: GeminiContent): GeminiFunctionCall[] {
   return content.parts.flatMap((part) => (part.functionCall ? [part.functionCall] : []));
 }
@@ -108,3 +164,4 @@ export function textIn(content: GeminiContent): string {
     .join('')
     .trim();
 }
+

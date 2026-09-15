@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 
 import { FoodEntry } from '../models/FoodEntry';
+import { IGoalDocument } from '../models/Goal';
 import {
   CalendarDay,
   daysBefore,
@@ -198,6 +199,21 @@ export interface GoalComparisonPoint {
   targetCalories: number | null;
 }
 
+/**
+ * The target active on `date`, from whichever goal version's range covers it.
+ * Null before the user's first goal existed, so old days show no target
+ * rather than one that did not apply yet.
+ */
+function targetCaloriesOn(
+  date: CalendarDay,
+  goalVersions: readonly Pick<IGoalDocument, 'startDate' | 'endDate' | 'dailyCalorieTarget'>[]
+): number | null {
+  const active = goalVersions.find(
+    (goal) => goal.startDate <= date && (goal.endDate === null || date < goal.endDate)
+  );
+  return active ? active.dailyCalorieTarget : null;
+}
+
 export async function getGoalComparison(
   userId: string,
   startDate?: CalendarDay,
@@ -205,20 +221,19 @@ export async function getGoalComparison(
 ): Promise<GoalComparisonPoint[]> {
   const { start, end } = resolveRange(startDate, endDate, 7);
 
-  const [rows, goal] = await Promise.all([
+  const [rows, goalVersions] = await Promise.all([
     FoodEntry.aggregate<{ _id: CalendarDay; actualCalories: number }>([
       { $match: matchBetween(userId, start, end) },
       { $group: { _id: DAY_KEY, actualCalories: { $sum: '$calories' } } },
     ]),
-    goalService.findGoalByUserId(userId),
+    goalService.findGoalsOverlappingRange(userId, start, end),
   ]);
 
-  const targetCalories = goal ? goal.dailyCalorieTarget : null;
   const rowMap = new Map(rows.map((r) => [r._id, roundToTenth(r.actualCalories)]));
 
   return enumerateCalendarDays(start, end).map((date) => ({
     date,
     actualCalories: rowMap.get(date) ?? 0,
-    targetCalories,
+    targetCalories: targetCaloriesOn(date, goalVersions),
   }));
 }

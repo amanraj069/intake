@@ -9,13 +9,13 @@ export type ChatActionTool = ChatWriteTool | "estimateNutrition";
 
 /**
  * Stored on a reply that proposed a change, or that estimated a meal's
- * nutrition without saving anything. A cancelled proposal is never reported,
- * so it stays pending; an estimate is never confirmed, since it only answered
- * a question. `args` is missing on replies stored before the server kept them.
+ * nutrition without saving anything. A proposal stays pending until the user
+ * confirms or cancels it; an estimate is never confirmed, since it only
+ * answered a question. `args` is missing on replies stored before the server kept them.
  */
 export interface StoredChatAction {
   tool: ChatActionTool;
-  status: "pending" | "confirmed" | "estimate";
+  status: "pending" | "confirmed" | "cancelled" | "estimate";
   args?: Record<string, unknown>;
 }
 
@@ -85,9 +85,11 @@ export interface ChatThreadMessage {
   content: string;
   /** The Cloudinary photo, or a local preview URL while the message is still sending. */
   imageUrl: string | null;
-  delivery: "sent" | "sending" | "failed";
+  delivery: "sent" | "sending" | "streaming" | "failed";
   failure: ChatMessageFailure | null;
   /** When a reply was last started for it; null until the server has stored it. */
   replyRequestedAt: string | null;
   action: ChatThreadAction | null;
+  /** Shown while the model is executing tools, before text starts streaming. */
+  statusMessage?: string | null;
 }

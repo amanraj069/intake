@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "@/lib/api";
+import type { ChatStreamCallbacks } from "@/lib/chatApi";
 import { toAiRequestFailure } from "@/lib/aiRequestFailure";
 import {
   hasUndecidedAction,
@@ -51,6 +52,13 @@ export function useChatThread() {
   const localIdCounter = useRef(0);
   /** Photos of messages the server never stored, kept so "Try again" can upload them again. */
   const unsentImages = useRef(new Map<string, File>());
+  const activeAbortController = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      activeAbortController.current?.abort();
+    };
+  }, []);
 
   const awaitingReply = useAwaitedReply(messages, setMessages, !history.loading);
 
@@ -58,23 +66,105 @@ export function useChatThread() {
   // A reply still being produced after a reload means the user was mid-conversation: reopen it rather than hide it.
   if (awaitingReply && !showingPreviousChats) setShowingPreviousChats(true);
 
-  const runReplyRequest = useCallback(
-    async (message: ChatThreadMessage, request: () => Promise<{ data?: ChatExchange }>) => {
+  const runStreamingReplyRequest = useCallback(
+    async (
+      userMessage: ChatThreadMessage,
+      streamRequest: (callbacks: ChatStreamCallbacks, signal?: AbortSignal) => Promise<{ data?: ChatExchange }>
+    ) => {
       setSending(true);
+      const streamingReplyId = `streaming-reply-${userMessage.id}`;
+      const controller = new AbortController();
+      activeAbortController.current?.abort();
+      activeAbortController.current = controller;
+
+      const callbacks: ChatStreamCallbacks = {
+        onStatus: (status: string) => {
+          setMessages((current) => {
+            const existing = current.find((m) => m.id === streamingReplyId);
+            if (existing) {
+              return current.map((m) =>
+                m.id === streamingReplyId ? { ...m, statusMessage: status } : m
+              );
+            }
+            const userIndex = current.findIndex((m) => m.id === userMessage.id);
+            const streamingMessage: ChatThreadMessage = {
+              id: streamingReplyId,
+              role: "assistant",
+              content: "",
+              imageUrl: null,
+              delivery: "streaming",
+              failure: null,
+              replyRequestedAt: null,
+              action: null,
+              statusMessage: status,
+            };
+            if (userIndex === -1) return [...current, streamingMessage];
+            return [
+              ...current.slice(0, userIndex + 1),
+              streamingMessage,
+              ...current.slice(userIndex + 1),
+            ];
+          });
+        },
+        onToken: (delta: string) => {
+          setMessages((current) => {
+            const existing = current.find((m) => m.id === streamingReplyId);
+            if (existing) {
+              return current.map((m) =>
+                m.id === streamingReplyId
+                  ? { ...m, content: m.content + delta, statusMessage: null }
+                  : m
+              );
+            }
+            const userIndex = current.findIndex((m) => m.id === userMessage.id);
+            const streamingMessage: ChatThreadMessage = {
+              id: streamingReplyId,
+              role: "assistant",
+              content: delta,
+              imageUrl: null,
+              delivery: "streaming",
+              failure: null,
+              replyRequestedAt: null,
+              action: null,
+              statusMessage: null,
+            };
+            if (userIndex === -1) return [...current, streamingMessage];
+            return [
+              ...current.slice(0, userIndex + 1),
+              streamingMessage,
+              ...current.slice(userIndex + 1),
+            ];
+          });
+        },
+      };
+
       try {
-        const { data } = await request();
+        const { data } = await streamRequest(callbacks, controller.signal);
         if (!data) throw new Error("The server did not return a reply");
-        releaseLocalPreview(message);
-        unsentImages.current.delete(message.id);
-        setMessages((current) => replaceThreadMessage(current, message.id, toExchangeMessages(data)));
+        releaseLocalPreview(userMessage);
+        unsentImages.current.delete(userMessage.id);
+        setMessages((current) => {
+          const withoutStreaming = current.filter((m) => m.id !== streamingReplyId);
+          return replaceThreadMessage(withoutStreaming, userMessage.id, toExchangeMessages(data));
+        });
       } catch (cause) {
-        const failed = toFailedMessage(message, cause);
-        if (failed.id !== message.id) {
-          releaseLocalPreview(message);
-          unsentImages.current.delete(message.id);
+        if ((cause as { name?: string })?.name === "AbortError") {
+          setMessages((current) => current.filter((m) => m.id !== streamingReplyId));
+          return;
         }
-        setMessages((current) => replaceThreadMessage(current, message.id, [failed]));
+        const failed = toFailedMessage(userMessage, cause);
+        if (failed.id !== userMessage.id) {
+          releaseLocalPreview(userMessage);
+          unsentImages.current.delete(userMessage.id);
+        }
+        setMessages((current) => {
+          const withoutStreaming = current.filter((m) => m.id !== streamingReplyId);
+          return replaceThreadMessage(withoutStreaming, userMessage.id, [failed]);
+        });
       } finally {
+        if (activeAbortController.current === controller) {
+          activeAbortController.current = null;
+        }
         setSending(false);
       }
     },
@@ -93,13 +183,16 @@ export function useChatThread() {
         failure: null,
         replyRequestedAt: null,
         action: null,
+        statusMessage: null,
       };
       if (image) unsentImages.current.set(localId, image);
 
       setMessages((current) => [...current, optimistic]);
-      return runReplyRequest(optimistic, () => api.sendChatMessage(text, image));
+      return runStreamingReplyRequest(optimistic, (callbacks, signal) =>
+        api.sendChatMessageStream(text, image, callbacks, signal)
+      );
     },
-    [runReplyRequest, setMessages]
+    [runStreamingReplyRequest, setMessages]
   );
 
   /** A stored message is answered again in place; one the server never stored is sent again from scratch. */
@@ -118,9 +211,11 @@ export function useChatThread() {
 
       const retrying: ChatThreadMessage = { ...target, delivery: "sending", failure: null };
       setMessages((current) => replaceThreadMessage(current, messageId, [retrying]));
-      void runReplyRequest(retrying, () => api.retryChatMessage(messageId));
+      void runStreamingReplyRequest(retrying, (callbacks, signal) =>
+        api.retryChatMessageStream(messageId, callbacks, signal)
+      );
     },
-    [messages, runReplyRequest, send, setMessages]
+    [messages, runStreamingReplyRequest, send, setMessages]
   );
 
   /** Removes a message the server never stored and hands its text back, so the user can edit it before resending. */
@@ -159,11 +254,28 @@ export function useChatThread() {
     [messages, setMessages]
   );
 
+  /** Shows the cancel right away and saves it, so the proposal is not offered again after a reload. */
   const cancelAction = useCallback(
-    (messageId: string) => {
+    async (messageId: string) => {
+      const target = messages.find((message) => message.id === messageId);
+      if (target?.action?.status !== "pending") return;
+
       setMessages((current) => updateThreadAction(current, messageId, { status: "cancelled", error: null }));
+
+      try {
+        await api.cancelChatAction(messageId);
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.code === "ACTION_ALREADY_CANCELLED") return;
+        // Saved elsewhere (another tab) before this cancel arrived: the card should say so.
+        if (cause instanceof ApiError && cause.code === "ACTION_ALREADY_CONFIRMED") {
+          setMessages((current) => updateThreadAction(current, messageId, { status: "confirmed" }));
+          return;
+        }
+        const error = toErrorMessage(cause, "Could not cancel this change. Try again.");
+        setMessages((current) => updateThreadAction(current, messageId, { status: "pending", error }));
+      }
     },
-    [setMessages]
+    [messages, setMessages]
   );
 
   /** The most recently deleted message, kept only long enough for the "Undo" toast to offer it back. */
@@ -218,6 +330,8 @@ export function useChatThread() {
 
   /** Clears the screen for a fresh conversation; everything shown so far joins the previous chats. */
   const startNewChat = useCallback(() => {
+    activeAbortController.current?.abort();
+    activeAbortController.current = null;
     archiveMessages(messages.map((message) => message.id));
     setDeletedMessage(null);
     setShowingPreviousChats(false);
@@ -240,12 +354,13 @@ export function useChatThread() {
     startNewChat,
     /** True while a message sent or retried here, or before a reload, is still waiting for its reply. */
     sending: sending || awaitingReply,
-    awaitingDecision: hasUndecidedAction(messages),
+    // Only a proposal on screen can be decided, so one hidden in previous chats never locks a new chat.
+    awaitingDecision: hasUndecidedAction(visibleMessages),
     send: (text: string, image?: File) => void send(text, image),
     retryFailedMessage: (messageId: string) => retryFailedMessage(messageId),
     takeBackFailedMessage,
     confirmAction: (messageId: string) => void confirmAction(messageId),
-    cancelAction,
+    cancelAction: (messageId: string) => void cancelAction(messageId),
     deleteMessage,
     deletedMessage,
     undoDelete,

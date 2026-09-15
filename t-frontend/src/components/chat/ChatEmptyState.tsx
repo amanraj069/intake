@@ -1,16 +1,23 @@
 "use client";
 
 import { AssistantIcon, ChevronRightIcon, GoalsIcon, LogMealIcon, ReportsIcon, SparkleIcon } from "@/components/icons";
+import { getDefaultMealType } from "@/lib/mealTime";
 
 interface ChatEmptyStateProps {
   onPickPrompt: (prompt: string) => void;
 }
 
-const CAPABILITIES = [
+/** Resolved at click time so the meal matches the current time of day. */
+function logMealPrompt(): string {
+  const mealType = getDefaultMealType();
+  return mealType === "snack" ? "For a snack I had " : `For ${mealType} I had `;
+}
+
+const CAPABILITIES: { label: string; description: string; prompt: string | (() => string); icon: typeof LogMealIcon }[] = [
   {
     label: "Log a meal",
     description: "Track food, drinks, or recipes",
-    prompt: "For breakfast I had ",
+    prompt: logMealPrompt,
     icon: LogMealIcon,
   },
   {
@@ -49,7 +56,7 @@ export default function ChatEmptyState({ onPickPrompt }: ChatEmptyStateProps) {
           <button
             key={label}
             type="button"
-            onClick={() => onPickPrompt(prompt)}
+            onClick={() => onPickPrompt(typeof prompt === "function" ? prompt() : prompt)}
             className="group flex items-center gap-2 sm:gap-4 rounded-xl sm:rounded-2xl border border-border dark:border-dark-border bg-bg-card/80 dark:bg-dark-bg-card/80 backdrop-blur-xs px-2.5 py-2.5 sm:pl-6 sm:pr-4 sm:py-3.5 cursor-pointer transition-all duration-200 ease-out hover:scale-[1.025] hover:shadow-md hover:border-accent/40 dark:hover:border-accent-dark/40 active:scale-[0.98]"
           >
             <Icon className="h-4.5 w-4.5 sm:h-6 sm:w-6 shrink-0 text-accent dark:text-accent-dark transition-[filter] duration-300 group-hover-shimmer group-hover:animate-icon-shimmer" />

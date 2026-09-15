@@ -63,6 +63,7 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onCl
         <p className="text-xs font-medium text-text-secondary dark:text-dark-text-secondary whitespace-nowrap">
           {formatNumericDate(entry.date)}
         </p>
+
       </div>
 
       <div>
@@ -71,7 +72,14 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onCl
         </p>
       </div>
 
-      <div className="min-w-0 pr-2">
+      <div className="min-w-0 pr-2 flex items-center gap-2">
+        {entry.imageUrl && (
+          <img
+            src={entry.imageUrl}
+            alt=""
+            className="w-6 h-6 rounded-md object-cover shrink-0 border border-black/5 dark:border-white/10"
+          />
+        )}
         <p
           className="text-sm font-semibold text-text-primary dark:text-dark-text truncate"
           title={entry.items.map(describeItem).join(", ")}

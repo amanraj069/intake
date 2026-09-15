@@ -78,6 +78,7 @@ function summariseEntry(entry: IFoodEntryDocument) {
 
 const getGoal: ChatReadTool = {
   kind: 'read',
+  statusMessage: 'Checking your goals...',
   declaration: {
     name: 'getGoal',
     description: "Returns the user's current daily calorie and macro targets, or null when no goal is set.",
@@ -90,6 +91,7 @@ const getGoal: ChatReadTool = {
 
 const listMeals: ChatReadTool = {
   kind: 'read',
+  statusMessage: 'Looking up your meals...',
   declaration: {
     name: 'listMeals',
     description: 'Lists logged meals, newest day first, optionally filtered by date range and meal type.',
@@ -118,6 +120,7 @@ const listMeals: ChatReadTool = {
 
 const getTodaySummary: ChatReadTool = {
   kind: 'read',
+  statusMessage: "Looking up today's intake...",
   declaration: {
     name: 'getTodaySummary',
     description:
@@ -135,6 +138,7 @@ const getTodaySummary: ChatReadTool = {
 
 const getWeeklySummary: ChatReadTool = {
   kind: 'read',
+  statusMessage: 'Adding up your week...',
   declaration: {
     name: 'getWeeklySummary',
     description: 'Returns total calories per day across a date range (the last 7 days by default).',
@@ -156,6 +160,7 @@ const getWeeklySummary: ChatReadTool = {
 
 const getMacroBreakdown: ChatReadTool = {
   kind: 'read',
+  statusMessage: 'Breaking down your macros...',
   declaration: {
     name: 'getMacroBreakdown',
     description: 'Returns protein, carb and fat totals grouped by day or ISO week across a date range.',
@@ -173,6 +178,7 @@ const getMacroBreakdown: ChatReadTool = {
 
 const getGoalComparison: ChatReadTool = {
   kind: 'read',
+  statusMessage: 'Comparing your intake with your goal...',
   declaration: {
     name: 'getGoalComparison',
     description: "Returns each day's actual calories next to the goal's calorie target across a date range.",

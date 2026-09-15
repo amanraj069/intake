@@ -27,6 +27,7 @@ export interface ApiResult {
 }
 
 export interface TestServer {
+  baseUrl: string;
   request(user: TestUser | null, method: string, path: string, body?: unknown): Promise<ApiResult>;
   close(): Promise<void>;
 }
@@ -81,7 +82,7 @@ export async function startTestServer(): Promise<TestServer> {
     await mongoose.disconnect();
   }
 
-  return { request, close };
+  return { baseUrl, request, close };
 }
 
 /**

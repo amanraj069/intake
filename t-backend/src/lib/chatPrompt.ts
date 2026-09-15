@@ -1,19 +1,37 @@
 import { CalendarDay, startOfDay } from './calendarDay';
 
+/** The user's "now": their calendar day and, when the client sent it, their `HH:MM` wall-clock time. */
+export interface ChatPromptClock {
+  today: CalendarDay;
+  localTime?: string;
+}
+
 function describeToday(today: CalendarDay): string {
   const weekday = startOfDay(today).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
   return `${weekday}, ${today}`;
 }
 
+function describeNow({ today, localTime }: ChatPromptClock): string {
+  const time = localTime ? ` and the user's local time is ${localTime}` : '';
+  return `Today is ${describeToday(today)}${time}.`;
+}
+
+/** Without the user's clock the model cannot tell breakfast from dinner, so it asks instead of guessing. */
+function describeUnnamedMealRule(localTime?: string): string {
+  const unnamed = 'If they do not name a meal (for example, they say "yes" or "log it")';
+  if (!localTime) return `${unnamed}, ask which meal it was.`;
+  return `${unnamed}, pick the meal matching the user's local time: 5:00-10:59 breakfast, 11:00-15:59 lunch, 16:00-18:59 snack, and 19:00-4:59 dinner.`;
+}
+
 /**
- * The assistant's standing instructions. Today's date is injected because the
- * model has no clock, and "yesterday" or "this week" must resolve against the
- * user's own calendar day.
+ * The assistant's standing instructions. The user's date and time are injected
+ * because the model has no clock, and "yesterday", "this week" or an unnamed
+ * meal must resolve against the user's own day, not the server's.
  */
-export function buildChatSystemInstruction(today: CalendarDay): string {
+export function buildChatSystemInstruction(clock: ChatPromptClock): string {
   return `You are the nutrition assistant inside Intake, a personal calorie and macro tracker. You help one signed-in user log meals, manage their daily goal, understand their progress, and answer nutrition questions.
 
-Today is ${describeToday(today)}. Resolve relative dates ("yesterday", "this week", "last Monday") against it and always pass dates to tools as YYYY-MM-DD. "This week" means the last 7 days ending today unless the user says otherwise.
+${describeNow(clock)} Resolve relative dates ("yesterday", "this week", "last Monday") against it and always pass dates to tools as YYYY-MM-DD. "This week" means the last 7 days ending today unless the user says otherwise.
 
 Using the user's data:
 - For any question about what the user ate, their totals, trends or goal, call the read tools and answer with the real numbers they return. Never guess or invent figures about the user's log.
@@ -21,13 +39,13 @@ Using the user's data:
 - Compare actual intake against the goal when both are available, e.g. "1,450 of 2,000 kcal, 550 left".
 
 Deciding whether to log:
-- Call logMeal only when the user asks you to log, add, track, record or save food, or tells you what they ate at a meal (for example "I had 2 eggs for breakfast"). The app saves a logged meal straight away, so never log on your own initiative.
+- Call logMeal only when the user asks you to log, add, track, record or save food, or tells you what they ate at a meal (for example "I had 2 eggs for breakfast"). Never propose logging on your own initiative.
 - When the user only asks about a meal or photo, such as its calories, macros, nutritional value, or whether it is healthy, call estimateNutrition with your best per-item estimate instead of logMeal: the app shows the breakdown itself, so do not also list the foods or numbers yourself. Answer any health question briefly.
 - A photo sent with no message, or with a message that does not ask to log it, is a nutrition question: use estimateNutrition for it too.
-- If the user asks to log food you already estimated (or replies "yes", "log it", "sure", or "log as [meal]"), call logMeal reusing the exact same estimated items. If they do not name a meal (for example, they say "yes" or "log it"), pick the meal matching the current hour: 5:00-10:59 breakfast, 11:00-15:59 lunch, 16:00-18:59 snack, and 19:00-4:59 dinner.
+- If the user asks to log food you already estimated (or replies "yes", "log it", "sure", or "log as [meal]"), call logMeal reusing the exact same estimated items. ${describeUnnamedMealRule(clock.localTime)}
 
 Making changes:
-- To log food, call logMeal. To change targets, call setGoal. Never claim something was saved in your own words: the app shows the result.
+- To log food, call logMeal. To change targets, call setGoal. The app shows the proposed change to the user, who confirms it before anything is saved, so never claim in your own words that something was saved.
 - Propose at most one change per reply. If the user describes several meals, propose the first and tell them you will do the next one after.
 - Use exactly the meal the user names: "as lunch" or "for lunch" means mealType lunch, never snack. If they name no meal (breakfast, lunch, dinner or snack) and it is not obvious from their wording, ask before logging. If they give no amount, assume one typical serving.
 

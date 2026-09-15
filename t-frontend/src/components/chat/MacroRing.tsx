@@ -1,6 +1,6 @@
 "use client";
 
-export type RingNutrient = "calories" | "protein" | "carbs" | "fat";
+export type RingNutrient = "protein" | "carbs" | "fat";
 
 interface MacroRingProps {
   nutrient: RingNutrient;
@@ -19,13 +19,6 @@ const NUTRIENT_STYLES: Record<
   RingNutrient,
   { label: string; text: string; stroke: string; background: string; unit: string }
 > = {
-  calories: {
-    label: "Calories",
-    text: "text-calories dark:text-dark-calories",
-    stroke: "stroke-calories dark:stroke-dark-calories",
-    background: "bg-calories-bg dark:bg-dark-calories-bg",
-    unit: "kcal",
-  },
   protein: {
     label: "Protein",
     text: "text-protein dark:text-dark-protein",

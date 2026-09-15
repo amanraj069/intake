@@ -4,17 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toErrorMessage } from "@/lib/errorMessage";
 import type {
-  WeeklyCaloriePoint,
   MacroBreakdownPoint,
   MicroSummaryPoint,
   GoalComparisonPoint,
 } from "@/types/nutrition";
 
 interface ReportData {
-  weeklyCalories: WeeklyCaloriePoint[];
+  calorieTrend: GoalComparisonPoint[];
   macros: MacroBreakdownPoint[];
   micros: MicroSummaryPoint[];
-  goalComparison: GoalComparisonPoint[];
 }
 
 interface UseReportDataReturn {
@@ -27,7 +25,7 @@ interface UseReportDataReturn {
 const reportCache = new Map<string, ReportData>();
 
 /**
- * Fetches all four report datasets in parallel for the given date range.
+ * Fetches all report datasets in parallel for the given date range.
  * Caches previous ranges in memory so switching back to 7, 14, or 30 days is instant.
  */
 export function useReportData(
@@ -48,18 +46,16 @@ export function useReportData(
       setError(null);
 
       try {
-        const [wcRes, macroRes, microRes, goalRes] = await Promise.all([
-          api.getWeeklyCalories({ startDate, endDate }),
+        const [goalRes, macroRes, microRes] = await Promise.all([
+          api.getGoalComparison({ startDate, endDate }),
           api.getMacroBreakdown({ startDate, endDate, groupBy: macroGroupBy }),
           api.getMicroSummary({ startDate, endDate }),
-          api.getGoalComparison({ startDate, endDate }),
         ]);
 
         const result: ReportData = {
-          weeklyCalories: wcRes.data ?? [],
+          calorieTrend: goalRes.data ?? [],
           macros: macroRes.data ?? [],
           micros: microRes.data ?? [],
-          goalComparison: goalRes.data ?? [],
         };
 
         reportCache.set(cacheKey, result);

@@ -66,7 +66,7 @@ export default function MealFilters({
                 type="button"
                 onClick={onReset}
                 disabled={isDefault}
-                className="md:hidden h-10 px-3.5 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:hover:bg-red-500/25 border border-red-500/20 dark:border-red-500/30 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                className="md:hidden h-10 px-3.5 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-white/5 text-red-600 dark:text-red-400 hover:bg-black/[0.04] dark:hover:bg-white/10 border border-input-border dark:border-dark-input-border transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                 title="Reset filters"
               >
                 <svg
@@ -93,7 +93,7 @@ export default function MealFilters({
           type="button"
           onClick={onReset}
           disabled={isDefault}
-          className="hidden md:flex h-10 px-4 items-center justify-center gap-1.5 text-xs font-semibold rounded-xl bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:hover:bg-red-500/25 border border-red-500/20 dark:border-red-500/30 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+          className="hidden md:flex h-10 px-4 items-center justify-center gap-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-white/5 text-red-600 dark:text-red-400 hover:bg-black/[0.04] dark:hover:bg-white/10 border border-input-border dark:border-dark-input-border transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
           title="Reset filters"
         >
           <svg

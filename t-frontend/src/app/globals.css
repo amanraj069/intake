@@ -94,8 +94,11 @@
   }
 }
 
-:root {
+html[data-scroll-behavior="smooth"] {
   scroll-behavior: smooth;
+}
+
+:root {
   color-scheme: light;
   --color-icon-shimmer: #ffffff;
   --color-icon-shimmer-glow: rgba(255, 255, 255, 0.85);
@@ -191,9 +194,25 @@ html.dark,
     cursor: not-allowed;
   }
 
+  /* Remove native clock indicator on time inputs so AM/PM is fully visible */
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    display: none !important;
+    -webkit-appearance: none;
+  }
+  input[type="time"]::-webkit-inner-spin-button,
+  input[type="time"]::-webkit-clear-button {
+    display: none !important;
+    -webkit-appearance: none;
+  }
+  input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+  input[type="time"]::-webkit-datetime-edit {
+    padding: 0;
+  }
+
   /* Force native date picker icon to be a pure white SVG in dark mode */
   .dark input[type="date"]::-webkit-calendar-picker-indicator,
-  .dark input[type="time"]::-webkit-calendar-picker-indicator,
   .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
   .calendar-icon-white::-webkit-calendar-picker-indicator {
     background-image: url('data:image/svg+xml;utf8,<svg fill="%23FFFFFF" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7v-5z"/></svg>') !important;

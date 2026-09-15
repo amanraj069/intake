@@ -7,7 +7,8 @@ import { FoodEntry } from '../src/models/FoodEntry';
 import { Goal } from '../src/models/Goal';
 import { AppError } from '../src/middleware/errorHandler';
 import { ConversationTurnGenerator, ConversationTurnRequest, GeminiContent } from '../src/lib/gemini/geminiConversation';
-import { MAX_AGENT_ITERATIONS, runChatTurn, toConversationContents } from '../src/services/chatAgent';
+import { MAX_AGENT_ITERATIONS, runChatTurn } from '../src/services/chatAgent';
+import { toConversationContents } from '../src/services/chat/conversationContents';
 import { extractPublicIdFromUrl } from '../src/lib/cloudinary';
 
 /**
@@ -193,7 +194,7 @@ describe('agent loop', () => {
     assert.equal(result.pendingAction?.tool, 'logMeal');
   });
 
-  test('a partial goal change is merged over the saved goal', async () => {
+  test('a partial goal change is checked against the saved goal but carries only what changes', async () => {
     await server.request(userA, 'POST', '/api/goals', {
       dailyCalorieTarget: 2000, proteinTargetG: 120, carbTargetG: 220, fatTargetG: 70, weightGoalKg: 72,
     });
@@ -204,9 +205,7 @@ describe('agent loop', () => {
       generateTurn: model.generateTurn,
     });
 
-    assert.deepEqual(result.pendingAction?.args, {
-      dailyCalorieTarget: 2000, proteinTargetG: 150, carbTargetG: 220, fatTargetG: 70, weightGoalKg: 72,
-    });
+    assert.deepEqual(result.pendingAction?.args, { proteinTargetG: 150 });
     assert.equal(result.reply, 'Update daily goal: protein 120 g to 150 g');
     assert.equal((await Goal.findOne({ userId: userA.id }))?.proteinTargetG, 120);
   });
@@ -372,6 +371,55 @@ describe('POST /api/chat/confirm-action', () => {
 
     assert.equal(result.status, 201);
     assert.equal((await Goal.findOne({ userId: userA.id }))?.dailyCalorieTarget, 1900);
+  });
+});
+
+describe('POST /api/chat/cancel-action', () => {
+  async function proposeMeal(user: TestUser, status: 'pending' | 'confirmed' = 'pending'): Promise<string> {
+    const proposal = await ChatMessage.create({
+      userId: user.id, role: 'assistant', content: 'Log breakfast for today: Egg x2', action: { tool: 'logMeal', status },
+    });
+    return proposal._id.toString();
+  }
+
+  test('marks a pending proposal cancelled, so it cannot be confirmed afterwards', async () => {
+    const messageId = await proposeMeal(userA);
+
+    const result = await server.request(userA, 'POST', '/api/chat/cancel-action', { messageId });
+
+    assert.equal(result.status, 200);
+    assert.equal(result.body.data.action.status, 'cancelled');
+    const confirm = await server.request(userA, 'POST', '/api/chat/confirm-action', {
+      messageId,
+      tool: 'logMeal',
+      args: {
+        mealType: 'breakfast',
+        date: TODAY,
+        items: [{ name: 'Egg', unit: 'count', quantity: 2, calories: 156, macros: { proteinG: 12.6, carbG: 1.2, fatG: 10.6 } }],
+      },
+    });
+    assert.equal(confirm.status, 409);
+    assert.equal(confirm.body.code, 'ACTION_ALREADY_CANCELLED');
+    assert.equal(await FoodEntry.countDocuments({}), 0);
+  });
+
+  test('refuses to cancel a change that was already saved', async () => {
+    const messageId = await proposeMeal(userA, 'confirmed');
+
+    const result = await server.request(userA, 'POST', '/api/chat/cancel-action', { messageId });
+
+    assert.equal(result.status, 409);
+    assert.equal(result.body.code, 'ACTION_ALREADY_CONFIRMED');
+    assert.equal((await ChatMessage.findById(messageId))?.action?.status, 'confirmed');
+  });
+
+  test("cannot cancel another user's proposal", async () => {
+    const messageId = await proposeMeal(userB);
+
+    const result = await server.request(userA, 'POST', '/api/chat/cancel-action', { messageId });
+
+    assert.equal(result.status, 404);
+    assert.equal((await ChatMessage.findById(messageId))?.action?.status, 'pending');
   });
 });
 

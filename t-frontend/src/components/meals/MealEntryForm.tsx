@@ -13,7 +13,7 @@ import PhotoExtractPanel from "./photo/PhotoExtractPanel";
 import { useAiDraftReview } from "@/hooks/useAiDraftReview";
 import { useMealItems } from "@/hooks/useMealItems";
 import { toErrorMessage } from "@/lib/errorMessage";
-import { todayAsInputValue } from "@/lib/formatDate";
+import { nowAsTimeInputValue, todayAsInputValue } from "@/lib/formatDate";
 import {
   NO_MEAL_FORM_ERRORS,
   entryToFormState,
@@ -62,7 +62,7 @@ import { getDefaultMealType } from "@/lib/mealTime";
 function initialState(entry: FoodEntry | undefined, defaultMealType: MealType | undefined) {
   if (entry) return entryToFormState(entry);
   return {
-    details: { mealType: defaultMealType ?? getDefaultMealType(), date: "", name: "" },
+    details: { mealType: defaultMealType ?? getDefaultMealType(), date: "", time: "", name: "" },
     items: undefined,
     mode: "single" as EntryMode,
   };
@@ -90,15 +90,22 @@ export default function MealEntryForm({
   const draftReview = useAiDraftReview();
 
   useEffect(() => {
-    // Defaulting to today has to happen after mount: the server renders in its
+    // Defaulting to today and current time has to happen after mount: the server renders in its
     // own timezone, so seeding this during render would break hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDetails((current) => (current.date ? current : { ...current, date: todayAsInputValue() }));
+    setDetails((current) => ({
+      ...current,
+      date: current.date || todayAsInputValue(),
+      time: current.time !== undefined && current.time !== "" ? current.time : nowAsTimeInputValue(),
+    }));
   }, []);
 
   function updateDetails(changes: Partial<MealDetails>) {
     setDetails((current) => ({ ...current, ...changes }));
-    setErrors((current) => ({ ...current, fields: { ...current.fields, date: undefined, name: undefined } }));
+    setErrors((current) => ({
+      ...current,
+      fields: { ...current.fields, date: undefined, time: undefined, name: undefined },
+    }));
   }
 
   /** Fills name, items and the mode that shows them, as a photo draft or pasted JSON does. */
@@ -162,7 +169,7 @@ export default function MealEntryForm({
   }
 
   const dateField = (
-    <div className="w-full sm:w-44 min-w-0">
+    <div className="flex-1 sm:w-36 min-w-0">
       <Input
         id="date"
         label="Date eaten"
@@ -172,7 +179,7 @@ export default function MealEntryForm({
         error={errors.fields.date}
         disabled={submitting}
         required
-        className="!h-11 !rounded-xl text-xs sm:text-sm font-medium"
+        className="!h-11 !rounded-xl text-xs sm:text-sm font-medium !px-2.5 sm:!px-3 text-left"
         onChange={(event) => updateDetails({ date: event.target.value })}
       />
     </div>

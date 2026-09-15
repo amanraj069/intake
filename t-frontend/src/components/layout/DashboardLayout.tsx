@@ -4,6 +4,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebarExpansion } from "@/hooks/useSidebarExpansion";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
+import AssistantFab from "./AssistantFab";
 import MobileTopBar from "./MobileTopBar";
 import SidebarHeader from "./SidebarHeader";
 import SidebarNav from "./SidebarNav";
@@ -123,6 +124,8 @@ export default function DashboardLayout({ children, fullHeight = false }: Dashbo
           </div>
         )}
       </main>
+
+      {user && <AssistantFab />}
     </div>
   );
 }

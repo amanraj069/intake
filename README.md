@@ -360,6 +360,14 @@ The backend provides standalone migration scripts:
   # Apply changes:
   npm run migrate:chat-confirmations -- --apply
   ```
+- **Goals Versioning Migration (single overwritten goal to dated versions):** Required only when upgrading a database that has goals written before versioning existed; a clean start needs nothing here.
+  ```bash
+  cd t-backend
+  # Dry-run preview:
+  npm run migrate:goals-versioned
+  # Apply changes:
+  npm run migrate:goals-versioned -- --apply
+  ```
 
 ---
 
@@ -435,15 +443,15 @@ All endpoints return a uniform response envelope:
 
 | Method | Endpoint | Auth Required | Description |
 |---|---|---|---|
-| `GET` | `/api/goals` | Yes | Fetch the authenticated user's active goal (`null` if unset). |
-| `POST` | `/api/goals` | Yes | Create or overwrite the active goal (calories, macros, optional goal weight). |
+| `GET` | `/api/goals` | Yes | Fetch the authenticated user's currently active goal version (`null` if unset). |
+| `POST` | `/api/goals` | Yes | Set the goal (calories, macros, optional goal weight), effective today. Closes out the previous version rather than overwriting it, unless it was already set today. |
 
 #### 4. Food Entries & PDF Import (`/api/food-entries`)
 
 | Method | Endpoint | Auth Required | Description |
 |---|---|---|---|
 | `GET` | `/api/food-entries` | Yes | List paginated food entries with date range and meal type filters. |
-| `GET` | `/api/food-entries/summary` | Yes | Fetch total calories, macros, and active goal for a single calendar day. |
+| `GET` | `/api/food-entries/summary` | Yes | Fetch total calories, macros, and the goal that was active on that specific calendar day. |
 | `GET` | `/api/food-entries/series` | Yes | Fetch day-by-day nutritional totals across a date range. |
 | `GET` | `/api/food-entries/:id` | Yes | Fetch a single food entry by its ID. |
 | `POST` | `/api/food-entries` | Yes | Create a new meal entry with one or more food items. |
@@ -465,7 +473,7 @@ All endpoints return a uniform response envelope:
 | `GET` | `/api/reports/weekly-calories` | Yes | Retrieve daily caloric intake series across a date range. |
 | `GET` | `/api/reports/macros` | Yes | Retrieve protein, carb, and fat distributions grouped by day or ISO week. |
 | `GET` | `/api/reports/micros` | Yes | Retrieve aggregated micronutrient totals across a specified date range. |
-| `GET` | `/api/reports/goal-comparison` | Yes | Retrieve daily calories paired with active goal target lines. |
+| `GET` | `/api/reports/goal-comparison` | Yes | Retrieve daily calories paired with the goal target that was active on each specific day (`null` before any goal existed). |
 
 #### 7. Conversational AI Assistant (`/api/chat`)
 
@@ -474,6 +482,7 @@ All endpoints return a uniform response envelope:
 | `GET` | `/api/chat/history` | Yes | Fetch paginated chat thread messages for the user. |
 | `POST` | `/api/chat` | Yes | Send a message to the assistant (optional photo attachment via multipart). |
 | `POST` | `/api/chat/confirm-action` | Yes | Confirm and execute an assistant action proposal (`logMeal` or `setGoal`). |
+| `POST` | `/api/chat/cancel-action` | Yes | Mark a pending chat proposal as cancelled so it is not offered again. |
 | `POST` | `/api/chat/messages/:messageId/retry` | Yes | Retry generating a response for the latest failed chat message. |
 | `DELETE`| `/api/chat/messages/:messageId` | Yes | Soft-delete a chat message from the user's thread view. |
 | `POST` | `/api/chat/messages/:messageId/restore` | Yes | Restore a previously soft-deleted chat message. |
@@ -515,19 +524,25 @@ Represents an account in the system, supporting both local credentials and Googl
 ```
 
 ### `Goal` Collection
-Defines the user's active daily nutritional targets.
+One document per goal *version*. Updating a goal does not overwrite the row,
+it closes out the current version and opens a new one, so past reports can
+still be compared against the target that was actually active on that day.
 ```typescript
 {
-  userId: ObjectId;               // Unique index (exactly one active goal per user)
+  userId: ObjectId;               // Compound unique index on (userId, startDate)
   dailyCalorieTarget: number;     // Target total energy intake (kcal)
   proteinTargetG: number;         // Target protein intake (grams)
   carbTargetG: number;            // Target carbohydrate intake (grams)
   fatTargetG: number;             // Target fat intake (grams)
   weightGoalKg?: number;          // Optional target body weight (kilograms)
+  startDate: string;              // YYYY-MM-DD, the first day this version is active
+  endDate: string | null;         // YYYY-MM-DD, exclusive end, or null while still active
   createdAt: Date;
   updatedAt: Date;
 }
 ```
+A second index, a partial unique index on `userId` where `endDate` is `null`,
+guarantees at most one *active* version per user at a time.
 
 ### `FoodEntry` Collection
 Represents a logged meal or food intake event, composed of one or more food items.
@@ -587,7 +602,7 @@ Stores turns of the user's conversational thread with the AI assistant.
   imagePublicId?: string;         // Cloudinary asset ID
   action?: {
     tool: 'logMeal' | 'setGoal' | 'estimateNutrition';
-    status: 'pending' | 'confirmed' | 'estimate';
+    status: 'pending' | 'confirmed' | 'cancelled' | 'estimate';
     args?: Record<string, any>;   // Validated payload args for pending proposals
   };
   replyError?: {
@@ -609,9 +624,11 @@ This section explicitly documents all design decisions and assumptions made acro
 
 ### Goals & Target Management
 
-- **Single Active Goal per User:** Users have exactly one active goal at any time, enforced by a unique index on `Goal.userId`. `POST /api/goals` functions as an upsert that replaces the active targets in place. Historical goal versioning is intentionally omitted to keep the daily target model predictable.
-- **Explicit Clearing of Optional Weight Target:** When updating goals, omitting `weightGoalKg` clears the existing target weight in the database rather than preserving a stale value, ensuring the document strictly reflects what was submitted.
-- **Current Goal Comparison for Historical Trends:** Trends and reports compare historical intake against the user's *current active goal*. Because goals are not versioned, past days are evaluated against the current target baseline.
+- **Versioned Goals, One Active at a Time:** `POST /api/goals` does not overwrite a user's goal in place. It closes out the currently active version as of today and opens a new one, so each goal document represents a date range (`startDate` to `endDate`, `endDate: null` while active) rather than a single mutable row. A partial unique index enforces exactly one active (`endDate: null`) version per user, and a compound `(userId, startDate)` unique index means editing the goal again on the same day updates that day's version in place instead of stacking up a second entry for it.
+- **Explicit Clearing of Optional Weight Target:** When updating goals, omitting `weightGoalKg` clears the existing target weight on that version rather than preserving a stale value, ensuring the document strictly reflects what was submitted.
+- **Reports Compare Against the Goal That Was Active on Each Day:** `GET /api/reports/goal-comparison` and the daily summary/series endpoints look up, per day, whichever goal version's `[startDate, endDate)` range covers that date, not the user's current goal. A day before the user's first-ever goal shows a `null` target rather than being backfilled with a later one. This means the same date range can show a step change in the target line if the user changed their goal partway through it, which is intentional: it is what actually happened.
+- **No Backdating via the API:** The goal versioning model supports an arbitrary `effectiveDate` internally, but `POST /api/goals` always uses today's date. Scheduling a goal to start on a future date, or correcting when a past goal "really" started, is not exposed and was not asked for.
+- **Pre-existing Goals Migrated, Not Reset:** Goal documents created before versioning existed did not have `startDate`/`endDate`. `npm run migrate:goals-versioned -- --apply` (in `t-backend/`) backfills `startDate` from each document's original `createdAt` and `endDate: null`, and swaps the old single-field unique index on `userId` for the two described above. It is idempotent and backs up affected documents before writing.
 
 ### Food Entries & Nutritional Modeling
 
@@ -649,12 +666,23 @@ This section explicitly documents all design decisions and assumptions made acro
 
 ### Conversational Assistant & Native Function Calling
 
-- **Session-Bound Function Calling:** Assistant tools (`getTodaySummary`, `logMeal`, `setGoal`, etc.) are bound strictly to the authenticated user ID on the server. The AI model has no access to user IDs and cannot query or mutate data across user boundaries.
-- **Read Tools Execute Automatically; Write Tools Require Confirmation:** Queries for data (intake summaries, goal targets, meal history) execute immediately to enrich the assistant's context. Mutation tools (`logMeal`, `setGoal`) generate a pending proposal card (`pendingAction`), requiring explicit user confirmation before touching the database.
-- **Conversational Meal Logging Convenience:** When the user's message explicitly requests logging a meal, the interface auto-confirms the proposed meal and displays a saved receipt card directly in the conversation.
+**How one message flows (`t-backend/src/services/chatAgent.ts`):**
+
+1. `POST /api/chat` validates the body, resolves the user's local day and time, and stores the user message before calling the model, so the message survives a failed reply.
+2. The last 20 stored messages plus the new one become Gemini `contents`. The model is called with the 9 tool declarations: six read tools (`getGoal`, `listMeals`, `getTodaySummary`, `getWeeklySummary`, `getMacroBreakdown`, `getGoalComparison`), two write tools (`logMeal`, `setGoal`) and one estimate tool (`estimateNutrition`).
+3. A reply with no function calls is the final answer. Otherwise each call is dispatched (`services/chat/toolDispatch.ts`): read tools run at once against the same services the REST endpoints use, and their results go back to the model for another round.
+4. The first valid write or estimate ends the turn without saving anything. Its one-line preview becomes the stored assistant reply and is returned as `pendingAction`.
+5. A write is only saved when the user presses Confirm, which calls `POST /api/chat/confirm-action`. That endpoint validates the args again with the exact schema behind `POST /api/food-entries` or `POST /api/goals`, claims the proposal atomically so a double click cannot save twice, and then calls the regular service.
+
+- **A Plain Bounded Loop Instead of an Agent Framework:** The loop is about 60 lines of explicit code rather than LangGraph or LangChain. The tool set is flat, with no branching between steps, parallel sub-agents or long-running resumable workflows, so a framework would add a dependency and hide the control flow without adding capability. Conversation state is a purpose-built `ChatMessage` collection that renders straight into the UI, not a framework checkpoint that has to be decoded. Tests drive the loop with a scripted model (`ConversationTurnGenerator`), so tool dispatch, confirmation and the iteration cap are checked without a network call.
+- **Session-Bound Function Calling:** Assistant tools are bound strictly to the authenticated user ID on the server. The AI model has no access to user IDs and cannot query or mutate data across user boundaries.
+- **Read Tools Execute Automatically; Every Write Waits for the User:** Queries for data (intake summaries, goal targets, meal history) execute immediately. `logMeal` and `setGoal` only produce a proposal card with Confirm and Cancel, and nothing is written until the user confirms. Cancelling is saved too, so a proposal left undecided (the user switched pages or reloaded) is offered again with Confirm and Cancel when they return. This holds for meals too, so an ambiguous message can never log food on its own. Once confirmed, a meal card turns into a saved receipt.
+- **Goal Proposals Carry Only What Changes:** A goal proposal is checked as the complete goal it would produce, but stores only the targets it changes (for example `{ "proteinTargetG": 150 }`). Confirming lays those over the goal as it is at that moment, so an edit made on the Goals page between the proposal and the confirmation is not reverted.
+- **Failure Handling Inside a Turn:** Invalid tool arguments, an unknown tool name, or a request-level service error (a 4xx) go back to the model as a tool error, so it can correct the call or ask the user. A tool that runs past 10 seconds, an infrastructure failure, a provider outage, or a model that has not answered after 5 calls ends the turn with a clear error code. The whole turn is capped at 60 seconds. The failure is stored on the user message, which the chat offers to retry.
 - **Fresh Start with On-Demand History:** The chat page opens on an empty conversation. Earlier messages stay hidden until "Load previous chats" is pressed, which shows the latest 4; scrolling up to the top loads 4 more at a time. Once opened, history stays on screen while new messages are sent. "New chat" (beside "Photo" in the composer) clears the screen again, but deletes nothing and does not reset the assistant's context. Older pages are fetched with a `before` message id rather than a page number, so messages sent in the meantime never cause repeats or gaps. If a reply was still being produced when the page reloaded, the conversation reopens automatically so the reply is not hidden.
-- **Bounded Conversational Context:** To balance contextual memory with latency and token limits, the backend provides the latest 20 stored messages as context for each new turn.
-- **Client Date Awareness:** Requests transmit the user's local date (`YYYY-MM-DD`) with each turn, allowing the assistant to ground temporal references ("today", "yesterday") to the user's local timezone.
+- **Bounded Conversational Context:** To balance contextual memory with latency and token limits, the backend provides the latest 20 stored messages as context for each new turn. Tool calls and tool results made while producing a reply are not stored; only the visible turns are.
+- **Known Limitation, Unpruned History:** The stored thread itself is never pruned or summarized. It is paged and indexed, so reading it stays fast, and the model only ever sees the latest 20 messages, but the collection grows for as long as an account is used.
+- **Client Date and Time Awareness:** Requests transmit the user's local date (`YYYY-MM-DD`) and time (`HH:MM`) with each turn. The date grounds "today" and "yesterday" in the user's timezone; the time lets "yes, log it" default to the meal matching the time of day. If the date is more than a day away from the server's, both are ignored, and without a time the assistant asks which meal it was.
 
 ### Authentication & Account Security
 

@@ -132,7 +132,7 @@ export async function getDailyIntakeSummary(
 
   const [totals, goal] = await Promise.all([
     sumNutritionForDay(userId, date),
-    goalService.findGoalByUserId(userId),
+    goalService.findGoalForDate(userId, date),
   ]);
 
   return { date, totals, goal };
@@ -141,7 +141,8 @@ export async function getDailyIntakeSummary(
 /**
  * One row per day across an inclusive range, with the goal alongside it, for
  * the dashboard's trend view. Empty days are filled in rather than omitted so
- * the series always has one point per calendar day.
+ * the series always has one point per calendar day. The goal shown is the one
+ * active on `endDate`, since every current caller trends a range ending today.
  */
 export async function getDailyIntakeSeries(
   userId: string,
@@ -150,7 +151,7 @@ export async function getDailyIntakeSeries(
 ): Promise<DailyIntakeSeries> {
   const [totalsByDay, goal] = await Promise.all([
     sumNutritionByDay(userId, startDate, endDate),
-    goalService.findGoalByUserId(userId),
+    goalService.findGoalForDate(userId, endDate),
   ]);
 
   const days = enumerateCalendarDays(startDate, endDate).map((date) => ({

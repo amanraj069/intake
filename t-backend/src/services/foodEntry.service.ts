@@ -60,6 +60,7 @@ export function buildFoodEntryFields(userId: string, input: CreateFoodEntryInput
     name: input.name ?? defaultEntryName(input.items),
     ...buildItemFields(input.items),
     date: new Date(input.date),
+    time: input.time,
     source: input.source ?? 'manual',
     confidenceScore: input.confidenceScore,
     confidenceLevel: input.confidenceLevel,
@@ -94,6 +95,7 @@ function applyFoodEntryUpdate(entry: IFoodEntryDocument, input: UpdateFoodEntryI
   // removed in the UI actually disappears, and the totals are summed afresh.
   if (input.items !== undefined) entry.set(buildItemFields(input.items));
   if (input.date !== undefined) entry.date = new Date(input.date);
+  if (input.time !== undefined) entry.time = input.time;
   if (input.source !== undefined) entry.source = input.source;
   if (input.confidenceScore !== undefined) entry.confidenceScore = input.confidenceScore;
   if (input.confidenceLevel !== undefined) entry.confidenceLevel = input.confidenceLevel;
@@ -171,7 +173,7 @@ export async function listFoodEntries(
 
   const [entries, total] = await Promise.all([
     FoodEntry.find(filter)
-      .sort({ date: -1, createdAt: -1, _id: -1 })
+      .sort({ date: -1, time: -1, createdAt: -1, _id: -1 })
       .skip(toSkipCount(query))
       .limit(query.limit),
     FoodEntry.countDocuments(filter),

@@ -1,16 +1,16 @@
 import { z } from 'zod';
 
 import { AppError } from '../../middleware/errorHandler';
-import { ChatMessage, IChatMessageDocument } from '../../models/ChatMessage';
+import { CHAT_WRITE_TOOLS, ChatMessage, IChatMessageDocument } from '../../models/ChatMessage';
 import { IFoodEntryDocument } from '../../models/FoodEntry';
 import { IGoalDocument } from '../../models/Goal';
 import { ConfirmChatActionInput } from '../../schemas/chat.schema';
 import { CreateFoodEntryInput } from '../../schemas/foodEntry.schema';
-import { UpsertGoalInput } from '../../schemas/goal.schema';
 import * as foodEntryService from '../foodEntry.service';
 import * as goalService from '../goal.service';
 import { describeValidationError } from './chatToolTypes';
-import { logMealArgsSchema, setGoalArgsSchema } from './writeTools';
+import { GoalChanges, applyGoalChanges } from './goalChanges';
+import { logMealArgsSchema, setGoalArgsSchema, setGoalChangesSchema } from './writeTools';
 
 export type ConfirmedChatAction =
   | { tool: 'logMeal'; message: IChatMessageDocument; foodEntry: IFoodEntryDocument }
@@ -43,11 +43,32 @@ async function claimPendingAction(userId: string, action: ConfirmChatActionInput
     { new: true }
   );
   if (claimed) return claimed;
+  throw await toUndecidableError(ownedProposal);
+}
 
-  if (await ChatMessage.exists(ownedProposal)) {
-    throw new AppError('This change has already been saved.', 409, 'ACTION_ALREADY_CONFIRMED');
+/** Why a proposal that is no longer pending cannot be confirmed or cancelled. */
+async function toUndecidableError(ownedProposal: Record<string, unknown>): Promise<AppError> {
+  const proposal = await ChatMessage.findOne(ownedProposal).select({ action: 1 }).lean();
+  if (!proposal) return new AppError('That proposed change could not be found.', 404, 'ACTION_NOT_FOUND');
+  if (proposal.action?.status === 'cancelled') {
+    return new AppError('This change was cancelled.', 409, 'ACTION_ALREADY_CANCELLED');
   }
-  throw new AppError('That proposed change could not be found.', 404, 'ACTION_NOT_FOUND');
+  return new AppError('This change has already been saved.', 409, 'ACTION_ALREADY_CONFIRMED');
+}
+
+/**
+ * Marks a pending proposal as cancelled, so it is not offered again after a
+ * reload. Only a pending proposal qualifies: a saved change stays saved.
+ */
+export async function cancelChatAction(userId: string, messageId: string): Promise<IChatMessageDocument> {
+  const ownedProposal = { _id: messageId, userId, role: 'assistant', 'action.tool': { $in: CHAT_WRITE_TOOLS } };
+  const cancelled = await ChatMessage.findOneAndUpdate(
+    { ...ownedProposal, 'action.status': 'pending' },
+    { $set: { 'action.status': 'cancelled' } },
+    { new: true }
+  );
+  if (cancelled) return cancelled;
+  throw await toUndecidableError(ownedProposal);
 }
 
 /** Hands the proposal back to pending when the write fails, so the user can confirm it again. */
@@ -61,14 +82,21 @@ async function releaseClaim(message: IChatMessageDocument): Promise<void> {
 
 type ValidatedChatAction =
   | { tool: 'logMeal'; entry: CreateFoodEntryInput }
-  | { tool: 'setGoal'; goal: UpsertGoalInput };
+  | { tool: 'setGoal'; changes: GoalChanges };
 
 function validateAction(action: ConfirmChatActionInput): ValidatedChatAction {
   if (action.tool === 'setGoal') {
-    return { tool: 'setGoal', goal: parseActionArgs(setGoalArgsSchema, action.args) };
+    return { tool: 'setGoal', changes: parseActionArgs(setGoalChangesSchema, action.args) };
   }
   // Provenance is the server's call, whatever the echoed args say.
   return { tool: 'logMeal', entry: { ...parseActionArgs(logMealArgsSchema, action.args), source: 'ai-chat' } };
+}
+
+/** Lays the confirmed targets over the goal as it is now, not as it was when proposed, so an edit made in between survives. */
+async function saveGoalChanges(userId: string, changes: GoalChanges): Promise<IGoalDocument> {
+  const currentGoal = await goalService.findGoalByUserId(userId);
+  const goal = parseActionArgs(setGoalArgsSchema, applyGoalChanges(changes, currentGoal));
+  return goalService.upsertGoal(userId, goal);
 }
 
 async function executeAction(
@@ -77,7 +105,7 @@ async function executeAction(
   message: IChatMessageDocument
 ): Promise<ConfirmedChatAction> {
   if (action.tool === 'setGoal') {
-    return { tool: 'setGoal', message, goal: await goalService.upsertGoal(userId, action.goal) };
+    return { tool: 'setGoal', message, goal: await saveGoalChanges(userId, action.changes) };
   }
   return { tool: 'logMeal', message, foodEntry: await foodEntryService.createFoodEntry(userId, action.entry) };
 }

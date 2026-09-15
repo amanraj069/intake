@@ -3,7 +3,7 @@
 import Card from "@/components/ui/Card";
 import DataPair from "@/components/ui/DataPair";
 import { formatItemAmount } from "@/lib/foodItems";
-import { formatLongDate } from "@/lib/formatDate";
+import { formatLongDate, formatTime } from "@/lib/formatDate";
 import type { FoodEntry } from "@/types/nutrition";
 
 interface CreatedEntrySummaryProps {
@@ -20,10 +20,31 @@ export default function CreatedEntrySummary({ entry }: CreatedEntrySummaryProps)
         <p className="text-[10px] font-bold text-text-primary dark:text-dark-text capitalize">Logged: {entry.mealType}</p>
         <p className="text-[10px] font-bold text-text-secondary dark:text-dark-text-secondary">
           {formatLongDate(entry.date)}
+          {entry.time && (
+            <span className="ml-1.5 font-normal text-text-secondary/80 dark:text-dark-text-secondary/80">
+              · {formatTime(entry.time)}
+            </span>
+          )}
         </p>
       </div>
 
-      <h2 className="text-xl font-extrabold text-text-primary dark:text-dark-text">{entry.name}</h2>
+      <div className="flex items-center gap-3.5">
+        {entry.imageUrl && (
+          <img
+            src={entry.imageUrl}
+            alt={entry.name}
+            className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-black/10 dark:border-white/10 shrink-0 shadow-xs"
+          />
+        )}
+        <div className="min-w-0">
+          <h2 className="text-xl font-extrabold text-text-primary dark:text-dark-text truncate">{entry.name}</h2>
+          {entry.source === "ai-image" && (
+            <p className="text-xs text-text-secondary dark:text-dark-text-secondary mt-0.5">
+              Logged via AI photo
+            </p>
+          )}
+        </div>
+      </div>
 
       <ul className="divide-y divide-black/5 dark:divide-white/10">
         {entry.items.map((item, index) => (

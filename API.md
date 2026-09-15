@@ -176,16 +176,22 @@ AI outage therefore never fails this endpoint.
 ### `POST /api/onboarding/complete` (authenticated)
 
 Body: `{ "profile": <body profile>, "targets": { dailyCalorieTarget, proteinTargetG, carbTargetG, fatTargetG } }`.
-Saves the body profile, overwrites the user's goal with `targets` (and `weightGoalKg` set to the
-goal weight), marks onboarding complete, and returns `{ user }`. Safe to call again to recalculate.
+Saves the body profile, sets the user's goal from `targets` (and `weightGoalKg` set to the
+goal weight) effective today, marks onboarding complete, and returns `{ user }`. Safe to call
+again to recalculate.
 
 ## Goals
 
-A user has exactly one active goal. `POST` is an upsert, not an append.
+A user has exactly one *active* goal at a time, but goals are versioned: `POST` does not
+overwrite the active goal in place, it closes that version out as of today and opens a new one.
+Each `Goal` document therefore carries a `startDate`/`endDate` range rather than being a single
+mutable row, so reports can compare a past day against whichever goal was actually active then
+instead of the user's current target. Editing the goal again on the same day updates that day's
+version rather than opening a second one.
 
 ### `GET /api/goals` (authenticated)
 
-Fetch the current user's goal.
+Fetch the current user's active goal version.
 
 - Params: none.
 - Response `200`: `{ data: { goal: Goal | null } }`. `goal` is `null` when the user has not
@@ -193,7 +199,7 @@ Fetch the current user's goal.
 
 ### `POST /api/goals` (authenticated)
 
-Create the current user's goal, or overwrite it if one exists.
+Set the current user's goal, effective today.
 
 - Body:
 
@@ -207,6 +213,8 @@ Create the current user's goal, or overwrite it if one exists.
 
 - Response `200`: `{ data: { goal: Goal } }`.
 - Omitting `weightGoalKg` clears any previously saved value rather than keeping the old one.
+- There is no way to backdate a goal or schedule one for a future date through this endpoint; it
+  always takes effect today.
 
 ```jsonc
 // Goal
@@ -218,6 +226,8 @@ Create the current user's goal, or overwrite it if one exists.
   "carbTargetG": 250,
   "fatTargetG": 75,
   "weightGoalKg": 76.5,   // absent when not set
+  "startDate": "2026-09-12",  // first day this version is active
+  "endDate": null,            // exclusive end date, or null while still active
   "createdAt": "2026-09-12T05:16:18.093Z",
   "updatedAt": "2026-09-12T05:16:18.104Z"
 }
@@ -326,8 +336,8 @@ List the current user's entries, newest day first.
 
 ### `GET /api/food-entries/summary` (authenticated)
 
-One day's totals next to the current user's goal, so an "actual vs target" widget renders
-without a second round trip.
+One day's totals next to the goal that was active *on that day* (not necessarily the user's
+current goal), so an "actual vs target" widget renders without a second round trip.
 
 - Query params: `date` (`YYYY-MM-DD`, optional, defaults to today in UTC).
 - Response `200`:
@@ -347,9 +357,10 @@ without a second round trip.
 
 ### `GET /api/food-entries/series` (authenticated)
 
-Day-by-day totals across a date range with the current user's goal, for the dashboard's
-trend view. Every calendar day in the range is present, so the client plots the series
-without reconstructing missing dates.
+Day-by-day totals across a date range with the goal active on `endDate`, for the dashboard's
+trend view (which always trends up to today, so this is the user's current goal in practice).
+Every calendar day in the range is present, so the client plots the series without
+reconstructing missing dates.
 
 - Query params: `startDate` and `endDate` (both `YYYY-MM-DD`, both required).
 - Response `200`:
@@ -634,14 +645,18 @@ store `date`. Totals are rounded to one decimal; micronutrients to three.
 ### `GET /api/reports/goal-comparison`
 
 - Response `data`: `[{ "date": "2026-09-08", "actualCalories": 950.4, "targetCalories": 2000 }, ...]`
-  - one element per day (zero-filled). `targetCalories` is the current goal's
-  `dailyCalorieTarget`, or `null` on every day if no goal is set.
+  - one element per day (zero-filled). `targetCalories` is the `dailyCalorieTarget` of whichever
+  goal version was active *on that specific day*, so it can change value partway through the range
+  if the user updated their goal. It is `null` for any day before the user's first goal existed.
 
 ## Chat
 
 All chat endpoints require authentication. The assistant uses Gemini native function calling over the goal, food
-entry, daily intake and report services. Read tools run during the request; writes come back as
-a `pendingAction` that is only carried out by `confirm-action`.
+entry, daily intake and report services, in a bounded loop of at most 5 model calls and 60 seconds per
+message. Read tools (`getGoal`, `listMeals`, `getTodaySummary`, `getWeeklySummary`,
+`getMacroBreakdown`, `getGoalComparison`) run during the request, each capped at 10 seconds. Writes
+(`logMeal`, `setGoal`) come back as a `pendingAction` that is only carried out by `confirm-action`;
+`estimateNutrition` comes back as a resolved card and never saves anything.
 
 ### `POST /api/chat`
 
@@ -649,7 +664,7 @@ Sends one message and returns the assistant's reply. The user message is stored 
 can be produced, the message stays stored with `replyError: { message, code }`, and the error
 response carries it as `details.userMessage` so the client can retry it by id.
 
-- Body: JSON `{ "message": "I had 2 eggs for breakfast", "today": "2026-09-14" }`, or
+- Body: JSON `{ "message": "I had 2 eggs for breakfast", "today": "2026-09-14", "localTime": "08:15" }`, or
   `multipart/form-data` with the same fields plus an `image` file to attach a food photo.
   - `message` - trimmed, up to 2,000 characters. Required unless an `image` is attached, when it
     is an optional caption.
@@ -657,6 +672,14 @@ response carries it as `details.userMessage` so the client can retry it by id.
     and stored on the user message as `imageUrl`, then passed to the model with the message.
   - `today` (optional) - the client's local `YYYY-MM-DD`, used to resolve "today" and relative
     dates. Ignored if more than a day from the server's UTC date.
+  - `localTime` (optional) - the client's local `HH:MM`, 24-hour. Lets a follow-up such as "yes, log
+    it" default to the meal matching the time of day; without it the assistant asks which meal.
+    Ignored whenever `today` is ignored. `400` if it is not a valid time.
+- Streaming: send `Accept: text/event-stream` (or `?stream=true`) to receive Server-Sent Events
+  instead of one JSON body. The response is `200` with `status` events (`{ "status": "Checking your
+  goals..." }`) while tools run, `token` events (`{ "delta": "..." }`) as reply text arrives, and
+  then exactly one `done` event carrying the JSON body below, or one `error` event carrying the
+  standard error envelope (`success`, `message`, `code`, `details`).
 - Response `200` `data`:
 
 ```json
@@ -676,13 +699,18 @@ response carries it as `details.userMessage` so the client can retry it by id.
 ```
 
   `pendingAction` is `null` for an ordinary reply, including a clarifying question. For `setGoal`,
-  `args` is the complete goal (`dailyCalorieTarget`, `proteinTargetG`, `carbTargetG`, `fatTargetG`,
-  optional `weightGoalKg`) with the changed targets applied over the saved ones.
+  `args` holds only the targets that change, e.g. `{ "proteinTargetG": 150 }`. The proposal is
+  validated as the complete goal it would produce, and `preview` lists each change as old to new.
+  Nothing is saved by this endpoint: a write happens only through `confirm-action`.
+- Tool errors inside a turn: invalid arguments, an unknown tool name, or a `4xx` failure from the
+  underlying service are sent back to the model, which corrects the call or asks the user. They
+  never reach the client directly.
 - Errors: `400` validation; `400 MESSAGE_REQUIRED` (no text and no photo); `400
   UNSUPPORTED_IMAGE_TYPE`, `413 IMAGE_TOO_LARGE`, `422 IMAGE_UNREADABLE` (bad photo);
   `502 IMAGE_UPLOAD_FAILED` or `503` (Cloudinary failed or is not configured); `503 AI_UNAVAILABLE` (no key or model answered within 60 seconds);
   `422 CHAT_REJECTED` (the provider refused the request); `502 AI_BAD_RESPONSE` (empty reply);
-  `502 CHAT_STEP_LIMIT` (no answer after 5 model calls).
+  `502 CHAT_STEP_LIMIT` (no answer after 5 model calls); `504 CHAT_TOOL_TIMEOUT` (a data lookup ran
+  longer than 10 seconds); `500 CHAT_REPLY_FAILED` (any other failure, such as a database outage).
 
 ### `POST /api/chat/messages/:messageId/retry`
 
@@ -691,7 +719,8 @@ message's `replyError` is cleared and `replyRequestedAt` set in one atomic updat
 cannot run at once.
 
 - Params: `messageId` - a user message owned by the caller.
-- Body: `{ "today": "2026-09-14" }` (optional, as for `POST /api/chat`).
+- Body: `{ "today": "2026-09-14", "localTime": "08:15" }` (both optional, as for `POST /api/chat`).
+  Supports the same SSE streaming.
 - Response `200` `data`: the same exchange as `POST /api/chat`.
 - Errors: `404 MESSAGE_NOT_FOUND`; `409 MESSAGE_NOT_LATEST` when newer messages exist;
   `409 REPLY_IN_PROGRESS` when the message has no recorded failure and its reply started under 2
@@ -718,7 +747,10 @@ Restores a previously soft-deleted message back into the caller's active chat th
 
 Carries out a pending action the user confirmed. `args` is validated again against the schema of
 `POST /api/food-entries` (`logMeal`) or `POST /api/goals` (`setGoal`); the client copy is never
-trusted. The proposing reply is marked `action.status: "confirmed"`; no new message is stored.
+trusted. For `setGoal`, `args` is the changed targets only: they are laid over the user's goal as it
+is at confirm time and the result is validated as a complete goal, so an edit made on the Goals page
+after the proposal is kept. The proposing reply is marked `action.status: "confirmed"`; no new
+message is stored.
 
 - Body: `{ "messageId": "...", "tool": "logMeal" | "setGoal", "args": { ... } }` - `messageId` is
   the `assistantMessage._id` that carried the `pendingAction`; `tool` and `args` exactly as
@@ -729,7 +761,19 @@ trusted. The proposing reply is marked `action.status: "confirmed"`; no new mess
 - Errors: `400` for a missing or malformed `messageId`, an unknown tool or a non-object `args`;
   `400 INVALID_CHAT_ACTION` when `args` no longer validates; `404 ACTION_NOT_FOUND` when the message
   is not the caller's proposal for that tool; `409 ACTION_ALREADY_CONFIRMED` when it was already
-  confirmed. Nothing is saved in any of these cases.
+  confirmed; `409 ACTION_ALREADY_CANCELLED` when it was cancelled. Nothing is saved in any of these
+  cases.
+
+### `POST /api/chat/cancel-action`
+
+Marks a pending action as cancelled, so the chat page does not offer it again after a reload. An
+action the user neither confirmed nor cancelled stays `pending` and is shown as undecided on return.
+
+- Body: `{ "messageId": "..." }` - the `assistantMessage._id` that carried the `pendingAction`.
+- Response `200` `data`: the proposal `ChatMessage` with `action.status: "cancelled"`.
+- Errors: `400` for a missing or malformed `messageId`; `404 ACTION_NOT_FOUND` when the message is
+  not the caller's proposal; `409 ACTION_ALREADY_CONFIRMED` or `409 ACTION_ALREADY_CANCELLED` when it
+  is no longer pending.
 
 ### `GET /api/chat/history`
 

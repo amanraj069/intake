@@ -5,6 +5,7 @@ import { uploadFoodImageFile } from '../middleware/upload';
 import { validate } from '../middleware/validate';
 import {
   chatHistorySchema,
+  cancelChatActionSchema,
   chatMessageIdSchema,
   confirmChatActionSchema,
   retryChatMessageSchema,
@@ -43,5 +44,6 @@ router.post(
   chatController.restoreChatMessage
 );
 router.post('/confirm-action', validate(confirmChatActionSchema), chatController.confirmChatAction);
+router.post('/cancel-action', validate(cancelChatActionSchema), chatController.cancelChatAction);
 
 export default router;

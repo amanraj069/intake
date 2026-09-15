@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDailyIntake } from "@/hooks/useDailyIntake";
 import { greetingForHour, toTodayStatusLine } from "@/lib/dashboardCopy";
 import { firstNameOrFallback } from "@/lib/userIdentity";
+import { LogMealIcon } from "@/components/icons";
 import TodayPanel from "./TodayPanel";
 
 /** The date line above the greeting, e.g. "SATURDAY, 12 SEPTEMBER". */
@@ -51,7 +52,10 @@ export default function TodayOverview() {
         }
         action={
           <Link href="/log-meal" className="hidden sm:inline-flex">
-            <Button>Log Meal</Button>
+            <Button className="flex items-center gap-2">
+              <LogMealIcon className="h-4 w-4 shrink-0" />
+              <span>Log Meal</span>
+            </Button>
           </Link>
         }
         actionClassName="hidden sm:block"

@@ -11,6 +11,12 @@ export const MAX_CHAT_MESSAGE_LENGTH = 2000;
  */
 const clientTodayField = calendarDaySchema.optional();
 
+/** The client's wall-clock time, so a meal the user does not name can default to the one they are likely eating. */
+const clientLocalTimeField = z
+  .string({ invalid_type_error: 'Local time must be text' })
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Local time must be HH:MM in 24-hour format')
+  .optional();
+
 /**
  * The body arrives as JSON, or as multipart form fields when a photo is
  * attached. With a photo the text is an optional caption, so an empty message
@@ -24,6 +30,7 @@ export const sendChatMessageSchema = z.object({
       .max(MAX_CHAT_MESSAGE_LENGTH, `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer`)
       .default(''),
     today: clientTodayField,
+    localTime: clientLocalTimeField,
   }),
 });
 
@@ -43,9 +50,16 @@ export const confirmChatActionSchema = z.object({
   }),
 });
 
+export const cancelChatActionSchema = z.object({
+  body: z.object({
+    /** The assistant reply that proposed the action, which is marked as cancelled. */
+    messageId: objectIdSchema,
+  }),
+});
+
 export const retryChatMessageSchema = z.object({
   params: z.object({ messageId: objectIdSchema }),
-  body: z.object({ today: clientTodayField }),
+  body: z.object({ today: clientTodayField, localTime: clientLocalTimeField }),
 });
 
 export const chatMessageIdSchema = z.object({

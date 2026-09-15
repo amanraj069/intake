@@ -89,6 +89,7 @@ function toSplitItems(original: AiDiaryItem, dishes: readonly AiSplitDish[]): Ai
     proteinG: protein[index],
     carbG: carbs[index],
     fatG: fat[index],
+    nutritionEstimated: original.nutritionEstimated ?? false,
   }));
 }
 

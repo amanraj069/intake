@@ -14,8 +14,9 @@ import { PaginatedResult, buildPaginatedResult, toSkipCount } from '../lib/pagin
 import { AppError } from '../middleware/errorHandler';
 import { ChatMessage, ChatRole, IChatMessageDocument, StoredChatAction } from '../models/ChatMessage';
 import { ChatHistoryQuery } from '../schemas/chat.schema';
-import { ChatHistoryTurn, runChatTurn } from './chatAgent';
+import { ChatTurnCallbacks, runChatTurn } from './chatAgent';
 import { PendingChatAction } from './chat/chatToolTypes';
+import { ChatHistoryTurn } from './chat/conversationContents';
 
 /** How many stored turns are replayed to the model as context for a new message. */
 const CONTEXT_TURN_COUNT = 20;
@@ -32,11 +33,20 @@ export interface ChatExchange {
   pendingAction: PendingChatAction | null;
 }
 
-export interface SendChatMessageInput {
+/** When the reply is produced for: the user's day and, when known, their `HH:MM` time. */
+export interface ReplyClock {
+  today: CalendarDay;
+  localTime?: string;
+}
+
+export interface ReplyOptions extends ReplyClock {
+  callbacks?: ChatTurnCallbacks;
+}
+
+export interface SendChatMessageInput extends ReplyOptions {
   /** Empty when only a photo was sent. */
   message: string;
   image?: Buffer;
-  today: CalendarDay;
 }
 
 /**
@@ -121,18 +131,31 @@ async function recordReplyFailure(userMessage: IChatMessageDocument, error: unkn
   return replyError;
 }
 
-interface ReplyRequest {
+interface ReplyRequest extends ReplyOptions {
   userId: string;
   userMessage: IChatMessageDocument;
   history: ChatHistoryTurn[];
   image?: InlineImage;
-  today: CalendarDay;
 }
 
 /** Runs the assistant turn for a stored user message and stores its reply, or records why there is none. */
-async function produceReply({ userId, userMessage, history, image, today }: ReplyRequest): Promise<ChatExchange> {
+async function produceReply({
+  userId,
+  userMessage,
+  history,
+  image,
+  today,
+  localTime,
+  callbacks,
+}: ReplyRequest): Promise<ChatExchange> {
   try {
-    const turn = await runChatTurn({ history, message: userMessage.content, image, context: { userId, today } });
+    const turn = await runChatTurn({
+      history,
+      message: userMessage.content,
+      image,
+      context: { userId, today, localTime },
+      callbacks,
+    });
     const assistantMessage = await saveChatMessage(userId, {
       role: 'assistant',
       content: turn.reply,
@@ -151,13 +174,16 @@ async function produceReply({ userId, userMessage, history, image, today }: Repl
  * part of the thread even while a slow reply is in flight, and it stays there
  * if the reply fails.
  */
-export async function sendChatMessage(userId: string, input: SendChatMessageInput): Promise<ChatExchange> {
-  const image = input.image ? toInlineImage(input.image) : undefined;
+export async function sendChatMessage(
+  userId: string,
+  { message, image: imageBytes, ...replyOptions }: SendChatMessageInput
+): Promise<ChatExchange> {
+  const image = imageBytes ? toInlineImage(imageBytes) : undefined;
   const history = await loadRecentTurns(userId);
-  const uploadedImage = input.image ? await uploadChatImage(input.image, userId) : undefined;
-  const userMessage = await saveChatMessage(userId, { role: 'user', content: input.message, image: uploadedImage });
+  const uploadedImage = imageBytes ? await uploadChatImage(imageBytes, userId) : undefined;
+  const userMessage = await saveChatMessage(userId, { role: 'user', content: message, image: uploadedImage });
 
-  return produceReply({ userId, userMessage, history, image, today: input.today });
+  return produceReply({ userId, userMessage, history, image, ...replyOptions });
 }
 
 /**
@@ -195,20 +221,23 @@ async function claimRetry(userId: string, messageId: string): Promise<IChatMessa
 }
 
 /** Produces the reply again for the caller's latest message, reusing its stored photo. */
-export async function retryChatMessage(userId: string, messageId: string, today: CalendarDay): Promise<ChatExchange> {
+export async function retryChatMessage(
+  userId: string,
+  messageId: string,
+  replyOptions: ReplyOptions
+): Promise<ChatExchange> {
   const userMessage = await claimRetry(userId, messageId);
 
   try {
     const history = await loadRecentTurns(userId, userMessage._id);
     const image = userMessage.imageUrl ? toInlineImage(await downloadUploadedImage(userMessage.imageUrl)) : undefined;
-    return await produceReply({ userId, userMessage, history, image, today });
+    return await produceReply({ userId, userMessage, history, image, ...replyOptions });
   } catch (error) {
     if (error instanceof AppError && error.details) throw error;
     throw await recordReplyFailure(userMessage, error);
   }
 }
 
-/** One page of the thread, most recent page first, so "load earlier" is just the next page. */
 /**
  * Matches messages that sort after the cursor in NEWEST_FIRST order. A deleted
  * cursor still counts, since the client may have deleted the oldest message it holds.
@@ -224,6 +253,7 @@ async function olderThanFilter(userId: string, cursorId: string | undefined) {
   };
 }
 
+/** One page of the thread, most recent page first, so "load earlier" is just the next page. */
 export async function listChatHistory(
   userId: string,
   query: ChatHistoryQuery

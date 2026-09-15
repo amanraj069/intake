@@ -49,6 +49,7 @@ export interface IFoodEntryDocument extends Document {
   /** Every item's micronutrients, summed per nutrient. */
   micros: Map<string, StoredMicronutrient>;
   date: Date;
+  time?: string;
   source: FoodEntrySource;
   confidenceScore?: number;
   confidenceLevel?: string;
@@ -140,6 +141,11 @@ const foodEntrySchema = new Schema<IFoodEntryDocument>(
     date: {
       type: Date,
       required: true,
+    },
+    time: {
+      type: String,
+      trim: true,
+      match: /^([01]\d|2[0-3]):[0-5]\d$/,
     },
     source: {
       type: String,
