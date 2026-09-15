@@ -26,7 +26,7 @@ export default function MealsPage() {
                     className="h-9 px-2.5 text-xs sm:h-auto sm:px-6 sm:py-3 sm:text-sm gap-1.5 sm:gap-2 font-semibold"
                     title="Import PDF"
                   >
-                    <DocumentIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                    <DocumentIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 -ml-1 sm:-ml-1.5" />
                     <span>
                       Import<span className="hidden sm:inline"> PDF</span>
                     </span>
@@ -38,7 +38,7 @@ export default function MealsPage() {
                     title="Log Meal"
                     aria-label="Log Meal"
                   >
-                    <LogMealIcon className="h-4 w-4 shrink-0 sm:hidden" />
+                    <LogMealIcon className="h-4 w-4 shrink-0" />
                     <span className="hidden sm:inline">Log Meal</span>
                   </Button>
                 </Link>

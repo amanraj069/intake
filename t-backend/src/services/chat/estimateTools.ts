@@ -7,6 +7,7 @@ import { toItemsInput } from './itemArgs';
 /** The same item shape `logMeal` takes, without a meal or a day: nothing here is saved. */
 const estimateNutrition: ChatEstimateToolDefinition = {
   kind: 'estimate',
+  statusMessage: 'Calculating nutrition estimate...',
   declaration: {
     name: 'estimateNutrition',
     description:

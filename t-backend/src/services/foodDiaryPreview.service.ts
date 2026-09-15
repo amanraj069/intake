@@ -11,6 +11,7 @@ import {
 } from '../lib/foodDiaryImportPrompt';
 import { ImportPreviewRow, toPreviewRow } from '../lib/foodDiaryRows';
 import { splitCombinedDishes } from './dishSplit.service';
+import { fillMissingDishNutrition } from './dishNutritionFill.service';
 import { extractPdfText } from '../lib/pdfText';
 import { AppError } from '../middleware/errorHandler';
 import { FOOD_ITEM_UNITS } from '../models/FoodEntry';
@@ -160,8 +161,10 @@ export async function previewFoodDiaryImport(pdfBytes: Buffer): Promise<FoodDiar
 
   assertHasDiaryRows(reading);
   const split = await splitCombinedDishes(reading.rows.slice(0, MAX_IMPORT_ROWS));
-  const rows = split.rows.map(toPreviewRow);
+  const filled = await fillMissingDishNutrition(split.rows);
+  const rows = filled.rows.map(toPreviewRow);
   const warnings = findDocumentWarnings(rows, reading.rows.length);
 
-  return { pageCount, rows, warnings: split.warning ? [...warnings, split.warning] : warnings };
+  const extraWarnings = [split.warning, filled.warning].filter((w): w is string => Boolean(w));
+  return { pageCount, rows, warnings: [...warnings, ...extraWarnings] };
 }

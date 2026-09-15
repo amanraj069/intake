@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import { CheckIcon, GoalsIcon, LogMealIcon } from "@/components/icons";
-import { hasFoodItems } from "@/lib/chatFoodItems";
+import { hasFoodItems, parseFoodItems } from "@/lib/chatFoodItems";
 import type { ChatThreadAction, ChatWriteTool } from "@/types/chat";
 import AiAvatar from "./AiAvatar";
+import FoodItemsTable from "./FoodItemsTable";
 import MealLogCard from "./MealLogCard";
 import MessageActionsMenu from "./MessageActionsMenu";
 import NutritionEstimateCard from "./NutritionEstimateCard";
@@ -124,6 +125,10 @@ export default function PendingActionCard({
 
         <p className="text-[13px] sm:text-sm leading-relaxed text-text-primary dark:text-dark-text">{action.payload.preview}</p>
 
+        {action.payload.tool === "logMeal" && hasFoodItems(action.payload.args) && (
+          <FoodItemsTable items={parseFoodItems(action.payload.args)} />
+        )}
+
         {action.error && (
           <p role="alert" className="text-xs text-error dark:text-error-dark">
             {action.error}
@@ -131,12 +136,12 @@ export default function PendingActionCard({
         )}
 
         {undecided ? (
-          <div className="flex gap-2">
-            <Button size="sm" onClick={onConfirm} loading={action.status === "confirming"}>
-              Confirm
-            </Button>
+          <div className="flex items-center justify-between gap-2">
             <Button size="sm" variant="ghost" onClick={onCancel} disabled={action.status === "confirming"}>
               Cancel
+            </Button>
+            <Button size="sm" onClick={onConfirm} loading={action.status === "confirming"}>
+              Confirm
             </Button>
           </div>
         ) : (

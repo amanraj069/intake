@@ -69,6 +69,7 @@ export const aiDiaryItemSchema = z.object({
   proteinG: modelNumber.nullable().default(null),
   carbG: modelNumber.nullable().default(null),
   fatG: modelNumber.nullable().default(null),
+  nutritionEstimated: z.boolean().default(false),
 });
 
 /**

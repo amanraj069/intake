@@ -78,11 +78,18 @@ const entryNameSchema = z
   .optional()
   .transform((name) => name || undefined);
 
+export const timeStringSchema = z
+  .string()
+  .trim()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Time must be in HH:mm format (e.g. 13:30)')
+  .optional();
+
 const foodEntryFields = {
   mealType: mealTypeSchema,
   name: entryNameSchema,
   items: foodItemsSchema,
   date: dateStringSchema,
+  time: timeStringSchema,
   source: z.enum(FOOD_ENTRY_SOURCES).optional(),
   confidenceScore: z.number().min(0).max(100).optional(),
   confidenceLevel: z.enum(['high', 'medium', 'low']).optional(),

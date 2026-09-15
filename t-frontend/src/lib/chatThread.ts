@@ -14,21 +14,34 @@ export function isUnsentMessage(message: ChatThreadMessage): boolean {
 
 /**
  * A live proposal carries its arguments and can be confirmed; a live estimate
- * is already resolved, since nothing about it can be saved. From history only
- * a confirmed proposal or a stored estimate is rebuilt as a card, each with
- * its stored arguments so it keeps its items and macros. A still-pending
- * proposal from history reads as a plain reply, so reloading never offers (or
- * auto-saves) a stale change.
+ * is already resolved, since nothing about it can be saved. From history every
+ * stored action is rebuilt as a card with its stored arguments, so a proposal
+ * the user left undecided (by switching pages or reloading) still asks for a
+ * decision. A pending proposal stored without arguments cannot be confirmed,
+ * so it reads as a plain reply.
  */
 function toThreadAction(message: ChatMessage, pendingAction: PendingChatAction | null): ChatThreadAction | null {
   if (pendingAction) {
     const status = pendingAction.tool === "estimateNutrition" ? "estimate" : "pending";
     return { payload: pendingAction, status, error: null };
   }
-  if (message.action?.status !== "confirmed" && message.action?.status !== "estimate") return null;
+  const stored = message.action;
+  if (!stored || (stored.status === "pending" && !stored.args)) return null;
 
-  const savedPayload = { tool: message.action.tool, args: message.action.args ?? {}, preview: message.content };
-  return { payload: savedPayload, status: message.action.status, error: null };
+  const storedPayload = { tool: stored.tool, args: stored.args ?? {}, preview: message.content };
+  return { payload: storedPayload, status: stored.status, error: null };
+}
+
+/**
+ * The composer stays locked while a proposal is undecided, so a pending
+ * proposal with a user message after it was left behind before cancelling was
+ * saved. It reads as a plain reply rather than asking again.
+ */
+function retireSupersededProposals(thread: ChatThreadMessage[]): ChatThreadMessage[] {
+  const lastUserIndex = thread.map((message) => message.role).lastIndexOf("user");
+  return thread.map((message, index) =>
+    message.action?.status === "pending" && index < lastUserIndex ? { ...message, action: null } : message
+  );
 }
 
 function toStoredFailure(message: ChatMessage): ChatMessageFailure | null {
@@ -47,6 +60,7 @@ export function toThreadMessage(message: ChatMessage, pendingAction: PendingChat
     failure,
     replyRequestedAt: message.replyRequestedAt ?? message.createdAt,
     action: toThreadAction(message, pendingAction),
+    statusMessage: null,
   };
 }
 
@@ -68,7 +82,7 @@ export function prependOlderPage(thread: ChatThreadMessage[], olderPage: ChatMes
     .filter((message) => !shownIds.has(message._id))
     .reverse()
     .map((message) => toThreadMessage(message));
-  return [...older, ...thread];
+  return retireSupersededProposals([...older, ...thread]);
 }
 
 export function updateThreadMessage(
@@ -99,16 +113,6 @@ export function updateThreadAction(
 }
 
 /**
- * Rebuilds the live proposal of a reply that arrived without its request's
- * response (the page was reloaded while it was being produced), so it can be
- * confirmed exactly as if the response had come back.
- */
-function toRecoveredPendingAction(message: ChatMessage): PendingChatAction | null {
-  if (message.action?.status !== "pending" || !message.action.args) return null;
-  return { tool: message.action.tool, args: message.action.args, preview: message.content };
-}
-
-/**
  * The newest message, when it is the user's own, stored, and not marked as
  * failed. Its reply may still be in production: the server keeps working when
  * the page reloads, and records a failure on the message if the reply fails.
@@ -135,7 +139,7 @@ export function readAwaitedReply(newestFirst: ChatMessage[], awaitedId: string):
   const replies = newestFirst
     .slice(0, index)
     .reverse()
-    .map((message) => toThreadMessage(message, toRecoveredPendingAction(message)));
+    .map((message) => toThreadMessage(message));
   return { kind: "answered", replies };
 }
 

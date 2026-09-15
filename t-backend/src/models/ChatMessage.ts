@@ -11,11 +11,11 @@ export const CHAT_ACTION_TOOLS = [...CHAT_WRITE_TOOLS, 'estimateNutrition'] as c
 export type ChatActionTool = (typeof CHAT_ACTION_TOOLS)[number];
 
 /**
- * Cancelling never reaches the server, so an unconfirmed proposal simply stays
- * `pending`. `estimate` never becomes `confirmed`: it answers a question, it
- * never proposes saving anything.
+ * A proposal stays `pending` until the user confirms or cancels it, so an
+ * undecided card is offered again after a reload. `estimate` never becomes
+ * `confirmed`: it answers a question, it never proposes saving anything.
  */
-export const CHAT_ACTION_STATUSES = ['pending', 'confirmed', 'estimate'] as const;
+export const CHAT_ACTION_STATUSES = ['pending', 'confirmed', 'cancelled', 'estimate'] as const;
 export type ChatActionStatus = (typeof CHAT_ACTION_STATUSES)[number];
 
 /**

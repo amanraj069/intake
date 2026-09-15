@@ -1,7 +1,6 @@
 import { request } from "./apiClient";
 import { toQueryString } from "./queryString";
 import type {
-  WeeklyCaloriePoint,
   MacroBreakdownPoint,
   MicroSummaryPoint,
   GoalComparisonPoint,
@@ -17,11 +16,6 @@ interface MacrosQuery extends ReportQuery {
 }
 
 export const reportsApi = {
-  getWeeklyCalories: (query: ReportQuery = {}) =>
-    request<WeeklyCaloriePoint[]>(
-      `/api/reports/weekly-calories${toQueryString({ ...query })}`
-    ),
-
   getMacroBreakdown: (query: MacrosQuery = {}) =>
     request<MacroBreakdownPoint[]>(
       `/api/reports/macros${toQueryString({ ...query })}`

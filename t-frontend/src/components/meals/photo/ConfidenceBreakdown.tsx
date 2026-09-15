@@ -24,7 +24,7 @@ export function ConfidenceTrigger({
   onToggle: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
       <p className="text-sm text-text-primary dark:text-dark-text">
         <span className="font-bold">{confidence.score}%</span>
         <span className="font-light text-text-secondary dark:text-dark-text-secondary">
@@ -36,9 +36,21 @@ export function ConfidenceTrigger({
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="text-xs font-semibold text-text-secondary underline-offset-4 transition-colors duration-150 hover:text-text-primary hover:underline dark:text-dark-text-secondary dark:hover:text-dark-text cursor-pointer"
+        className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:text-accent-hover dark:text-accent-dark dark:hover:text-accent-dark-hover transition-colors duration-150 cursor-pointer"
       >
-        {open ? "Hide breakdown" : "Why?"}
+        <span>{open ? "Hide breakdown" : "Why?"}</span>
+        <svg
+          className={`w-3 h-3 transition-transform duration-300 ease-out ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
       </button>
     </div>
   );
@@ -46,7 +58,7 @@ export function ConfidenceTrigger({
 
 export function ConfidenceDetails({ confidence }: { confidence: ExtractionConfidence }) {
   return (
-    <div className="space-y-5 rounded-xl bg-bg-app dark:bg-dark-bg-app p-4">
+    <div className="space-y-4 rounded-xl bg-bg-app/60 dark:bg-dark-bg-app/60 border border-black/5 dark:border-white/5 p-4 shadow-xs">
       <div className="space-y-2">
         <BreakdownHeading>{`How ${LEVEL_LABELS[confidence.level]} was reached`}</BreakdownHeading>
         <ol className="space-y-1">

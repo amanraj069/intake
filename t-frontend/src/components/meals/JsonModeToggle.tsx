@@ -15,7 +15,7 @@ export default function JsonModeToggle({ jsonMode, formLabel, jsonLabel, onToggl
     <button
       type="button"
       onClick={onToggle}
-      className="inline-flex items-center justify-center gap-1.5 sm:gap-2.5 h-11 px-2.5 sm:px-5 rounded-xl border border-input-border dark:border-dark-input-border bg-bg-card dark:bg-dark-bg-card hover:bg-black/[0.06] dark:hover:bg-[#1A1F2C] text-xs sm:text-sm font-semibold text-text-primary dark:text-dark-text transition-all duration-150 cursor-pointer shadow-sm active:scale-[0.98] whitespace-nowrap w-full sm:w-auto min-w-0"
+      className="inline-flex items-center justify-center gap-1.5 sm:gap-2.5 h-11 px-3 sm:px-5 rounded-xl border border-input-border dark:border-dark-input-border bg-white dark:bg-white/5 hover:bg-black/[0.04] dark:hover:bg-white/10 text-xs sm:text-sm font-medium text-text-primary dark:text-dark-text transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.98] whitespace-nowrap w-auto shrink-0 min-w-0"
     >
       <svg
         className="w-4 h-4 text-text-secondary dark:text-dark-text-secondary shrink-0"

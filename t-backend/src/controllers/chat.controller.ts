@@ -1,9 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { getAuthenticatedUserId } from '../lib/authenticatedUser';
-import { resolveClientToday } from '../lib/calendarDay';
+import { CalendarDay, resolveClientToday } from '../lib/calendarDay';
+import { openEventStream, wantsEventStream } from '../lib/sse';
 import { AppError } from '../middleware/errorHandler';
 import { getValidatedInput } from '../middleware/validate';
 import {
+  cancelChatActionSchema,
   chatHistorySchema,
   chatMessageIdSchema,
   confirmChatActionSchema,
@@ -12,7 +14,11 @@ import {
 } from '../schemas/chat.schema';
 import * as chatActionService from '../services/chat/chatAction.service';
 import { PendingChatAction } from '../services/chat/chatToolTypes';
+import { ChatTurnCallbacks } from '../services/chatAgent';
 import * as chatMessageService from '../services/chatMessage.service';
+import type { ChatExchange, ReplyClock } from '../services/chatMessage.service';
+
+type ExchangeRunner = (callbacks: ChatTurnCallbacks | undefined) => Promise<ChatExchange>;
 
 /** A nutrition estimate never needs confirming, so it is reported like any other reply. */
 function replyMessage(pendingAction: PendingChatAction | null): string {
@@ -20,11 +26,58 @@ function replyMessage(pendingAction: PendingChatAction | null): string {
   return 'Reply received';
 }
 
+function toExchangeBody(exchange: ChatExchange) {
+  return { success: true, message: replyMessage(exchange.pendingAction), data: exchange };
+}
+
+/** The envelope `errorHandler` sends, for a failure that happens after the stream's headers are already out. */
+function toStreamErrorBody(error: unknown) {
+  if (!(error instanceof AppError)) console.error('[Chat] Streamed reply failed unexpectedly:', error);
+  const appError =
+    error instanceof AppError ? error : new AppError('The assistant could not reply.', 500, 'CHAT_REPLY_FAILED');
+  return { success: false, message: appError.message, code: appError.code, details: appError.details };
+}
+
+/**
+ * The client's day and wall-clock time. The time is only trusted together with
+ * the day it came with: when that day is rejected as too far from the server's,
+ * the time is dropped too, and the assistant asks instead of guessing a meal.
+ */
+function resolveClientClock(body: { today?: CalendarDay; localTime?: string }): ReplyClock {
+  const today = resolveClientToday(body.today);
+  return { today, localTime: today === body.today ? body.localTime : undefined };
+}
+
+async function sendExchangeAsJson(res: Response, runExchange: ExchangeRunner): Promise<void> {
+  const exchange = await runExchange(undefined);
+  res.status(200).json(toExchangeBody(exchange));
+}
+
+/** Streams `status` and `token` events while the turn runs, then exactly one `done` or `error` event. */
+async function streamExchange(res: Response, runExchange: ExchangeRunner): Promise<void> {
+  const stream = openEventStream(res);
+  try {
+    const exchange = await runExchange({
+      onTextDelta: (delta) => stream.send('token', { delta }),
+      onStatus: (status) => stream.send('status', { status }),
+    });
+    stream.send('done', toExchangeBody(exchange));
+  } catch (error) {
+    stream.send('error', toStreamErrorBody(error));
+  } finally {
+    stream.end();
+  }
+}
+
+function respondWithExchange(req: Request, res: Response, runExchange: ExchangeRunner): Promise<void> {
+  return wantsEventStream(req) ? streamExchange(res, runExchange) : sendExchangeAsJson(res, runExchange);
+}
+
 /**
  * POST /api/chat
  * Sends one message, optionally with a multipart `image`, to the assistant and
  * returns its reply, plus a pending action when the reply proposes a change
- * that still needs confirming.
+ * that still needs confirming. Streams SSE events when the client asks for them.
  */
 export async function sendChatMessage(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -34,17 +87,12 @@ export async function sendChatMessage(req: Request, res: Response, next: NextFun
       throw new AppError('Type a message or attach a photo', 400, 'MESSAGE_REQUIRED');
     }
 
-    const exchange = await chatMessageService.sendChatMessage(userId, {
-      message: body.message,
-      image: req.file?.buffer,
-      today: resolveClientToday(body.today),
-    });
+    const clock = resolveClientClock(body);
+    const image = req.file?.buffer;
 
-    res.status(200).json({
-      success: true,
-      message: replyMessage(exchange.pendingAction),
-      data: exchange,
-    });
+    await respondWithExchange(req, res, (callbacks) =>
+      chatMessageService.sendChatMessage(userId, { message: body.message, image, ...clock, callbacks })
+    );
   } catch (error) {
     next(error);
   }
@@ -59,13 +107,11 @@ export async function retryChatMessage(req: Request, res: Response, next: NextFu
   try {
     const userId = getAuthenticatedUserId(req);
     const { params, body } = getValidatedInput(req, retryChatMessageSchema);
-    const exchange = await chatMessageService.retryChatMessage(userId, params.messageId, resolveClientToday(body.today));
+    const clock = resolveClientClock(body);
 
-    res.status(200).json({
-      success: true,
-      message: replyMessage(exchange.pendingAction),
-      data: exchange,
-    });
+    await respondWithExchange(req, res, (callbacks) =>
+      chatMessageService.retryChatMessage(userId, params.messageId, { ...clock, callbacks })
+    );
   } catch (error) {
     next(error);
   }
@@ -87,6 +133,22 @@ export async function confirmChatAction(req: Request, res: Response, next: NextF
       message: confirmed.tool === 'logMeal' ? 'Meal logged' : 'Goal saved',
       data: confirmed,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/chat/cancel-action
+ * Marks a pending action as cancelled, so it is not offered again after a reload.
+ */
+export async function cancelChatAction(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const { body } = getValidatedInput(req, cancelChatActionSchema);
+    const message = await chatActionService.cancelChatAction(userId, body.messageId);
+
+    res.status(200).json({ success: true, message: 'Change cancelled', data: message });
   } catch (error) {
     next(error);
   }

@@ -47,6 +47,17 @@ function EditMealContent({ entryId }: { entryId: string }) {
 
   /** The date field only exists once the entry has loaded and the form owns it. */
   function renderHeader(dateField?: ReactNode) {
+    const mobileDeleteButton = (
+      <button
+        type="button"
+        onClick={() => setPendingDeletion(true)}
+        aria-label="Delete entry"
+        className="inline-flex sm:hidden items-center justify-center h-10 w-10 rounded-xl border border-input-border dark:border-dark-input-border bg-white dark:bg-white/5 hover:bg-black/[0.04] dark:hover:bg-white/10 text-red-600 dark:text-red-400 transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.98]"
+      >
+        <TrashIcon className="w-4 h-4" />
+      </button>
+    );
+
     return (
       <PageHeader
         title="Edit Meal"
@@ -54,8 +65,9 @@ function EditMealContent({ entryId }: { entryId: string }) {
         showBackButton
         hideDescriptionOnMobile
         stackOnMobile
+        mobileAction={mobileDeleteButton}
         action={
-          <div className="grid grid-cols-[1fr_auto_auto] sm:flex sm:flex-row sm:items-start gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {dateField}
             <JsonModeToggle
               jsonMode={jsonMode}
@@ -67,10 +79,10 @@ function EditMealContent({ entryId }: { entryId: string }) {
               type="button"
               onClick={() => setPendingDeletion(true)}
               aria-label="Delete entry"
-              className="inline-flex items-center justify-center gap-2 h-11 px-3 sm:px-5 rounded-xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/20 text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400 transition-all duration-150 cursor-pointer shadow-sm active:scale-[0.98]"
+              className="hidden sm:inline-flex items-center justify-center gap-2 h-11 px-4 sm:px-5 rounded-xl border border-input-border dark:border-dark-input-border bg-white dark:bg-white/5 hover:bg-black/[0.04] dark:hover:bg-white/10 text-xs sm:text-sm font-medium text-red-600 dark:text-red-400 transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.98] shrink-0"
             >
               <TrashIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">Delete</span>
+              <span>Delete</span>
             </button>
           </div>
         }

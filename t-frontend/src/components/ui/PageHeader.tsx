@@ -12,6 +12,8 @@ interface PageHeaderProps {
   showBackButton?: boolean;
   /** Page-level action, e.g. a "Log Meal" link on the list view. */
   action?: ReactNode;
+  /** Action shown on the top right beside the title on mobile viewports (e.g. mobile delete button). */
+  mobileAction?: ReactNode;
   /** Optional class name for the action wrapper container. */
   actionClassName?: string;
   /** When true, hides description on mobile so title and action sit on one compact row. */
@@ -29,6 +31,7 @@ export default function PageHeader({
   eyebrow,
   showBackButton = false,
   action,
+  mobileAction,
   actionClassName,
   hideDescriptionOnMobile = false,
   stackOnMobile = false,
@@ -80,17 +83,20 @@ export default function PageHeader({
           : "flex-row items-center"
       }`}
     >
-      <div>
+      <div className={stackOnMobile ? "w-full sm:w-auto" : ""}>
         {eyebrow && (
           <p className="mb-1 sm:mb-3 text-[10px] sm:text-xs font-bold text-text-secondary dark:text-dark-text-secondary">
             {eyebrow}
           </p>
         )}
-        <div className="flex items-center gap-3 sm:gap-4">
-          {showBackButton && <BackButton size="md" className="pl-0 sm:pl-0" />}
-          <h1 className="text-2xl sm:text-4xl font-extrabold text-text-primary dark:text-dark-text">
-            {title}
-          </h1>
+        <div className="flex items-center justify-between sm:justify-start gap-3 sm:gap-4 min-h-10">
+          <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+            {showBackButton && <BackButton size="md" className="pl-0 sm:pl-0 shrink-0" />}
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-text-primary dark:text-dark-text truncate">
+              {title}
+            </h1>
+          </div>
+          {mobileAction && <div className="sm:hidden shrink-0 flex items-center">{mobileAction}</div>}
         </div>
         {description && (
           <p

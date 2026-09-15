@@ -37,22 +37,59 @@ function chevronPath({ tip, from }: { tip: Point; from: Point }): string {
   return `M${wing(HEAD_SPREAD)} L${tip[0]} ${tip[1]} L${wing(-HEAD_SPREAD)}`;
 }
 
-export default function FlowArrows() {
+export type ActiveSource = "Photo" | "Chat" | "Manual" | "PDF" | null;
+
+interface FlowArrowsProps {
+  activeSource?: ActiveSource;
+}
+
+export default function FlowArrows({ activeSource = null }: FlowArrowsProps) {
   return (
     <svg
       viewBox="0 0 100 88"
-      className="absolute inset-0 h-full w-full stroke-accent/45 dark:stroke-accent-dark/55 animate-fade-in delay-250"
+      className="absolute inset-0 h-full w-full pointer-events-none animate-fade-in delay-250"
       fill="none"
       aria-hidden="true"
     >
-      {ARROWS.map((arrow) => (
-        <g key={arrow.path} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
-          <path d={arrow.path} vectorEffect="non-scaling-stroke" />
-          {arrow.heads.map((head) => (
-            <path key={`${head.tip}`} d={chevronPath(head)} vectorEffect="non-scaling-stroke" />
-          ))}
-        </g>
-      ))}
+      <defs>
+        <filter id="arrow-glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="0" stdDeviation="1.5" floodColor="#34D399" floodOpacity="0.75" />
+        </filter>
+      </defs>
+      {ARROWS.map((arrow, index) => {
+        const isSourceArrow =
+          (activeSource === "Chat" && index === 0) ||
+          (activeSource === "Manual" && index === 1) ||
+          (activeSource === "Photo" && index === 2) ||
+          (activeSource === "PDF" && index === 3);
+
+        const isDownstreamArrow = activeSource !== null && index === 4;
+        const isActive = isSourceArrow || isDownstreamArrow;
+        const isDimmed = activeSource !== null && !isActive;
+
+        return (
+          <g
+            key={arrow.path}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            filter={isActive ? "url(#arrow-glow)" : undefined}
+            strokeWidth={isActive ? 2.4 : isDimmed ? 1.2 : 1.5}
+            className={`transition-all duration-300 ease-out ${
+              isActive
+                ? "stroke-accent dark:stroke-[#34D399] opacity-100"
+                : isDimmed
+                ? "stroke-accent/20 dark:stroke-accent-dark/20 opacity-30"
+                : "stroke-accent/45 dark:stroke-accent-dark/55 opacity-100"
+            }`}
+          >
+            <path d={arrow.path} vectorEffect="non-scaling-stroke" />
+            {arrow.heads.map((head) => (
+              <path key={`${head.tip}`} d={chevronPath(head)} vectorEffect="non-scaling-stroke" />
+            ))}
+          </g>
+        );
+      })}
     </svg>
   );
 }

@@ -73,11 +73,71 @@ function AccountColumn() {
   );
 }
 
+interface PhoneLinkItem {
+  href?: string;
+  label: string;
+  onClick?: () => void;
+}
+
+function usePhoneLinks(): PhoneLinkItem[] {
+  const { user, loading, logout } = useAuth();
+
+  const accountLinks: PhoneLinkItem[] = [];
+  if (!loading) {
+    if (user) {
+      accountLinks.push(
+        { href: "/profile", label: "Profile" },
+        { label: "Log out", onClick: logout }
+      );
+    } else {
+      accountLinks.push({ href: "/login", label: "Sign in" });
+    }
+  }
+
+  const productLinks: PhoneLinkItem[] = PRODUCT_LINKS.map((link) => ({ ...link }));
+  return [...productLinks, ...accountLinks];
+}
+
 export default function HomeFooter() {
+  const phoneLinks = usePhoneLinks();
+
   return (
     <footer className="w-full border-t border-border dark:border-dark-border bg-[#FAF7F2] dark:bg-[#0D1611]">
-      {/* Main footer content */}
-      <div className="mx-auto max-w-6xl px-4 sm:px-8 py-5 sm:py-16">
+      {/* ── Phone view: simplified compact layout (mobile only) ── */}
+      <div className="sm:hidden px-5 py-6 flex flex-col items-center justify-center text-center gap-3.5">
+        <div className="w-full flex items-center justify-between gap-3">
+          <BrandMark size="sm" className="text-base tracking-tight text-text-primary dark:text-dark-text shrink-0" />
+          <span className="text-xs font-bold tracking-tight text-text-primary dark:text-dark-text text-right">
+            Every meal, measured.
+          </span>
+        </div>
+
+        <nav aria-label="Footer" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          {phoneLinks.map((link) =>
+            link.onClick ? (
+              <button
+                key={link.label}
+                type="button"
+                onClick={link.onClick}
+                className="text-[11px] font-light text-text-secondary dark:text-dark-text-secondary transition-colors hover:text-text-primary dark:hover:text-dark-text cursor-pointer"
+              >
+                {link.label}
+              </button>
+            ) : (
+              <Link
+                key={link.label}
+                href={link.href ?? "#"}
+                className="text-[11px] font-light text-text-secondary dark:text-dark-text-secondary transition-colors hover:text-text-primary dark:hover:text-dark-text"
+              >
+                {link.label}
+              </Link>
+            )
+          )}
+        </nav>
+      </div>
+
+      {/* ── Desktop & tablet view: original multi-column layout ── */}
+      <div className="hidden sm:block mx-auto max-w-6xl px-4 sm:px-8 py-5 sm:py-16">
         <div className="flex flex-col gap-4 sm:gap-10 md:flex-row md:justify-between">
           <FooterBrand />
           <div className="grid grid-cols-2 gap-6 sm:gap-20">
@@ -101,7 +161,7 @@ export default function HomeFooter() {
         </div>
       </div>
 
-      {/* Full-width ending bar & copyright row */}
+      {/* ── Shared copyright & back to top bar ── */}
       <div className="w-full border-t border-border/70 dark:border-dark-border/70">
         <div className="mx-auto max-w-6xl px-4 sm:px-8 py-3 sm:py-6 flex flex-row items-center justify-between gap-3">
           <p className="text-[10px] sm:text-xs font-light text-text-secondary dark:text-dark-text-secondary">

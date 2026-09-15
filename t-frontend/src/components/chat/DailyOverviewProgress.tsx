@@ -1,6 +1,7 @@
 "use client";
 
 import type { DailyIntakeSummary } from "@/types/nutrition";
+import CalorieBar from "./CalorieBar";
 import MacroRing from "./MacroRing";
 
 export interface NutritionProgressSummary {
@@ -45,7 +46,6 @@ export default function DailyOverviewProgress({ summary, loading, showTitle = tr
 
   const { totals, goal } = summary;
   const calorieTarget = goal?.dailyCalorieTarget ?? null;
-  const calorieRatio = calorieTarget ? Math.min(1, totals.calories / calorieTarget) : 0;
 
   return (
     <div className="space-y-2 sm:space-y-2.5">
@@ -53,14 +53,10 @@ export default function DailyOverviewProgress({ summary, loading, showTitle = tr
         <p className="text-[10px] sm:text-[11px] font-bold text-text-secondary dark:text-dark-text-secondary">Today&apos;s progress</p>
       )}
 
+      <CalorieBar current={totals.calories} target={calorieTarget} />
+
       {/* Horizontally scrollable track on phone view, evenly distributed row on tablet/desktop */}
       <div className="flex items-stretch gap-2 sm:gap-2.5 overflow-x-auto pb-1 pt-0.5 scrollbar-none snap-x snap-mandatory -mx-0.5 px-0.5">
-        <MacroRing
-          nutrient="calories"
-          current={totals.calories}
-          target={calorieTarget}
-          className="min-w-[92px] sm:min-w-0 shrink-0 snap-start sm:shrink"
-        />
         <MacroRing
           nutrient="protein"
           current={totals.proteinG}

@@ -1,37 +1,82 @@
 import { memo, useMemo } from "react";
 import {
-  AreaChart,
-  Area,
+  ComposedChart,
+  Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from "recharts";
 import { useTheme } from "@/contexts/ThemeContext";
 import { formatChartDate } from "@/lib/formatDate";
-import type { WeeklyCaloriePoint } from "@/types/nutrition";
+import type { GoalComparisonPoint } from "@/types/nutrition";
 
 interface CalorieTrendChartProps {
-  data: WeeklyCaloriePoint[];
+  data: GoalComparisonPoint[];
+  activeGoal?: number | null;
 }
 
-/** Daily calorie totals as an area chart with a glowing teal gradient. */
-function CalorieTrendChart({ data }: CalorieTrendChartProps) {
+/**
+ * Daily calorie totals as bars, with the goal target as a step line.
+ * If there is no goal data for a particular day or range (such as days before
+ * the first goal was created), the goal is extended to the first date being shown
+ * so the target line remains continuous across the visible range.
+ */
+function CalorieTrendChart({ data, activeGoal }: CalorieTrendChartProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  const strokeColour = isDark ? "#34D399" : "#0EA57A";
+  const barColour = isDark ? "#34D399" : "#0EA57A";
+  const targetColour = isDark ? "#9CA3AF" : "#6B6659";
   const gridColour = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
   const textColour = isDark ? "#9CA3AF" : "#6B6659";
 
-  const formatted = useMemo(
-    () =>
-      data.map((d) => ({
+  const formatted = useMemo(() => {
+    if (!data || data.length === 0) return [];
+
+    // Find the latest known target in data, or fall back to activeGoal
+    const latestKnownTarget =
+      [...data].reverse().find((d) => d.targetCalories !== null)?.targetCalories ??
+      activeGoal ??
+      null;
+
+    // Find the earliest known target in data, or fall back to latestKnownTarget
+    const earliestKnownTarget =
+      data.find((d) => d.targetCalories !== null)?.targetCalories ??
+      latestKnownTarget;
+
+    // If no target exists anywhere, return formatted data as-is
+    if (earliestKnownTarget === null && latestKnownTarget === null) {
+      return data.map((d) => ({
         ...d,
         label: formatChartDate(d.date),
-      })),
-    [data]
+      }));
+    }
+
+    // Extend goal:
+    // Leading days without a goal get the earliest known target (or activeGoal),
+    // extending the goal line back to the first date being shown.
+    // Subsequent nulls get forward-filled.
+    let currentTarget: number | null = earliestKnownTarget;
+
+    return data.map((d) => {
+      if (d.targetCalories !== null) {
+        currentTarget = d.targetCalories;
+      }
+      return {
+        ...d,
+        targetCalories: d.targetCalories ?? currentTarget,
+        label: formatChartDate(d.date),
+      };
+    });
+  }, [data, activeGoal]);
+
+  const hasTarget = useMemo(
+    () => formatted.some((d) => d.targetCalories !== null),
+    [formatted]
   );
 
   return (
@@ -42,13 +87,7 @@ function CalorieTrendChart({ data }: CalorieTrendChartProps) {
 
       <div className="h-48 sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={formatted} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
-            <defs>
-              <linearGradient id="colorCalories" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={strokeColour} stopOpacity={isDark ? 0.4 : 0.2} />
-                <stop offset="95%" stopColor={strokeColour} stopOpacity={0} />
-              </linearGradient>
-            </defs>
+          <ComposedChart data={formatted} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColour} vertical={false} />
             <XAxis
               dataKey="label"
@@ -76,21 +115,37 @@ function CalorieTrendChart({ data }: CalorieTrendChartProps) {
               }}
               labelStyle={{ fontWeight: 700, paddingBottom: 4, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
               itemStyle={{ fontWeight: 500, color: isDark ? "#FFFFFF" : "#1A1A1A" }}
-              cursor={{ stroke: gridColour, strokeWidth: 1, strokeDasharray: "3 3" }}
+              cursor={{ fill: isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)" }}
+              formatter={(value, name) => (value === null ? ["No goal set", name] : [`${value} kcal`, name])}
             />
-            <Area
-              type="monotone"
-              dataKey="totalCalories"
+            {hasTarget && (
+              <Legend
+                wrapperStyle={{ fontSize: 10, fontWeight: 700, paddingTop: 16 }}
+              />
+            )}
+            <Bar
+              dataKey="actualCalories"
               name="Calories"
-              stroke={strokeColour}
-              strokeWidth={3}
-              fillOpacity={1}
-              fill="url(#colorCalories)"
+              fill={barColour}
+              radius={[4, 4, 0, 0]}
               isAnimationActive={true}
               animationDuration={300}
-              activeDot={{ r: 6, fill: strokeColour, stroke: isDark ? "#1A1A1A" : "#FCF8EF", strokeWidth: 2 }}
             />
-          </AreaChart>
+            {hasTarget && (
+              <Line
+                type="stepAfter"
+                dataKey="targetCalories"
+                name="Goal"
+                stroke={targetColour}
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+                dot={false}
+                connectNulls={true}
+                isAnimationActive={true}
+                animationDuration={300}
+              />
+            )}
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </section>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import ErrorState from "@/components/ui/ErrorState";
 import Spinner from "@/components/ui/Spinner";
 import { useChatThread } from "@/hooks/useChatThread";
@@ -16,16 +16,6 @@ export default function ChatThread() {
   const thread = useChatThread();
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // A meal is only proposed when the user asked to log it, so it is saved straight away and shown as a receipt.
-  useEffect(() => {
-    const pendingLogMeal = thread.messages.find(
-      (m) => m.action?.status === "pending" && m.action.payload.tool === "logMeal"
-    );
-    if (pendingLogMeal) {
-      thread.confirmAction(pendingLogMeal.id);
-    }
-  }, [thread.messages, thread.confirmAction]);
 
   function fillComposer(text: string) {
     setDraft(text);

@@ -1,3 +1,7 @@
+"use client";
+
+import { useInViewOnce } from "@/hooks/useInViewOnce";
+
 const DAILY_TARGET = 2200;
 const CHART_CEILING = 2600;
 const WEEK = [
@@ -10,30 +14,38 @@ const WEEK = [
   { day: "S", calories: 2140 },
 ] as const;
 
+const BAR_STAGGER_MS = 60;
+
 /** Mirrors the dashboard's 90-110% compliance band: days inside it get the full colour. */
 function isWithinTargetBand(calories: number): boolean {
   return calories >= DAILY_TARGET * 0.9 && calories <= DAILY_TARGET * 1.1;
 }
 
 export default function ReportsVisual() {
+  const { ref, isVisible } = useInViewOnce<HTMLDivElement>();
   const targetOffset = `${(DAILY_TARGET / CHART_CEILING) * 100}%`;
 
   return (
-    <div>
+    <div ref={ref}>
       <div className="relative flex h-20 sm:h-40 items-end gap-1.5 sm:gap-2.5">
         <div
-          className="absolute inset-x-0 border-t border-dashed border-text-secondary/40 dark:border-dark-text-secondary/40"
-          style={{ bottom: targetOffset }}
+          className={`absolute inset-x-0 border-t border-dashed border-text-secondary/40 dark:border-dark-text-secondary/40 transition-opacity duration-500 ease-out ${
+            isVisible ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ bottom: targetOffset, transitionDelay: "500ms" }}
         />
         {WEEK.map(({ day, calories }, index) => (
           <div
             key={`${day}-${index}`}
-            className={`flex-1 rounded-md ${
+            className={`flex-1 rounded-md transition-[height] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
               isWithinTargetBand(calories)
                 ? "bg-calories dark:bg-dark-calories"
                 : "bg-calories-muted dark:bg-dark-calories-muted"
             }`}
-            style={{ height: `${(calories / CHART_CEILING) * 100}%` }}
+            style={{
+              height: isVisible ? `${(calories / CHART_CEILING) * 100}%` : "0%",
+              transitionDelay: `${index * BAR_STAGGER_MS}ms`,
+            }}
           />
         ))}
       </div>

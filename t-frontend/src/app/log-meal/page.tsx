@@ -57,7 +57,7 @@ function LogMealContent() {
               hideDescriptionOnMobile
               stackOnMobile
               action={
-                <div className="grid grid-cols-2 sm:flex sm:flex-row sm:items-start gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
                   {dateField}
                   <JsonModeToggle
                     jsonMode={jsonMode}

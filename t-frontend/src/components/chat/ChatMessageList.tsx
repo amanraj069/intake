@@ -138,14 +138,18 @@ export default function ChatMessageList({
           const nextMessage = messages[index + 1];
           const isNextAssistant = nextMessage?.role === "assistant" || nextMessage?.action != null;
           const isLastInThread = !nextMessage;
-          const showAvatar = isAssistant && !isNextAssistant && (!isLastInThread || !sending);
-          // A message still sending has no server id yet, so it cannot be deleted until it lands.
-          const onDelete = message.delivery === "sending" ? undefined : () => onDeleteMessage(message.id);
+          const showAvatar = isAssistant && !isNextAssistant && (!isLastInThread || !sending || message.delivery === "streaming");
+          // A message still sending or streaming cannot be deleted mid-flight.
+          const onDelete =
+            message.delivery === "sending" || message.delivery === "streaming"
+              ? undefined
+              : () => onDeleteMessage(message.id);
 
           return (
             <li
               key={message.id}
-              className={`space-y-2 ${openingIds?.has(message.id) ? "animate-flow-card" : ""}`}
+              // The opening animation gives each item its own stacking layer, so an open menu must lift its item above the next.
+              className={`space-y-2 has-[[aria-expanded=true]]:relative has-[[aria-expanded=true]]:z-30 ${openingIds?.has(message.id) ? "animate-flow-card" : ""}`}
               style={openingIds?.has(message.id) ? { animationDelay: `${openingDelayMs(index)}ms` } : undefined}
             >
               {message.action ? (
@@ -178,7 +182,7 @@ export default function ChatMessageList({
             </li>
           );
         })}
-        {sending && (
+        {sending && !messages.some((m) => m.delivery === "streaming") && (
           <li>
             <ChatTypingIndicator />
           </li>

@@ -63,6 +63,7 @@ export interface FoodEntry {
   /** Every item's micronutrients summed per nutrient, computed by the server. */
   micros: Micronutrients;
   date: string;
+  time?: string;
   source: FoodEntrySource;
   confidenceScore?: number;
   confidenceLevel?: ConfidenceLevel;
@@ -82,6 +83,7 @@ export interface FoodEntryInput {
   name?: string;
   items: FoodItemInput[];
   date: string;
+  time?: string;
   source?: FoodEntrySource;
   confidenceScore?: number;
   confidenceLevel?: ConfidenceLevel;
@@ -188,11 +190,6 @@ export interface PageMeta {
 // ---------------------------------------------------------------------------
 // Report types — returned by /api/reports/*
 // ---------------------------------------------------------------------------
-
-export interface WeeklyCaloriePoint {
-  date: string;
-  totalCalories: number;
-}
 
 export interface MacroBreakdownPoint {
   period: string;

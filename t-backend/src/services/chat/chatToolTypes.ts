@@ -12,6 +12,8 @@ import { ChatActionTool } from '../../models/ChatMessage';
 export interface ChatToolContext {
   userId: string;
   today: CalendarDay;
+  /** The user's wall-clock time as `HH:MM`, when the client sent one with an accepted `today`. */
+  localTime?: string;
 }
 
 /** A tool either produced a result or explains to the model what was wrong with its call. */
@@ -30,23 +32,26 @@ export interface PendingChatAction {
   preview: string;
 }
 
-export interface ChatReadTool {
-  kind: 'read';
+interface ChatToolBase {
   declaration: GeminiFunctionDeclaration;
+  /** Shown to the user while the call runs, before any reply text streams in. */
+  statusMessage: string;
+}
+
+export interface ChatReadTool extends ChatToolBase {
+  kind: 'read';
   run(rawArgs: Record<string, unknown>, context: ChatToolContext): Promise<ToolOutcome<unknown>>;
 }
 
-export interface ChatWriteToolDefinition {
+export interface ChatWriteToolDefinition extends ChatToolBase {
   kind: 'write';
-  declaration: GeminiFunctionDeclaration;
   /** Validates and previews the write. Never touches stored data. */
   prepare(rawArgs: Record<string, unknown>, context: ChatToolContext): Promise<ToolOutcome<PendingChatAction>>;
 }
 
 /** Like a write tool, but its result never needs confirming: nothing about it is ever saved. */
-export interface ChatEstimateToolDefinition {
+export interface ChatEstimateToolDefinition extends ChatToolBase {
   kind: 'estimate';
-  declaration: GeminiFunctionDeclaration;
   prepare(rawArgs: Record<string, unknown>, context: ChatToolContext): Promise<ToolOutcome<PendingChatAction>>;
 }
 

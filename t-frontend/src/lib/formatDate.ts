@@ -77,3 +77,23 @@ export function formatChartDate(isoDate: string): string {
   const month = String(d.getUTCMonth() + 1).padStart(2, "0");
   return `${day}/${month}`;
 }
+
+/** Current local time as `HH:mm` for a native time input. */
+export function nowAsTimeInputValue(): string {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+/** Formats an `HH:mm` 24-hour time string into friendly 12-hour format, e.g. "1:30 PM". */
+export function formatTime(timeString?: string): string {
+  if (!timeString) return "";
+  const match = timeString.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return timeString;
+  const hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours % 12 || 12;
+  return `${hour12}:${minutes} ${ampm}`;
+}

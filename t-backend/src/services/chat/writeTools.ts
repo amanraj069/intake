@@ -1,11 +1,11 @@
 import { CalendarDay } from '../../lib/calendarDay';
 import { FOOD_ITEM_UNITS, MEAL_TYPES } from '../../models/FoodEntry';
-import { IGoalDocument } from '../../models/Goal';
 import { createFoodEntrySchema } from '../../schemas/foodEntry.schema';
 import { upsertGoalSchema } from '../../schemas/goal.schema';
 import * as goalService from '../goal.service';
 import { goalValuesMatch, previewLogMeal, previewSetGoal } from './actionPreview';
 import { ChatWriteToolDefinition, describeValidationError } from './chatToolTypes';
+import { applyGoalChanges, changedGoalTargets } from './goalChanges';
 import { toItemsInput } from './itemArgs';
 
 /**
@@ -15,6 +15,8 @@ import { toItemsInput } from './itemArgs';
  */
 export const logMealArgsSchema = createFoodEntrySchema.shape.body;
 export const setGoalArgsSchema = upsertGoalSchema.shape.body;
+/** A goal proposal's `args`: only the targets it changes. */
+export const setGoalChangesSchema = setGoalArgsSchema.partial();
 
 function toLogMealCandidate(rawArgs: Record<string, unknown>, today: CalendarDay) {
   return {
@@ -28,10 +30,11 @@ function toLogMealCandidate(rawArgs: Record<string, unknown>, today: CalendarDay
 
 const logMeal: ChatWriteToolDefinition = {
   kind: 'write',
+  statusMessage: 'Preparing your meal entry...',
   declaration: {
     name: 'logMeal',
     description:
-      'Logs one meal. Call it only when the user asked to log food or said what they ate at a meal, never just to answer a question about nutrition. Estimate realistic nutrition for each item when the user does not state it.',
+      'Proposes logging one meal; the user confirms before it is saved. Call it only when the user asked to log food or said what they ate at a meal, never just to answer a question about nutrition. Estimate realistic nutrition for each item when the user does not state it.',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -73,15 +76,14 @@ const logMeal: ChatWriteToolDefinition = {
   },
 };
 
-const GOAL_TARGET_KEYS = ['dailyCalorieTarget', 'proteinTargetG', 'carbTargetG', 'fatTargetG', 'weightGoalKg'] as const;
-
-/** A partial change from the model is laid over the saved goal, because saving a goal replaces all of it. */
-function mergeWithSavedGoal(rawArgs: Record<string, unknown>, saved: IGoalDocument | null) {
-  return Object.fromEntries(GOAL_TARGET_KEYS.map((key) => [key, rawArgs[key] ?? saved?.[key]]));
-}
-
+/**
+ * The proposal is validated as the complete goal it would produce now, but
+ * carries only the targets that change. Confirming lays those over the goal as
+ * it is then, so an edit made on the Goals page in between is not reverted.
+ */
 const setGoal: ChatWriteToolDefinition = {
   kind: 'write',
+  statusMessage: 'Preparing your goal update...',
   declaration: {
     name: 'setGoal',
     description:
@@ -99,7 +101,7 @@ const setGoal: ChatWriteToolDefinition = {
   },
   async prepare(rawArgs, context) {
     const saved = await goalService.findGoalByUserId(context.userId);
-    const parsed = setGoalArgsSchema.safeParse(mergeWithSavedGoal(rawArgs, saved));
+    const parsed = setGoalArgsSchema.safeParse(applyGoalChanges(rawArgs, saved));
 
     if (!parsed.success) {
       const hint = saved ? '' : ' No goal exists yet, so all four daily targets must be given.';
@@ -112,7 +114,11 @@ const setGoal: ChatWriteToolDefinition = {
 
     return {
       ok: true,
-      value: { tool: 'setGoal', args: parsed.data, preview: previewSetGoal(parsed.data, saved) },
+      value: {
+        tool: 'setGoal',
+        args: changedGoalTargets(parsed.data, saved),
+        preview: previewSetGoal(parsed.data, saved),
+      },
     };
   },
 };

@@ -10,8 +10,8 @@ import ReportDateRange, { type DateRange } from "@/components/reports/ReportDate
 import CalorieTrendChart from "@/components/reports/CalorieTrendChart";
 import MacroBreakdownChart from "@/components/reports/MacroBreakdownChart";
 import MicroSummaryChart from "@/components/reports/MicroSummaryChart";
-import GoalComparisonChart from "@/components/reports/GoalComparisonChart";
 import { useReportData } from "@/hooks/useReportData";
+import { useGoal } from "@/hooks/useGoal";
 import { todayAsInputValue, daysBefore } from "@/lib/formatDate";
 
 function createDefaultRange(): DateRange {
@@ -23,6 +23,7 @@ export default function ReportsPage() {
   const [range, setRange] = useState<DateRange>(createDefaultRange);
   const [isPending, startTransition] = useTransition();
   const { data, loading, error, reload } = useReportData(range.startDate, range.endDate);
+  const { goal } = useGoal();
 
   const handleRangeChange = (newRange: DateRange) => {
     startTransition(() => {
@@ -55,17 +56,15 @@ export default function ReportsPage() {
 
         {data && (
           <div
-            className={`grid gap-4 sm:gap-6 lg:gap-10 lg:grid-cols-2 transition-opacity duration-200 ${
+            className={`flex flex-col gap-4 sm:gap-6 lg:gap-10 transition-opacity duration-200 ${
               isRefreshing || isPending ? "opacity-60 pointer-events-none" : "opacity-100"
             }`}
           >
-            <div className="lg:col-span-2">
-              <CalorieTrendChart data={data.weeklyCalories} />
-            </div>
-            <div className="lg:col-span-2">
-              <MacroBreakdownChart data={data.macros} />
-            </div>
-            <GoalComparisonChart data={data.goalComparison} />
+            <CalorieTrendChart
+              data={data.calorieTrend}
+              activeGoal={goal?.dailyCalorieTarget}
+            />
+            <MacroBreakdownChart data={data.macros} />
             <MicroSummaryChart data={data.micros} />
           </div>
         )}

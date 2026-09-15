@@ -4,13 +4,18 @@ import assert from 'node:assert/strict';
 import { TestServer, TestUser, createTestUser, startTestServer } from './support/testServer';
 import { FoodEntry } from '../src/models/FoodEntry';
 import { Goal } from '../src/models/Goal';
+import { today } from '../src/lib/calendarDay';
 
 /**
  * Two users log food and set goals on the same day. User A then attempts every
  * Stage 1-3 operation against user B's data, and must never see or change it.
+ *
+ * Goals are versioned by effective date, so the goal a POST /api/goals call
+ * creates only covers today onward. LOG_DAY has to be today, or the daily
+ * summary/series/goal-comparison checks below would be asking about a day
+ * before the goal existed and correctly get no goal back.
  */
-
-const LOG_DAY = '2026-09-01';
+const LOG_DAY = today();
 const RANGE = `startDate=${LOG_DAY}&endDate=${LOG_DAY}`;
 
 /** Distinct numbers per user, so any leaked row shows up as a wrong total. */
