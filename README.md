@@ -29,6 +29,7 @@ INTAKE is a modern, full-stack nutrition intelligence and meal tracking applicat
    - [Conversational Assistant & Native Function Calling](#conversational-assistant--native-function-calling)
    - [Authentication & Account Security](#authentication--account-security)
    - [Multi-Tenant Data Isolation](#multi-tenant-data-isolation)
+   - [API Rate Limiting](#api-rate-limiting)
 
 ---
 
@@ -54,7 +55,7 @@ intake/
 | **Request Validation** | Zod | Strict schema validation for all HTTP bodies, params, and query strings |
 | **Authentication** | JWT, Passport.js, bcryptjs | Access and refresh tokens stored in `httpOnly` cookies, Google OAuth 2.0 |
 | **Artificial Intelligence** | Google Gemini API | Key rotation pool with model fallback (photo extraction, PDF parsing, chat agent) |
-| **Media Storage** | Cloudinary | Profile picture storage and chat photo attachments |
+| **Media Storage** | Cloudinary | Profile picture storage, chat photo attachments, and meal photo uploads |
 | **Email Delivery** | Resend | Transactional signup verification codes and OTP password/email reset emails |
 | **Document Parsing** | pdf-parse | Server-side text layer extraction from PDF files |
 
@@ -198,6 +199,8 @@ Populate the variables in `t-backend/.env`:
 | Variable | Description | Example / Default |
 |---|---|---|
 | `PORT` | Backend server port | `9000` |
+| `TRUST_PROXY` | Number of reverse proxies in front of the server, so rate limits see the real client IP. Keep `0` when reached directly | `0` |
+| `RATE_LIMIT_ENABLED` | *(Optional)* Set to `false` to disable API rate limiting (the test suite does this) | `true` |
 | `MONGODB_URI` | MongoDB connection URI | `mongodb://localhost:27017/tdb` |
 | `JWT_ACCESS_SECRET` | Secret for access tokens (generate with `crypto`) | `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"` |
 | `JWT_REFRESH_SECRET` | Secret for refresh tokens (must differ from access secret) | `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"` |
@@ -562,6 +565,11 @@ Represents a logged meal or food intake event, composed of one or more food item
     unit: string;
   }>;
   source: 'manual' | 'ai-image' | 'pdf-import' | 'ai-chat';
+  imageUrl?: string;              // Cloudinary CDN URL if photo was uploaded on logging
+  imagePublicId?: string;         // Cloudinary asset identifier
+  confidenceScore?: number;       // Confidence score (0-100) if AI-logged
+  confidenceLevel?: 'high' | 'medium' | 'low';
+  extractionAnalysis?: any;       // Full AI analysis breakdown if AI-logged
   createdAt: Date;
   updatedAt: Date;
 }
@@ -644,6 +652,7 @@ This section explicitly documents all design decisions and assumptions made acro
 - **Session-Bound Function Calling:** Assistant tools (`getTodaySummary`, `logMeal`, `setGoal`, etc.) are bound strictly to the authenticated user ID on the server. The AI model has no access to user IDs and cannot query or mutate data across user boundaries.
 - **Read Tools Execute Automatically; Write Tools Require Confirmation:** Queries for data (intake summaries, goal targets, meal history) execute immediately to enrich the assistant's context. Mutation tools (`logMeal`, `setGoal`) generate a pending proposal card (`pendingAction`), requiring explicit user confirmation before touching the database.
 - **Conversational Meal Logging Convenience:** When the user's message explicitly requests logging a meal, the interface auto-confirms the proposed meal and displays a saved receipt card directly in the conversation.
+- **Fresh Start with On-Demand History:** The chat page opens on an empty conversation. Earlier messages stay hidden until "Load previous chats" is pressed, which shows the latest 4; scrolling up to the top loads 4 more at a time. Once opened, history stays on screen while new messages are sent. "New chat" (beside "Photo" in the composer) clears the screen again, but deletes nothing and does not reset the assistant's context. Older pages are fetched with a `before` message id rather than a page number, so messages sent in the meantime never cause repeats or gaps. If a reply was still being produced when the page reloaded, the conversation reopens automatically so the reply is not hidden.
 - **Bounded Conversational Context:** To balance contextual memory with latency and token limits, the backend provides the latest 20 stored messages as context for each new turn.
 - **Client Date Awareness:** Requests transmit the user's local date (`YYYY-MM-DD`) with each turn, allowing the assistant to ground temporal references ("today", "yesterday") to the user's local timezone.
 
@@ -662,3 +671,24 @@ This section explicitly documents all design decisions and assumptions made acro
 - **Session-Derived Identity:** Every protected backend endpoint resolves the user identity directly from the verified `access_token` JWT cookie. Client requests cannot supply a `userId` in parameters or bodies to impersonate another user.
 - **Strict Query Scoping:** Every database query and aggregation pipeline filters by `{ userId: authenticatedUserId }`.
 - **Ownership Verification:** Single-resource operations (`GET`, `PATCH`, `DELETE` on `/api/food-entries/:id`) perform explicit ownership validation, returning `403 Forbidden` if a requested resource belongs to another user.
+
+### API Rate Limiting
+
+Every API request passes through [`express-rate-limit`](https://github.com/express-rate-limit/express-rate-limit). All policies live in `t-backend/src/lib/rateLimitPolicies.ts`; `t-backend/src/middleware/rateLimit.ts` turns each policy into middleware, and the route files only attach them.
+
+| Policy | Limit | Counts | Applied to |
+|---|---|---|---|
+| General | 500 requests / 15 min | Every request | All routes except `GET /health` |
+| Credential attempts | 10 failures / 15 min | Only failed responses | `POST /auth/login`, `POST /auth/reset-password`, `POST /auth/signup/verify-otp`, `POST /auth/verify-otp`, `PATCH /auth/change-password` |
+| Account creation | 20 requests / hour | Every request | `POST /auth/check-email`, `POST /auth/register` |
+| Email delivery | 5 requests / hour | Every request | `POST /auth/forgot-password`, `POST /auth/signup/resend-otp`, `POST /auth/resend-verification`, `POST /auth/request-otp` |
+| AI requests | 40 requests / 15 min | Every request | `POST /api/ai/extract-nutrition`, `POST /api/chat`, `POST /api/chat/messages/:messageId/retry`, `POST /api/onboarding/plan`, `POST /api/food-entries/import/preview` |
+| File uploads | 10 requests / hour | Every request | `POST /auth/avatar` |
+
+- **Who is counted:** Signed-in requests are counted per account, so users behind one shared IP (an office, a mobile carrier) do not use up each other's allowance. Signed-out requests and the general limit are counted per IP, grouping IPv6 addresses by /56 subnet so rotating addresses does not reset the count.
+- **Order of checks:** Account-keyed limiters run after `requireAuth` and before file parsing or validation, so a throttled request never costs an upload parse, a database write or a Gemini call.
+- **Failures only for credentials:** The credential limit ignores successful responses, so someone who eventually signs in correctly is not locked out, while guessing a password or OTP is capped at 10 tries per 15 minutes. This sits on top of the 5-attempt limit each OTP already enforces.
+- **Shared buckets:** Endpoints under the same policy share one counter per client. For example, 5 emails per hour is a total across all email-sending endpoints, not 5 each.
+- **Response:** A throttled request returns `429` with the standard error envelope, a `RATE_LIMITED` code and `details.retryAfterSeconds`, plus the standard `RateLimit`, `RateLimit-Policy` and `Retry-After` headers.
+- **Proxies:** Behind a load balancer or hosting proxy, set `TRUST_PROXY` to the number of proxy hops. Without it every user appears to share the proxy's IP; setting it too high lets clients spoof their IP through `X-Forwarded-For`.
+- **Known limitation, single instance:** Counters are held in memory, so they reset when the server restarts and are not shared between multiple server instances. A horizontally scaled deployment should give each limiter a shared store such as [`rate-limit-redis`](https://github.com/express-rate-limit/rate-limit-redis), which needs no other code changes.

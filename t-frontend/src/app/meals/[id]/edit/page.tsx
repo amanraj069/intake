@@ -95,7 +95,7 @@ function EditMealContent({ entryId }: { entryId: string }) {
             onCloseJsonMode={() => setJsonMode(false)}
             onSubmit={handleSubmit}
             renderHeader={renderHeader}
-            banner={entry.source === "ai-image" ? <AiLoggedNotice entry={entry} /> : undefined}
+            banner={entry.source === "ai-image" || Boolean(entry.imageUrl) ? <AiLoggedNotice entry={entry} /> : undefined}
           />
         )}
 

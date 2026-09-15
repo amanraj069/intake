@@ -41,11 +41,30 @@ export const nutritionApi = {
 
   getFoodEntry: (id: string) => request<FoodEntryData>(`/api/food-entries/${id}`),
 
-  createFoodEntry: (entry: FoodEntryInput) =>
-    request<FoodEntryData>("/api/food-entries", {
+  createFoodEntry: (entry: FoodEntryInput, photoFile?: File | Blob | null) => {
+    if (photoFile) {
+      const form = new FormData();
+      form.append("data", JSON.stringify(entry));
+      form.append("image", photoFile);
+      return request<FoodEntryData>("/api/food-entries", {
+        method: "POST",
+        body: form,
+      });
+    }
+    return request<FoodEntryData>("/api/food-entries", {
       method: "POST",
       body: JSON.stringify(entry),
-    }),
+    });
+  },
+
+  uploadMealImage: (image: File | Blob) => {
+    const form = new FormData();
+    form.append("image", image);
+    return request<{ imageUrl: string; imagePublicId: string }>("/api/food-entries/upload-image", {
+      method: "POST",
+      body: form,
+    });
+  },
 
   updateFoodEntry: (id: string, changes: Partial<FoodEntryInput>) =>
     request<FoodEntryData>(`/api/food-entries/${id}`, {

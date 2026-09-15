@@ -15,7 +15,7 @@ interface PhotoExtractPanelProps {
   /** The analysis of the draft currently in the form, or null when there is none. */
   analysis: ExtractionAnalysis | null;
   disabled: boolean;
-  onExtracted: (result: NutritionExtraction) => void;
+  onExtracted: (result: NutritionExtraction, file?: File) => void;
   onDiscard: () => void;
   /** Called when the user gives up on the photo and wants to type the entry instead. */
   onEnterManually: () => void;
@@ -35,16 +35,16 @@ export default function PhotoExtractPanel({
 }: PhotoExtractPanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState("");
-  const { status, previewUrl, failure, extract, retry, reset } = useNutritionExtraction();
+  const { status, previewUrl, file: currentFile, failure, extract, retry, reset } = useNutritionExtraction();
 
   async function runExtraction(file: File) {
     const result = await extract(file, description.trim() || undefined);
-    if (result) onExtracted(result);
+    if (result) onExtracted(result, file);
   }
 
   async function handleRetry() {
     const result = await retry();
-    if (result) onExtracted(result);
+    if (result) onExtracted(result, currentFile ?? undefined);
   }
 
   function handleFileChosen(event: ChangeEvent<HTMLInputElement>) {

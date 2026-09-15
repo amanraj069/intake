@@ -21,6 +21,7 @@ interface PendingActionCardProps {
   /** Omitted while the message is still sending, so it cannot be deleted mid-flight. */
   onDelete?: () => void;
   showAvatar?: boolean;
+  onSend?: (message: string) => void;
 }
 
 const TOOL_DETAILS: Record<ChatWriteTool, { title: string; Icon: typeof LogMealIcon; href: string; linkLabel: string }> = {
@@ -69,11 +70,14 @@ export default function PendingActionCard({
   onLogAnother,
   onDelete,
   showAvatar = true,
+  onSend,
 }: PendingActionCardProps) {
   const undecided = action.status === "pending" || action.status === "confirming";
-  const menu = onDelete && (
-    <MessageActionsMenu content={content} onDelete={onDelete} className="absolute right-2 top-2" />
-  );
+  const menu = onDelete ? (
+    <div className="absolute top-2 right-2 z-20">
+      <MessageActionsMenu content={content} onDelete={onDelete} />
+    </div>
+  ) : null;
 
   if (action.status === "confirmed" && action.payload.tool === "logMeal" && hasFoodItems(action.payload.args)) {
     return (
@@ -92,7 +96,10 @@ export default function PendingActionCard({
       <div className="flex justify-start items-end gap-2.5">
         <AiAvatar visible={showAvatar} />
         <div className="group relative w-full max-w-[94%] sm:w-[480px] sm:max-w-[480px]">
-          <NutritionEstimateCard action={action.payload} />
+          <NutritionEstimateCard
+            action={action.payload}
+            onLogMeal={onSend ? (mealType) => onSend(`Log this as ${mealType}`) : undefined}
+          />
           {menu}
         </div>
       </div>

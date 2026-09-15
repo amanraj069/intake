@@ -3,6 +3,7 @@ import { AppError } from '../middleware/errorHandler';
 
 const AVATAR_FOLDER = 'intake/avatars';
 const CHAT_IMAGE_FOLDER = 'intake/chat';
+const MEAL_IMAGE_FOLDER = 'intake/meals';
 
 /**
  * Cloudinary bundles the cloud name into `CLOUDINARY_URL`, so either that
@@ -89,6 +90,18 @@ export function uploadAvatarImage(fileBuffer: Buffer, userId: string): Promise<U
 export function uploadChatImage(fileBuffer: Buffer, userId: string): Promise<UploadedImage> {
   return uploadImageBuffer(fileBuffer, {
     folder: `${CHAT_IMAGE_FOLDER}/${userId}`,
+    format: 'jpg',
+    transformation: [{ width: 1600, height: 1600, crop: 'limit' }, { quality: 'auto' }],
+  });
+}
+
+/**
+ * Uploads a photo attached to a logged meal. Stored in the user's meal folder
+ * in Cloudinary as a JPEG with auto quality and bounded dimensions.
+ */
+export function uploadMealImage(fileBuffer: Buffer, userId: string): Promise<UploadedImage> {
+  return uploadImageBuffer(fileBuffer, {
+    folder: `${MEAL_IMAGE_FOLDER}/${userId}`,
     format: 'jpg',
     transformation: [{ width: 1600, height: 1600, crop: 'limit' }, { quality: 'auto' }],
   });

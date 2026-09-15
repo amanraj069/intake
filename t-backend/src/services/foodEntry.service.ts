@@ -12,6 +12,7 @@ import { CalendarDay, daysBefore, startOfDay, startOfNextDay, today } from '../l
 import { defaultEntryName } from '../lib/foodEntryName';
 import { sumItemNutrition } from '../lib/foodItemTotals';
 import { PaginatedResult, buildPaginatedResult, toSkipCount } from '../lib/pagination';
+import { deleteUploadedImage, extractPublicIdFromUrl } from '../lib/cloudinary';
 
 /** How many days a list request covers when the caller gives no date bounds. */
 const DEFAULT_RANGE_DAYS = 7;
@@ -63,6 +64,8 @@ export function buildFoodEntryFields(userId: string, input: CreateFoodEntryInput
     confidenceScore: input.confidenceScore,
     confidenceLevel: input.confidenceLevel,
     extractionAnalysis: input.extractionAnalysis,
+    imageUrl: input.imageUrl,
+    imagePublicId: input.imagePublicId,
   };
 }
 
@@ -95,6 +98,8 @@ function applyFoodEntryUpdate(entry: IFoodEntryDocument, input: UpdateFoodEntryI
   if (input.confidenceScore !== undefined) entry.confidenceScore = input.confidenceScore;
   if (input.confidenceLevel !== undefined) entry.confidenceLevel = input.confidenceLevel;
   if (input.extractionAnalysis !== undefined) entry.extractionAnalysis = input.extractionAnalysis;
+  if (input.imageUrl !== undefined) entry.imageUrl = input.imageUrl;
+  if (input.imagePublicId !== undefined) entry.imagePublicId = input.imagePublicId;
 }
 
 export async function updateFoodEntry(
@@ -110,6 +115,12 @@ export async function updateFoodEntry(
 
 export async function deleteFoodEntry(userId: string, entryId: string): Promise<void> {
   const entry = await findOwnedFoodEntry(userId, entryId);
+  const publicId = entry.imagePublicId || (entry.imageUrl ? extractPublicIdFromUrl(entry.imageUrl) : undefined);
+  if (publicId) {
+    await deleteUploadedImage(publicId).catch((error: unknown) => {
+      console.error('[Cloudinary] Failed to delete meal image asset:', error);
+    });
+  }
   await entry.deleteOne();
 }
 

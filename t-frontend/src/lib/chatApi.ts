@@ -12,9 +12,9 @@ function toChatMessageForm(message: string, image: File): FormData {
 }
 
 export const chatApi = {
-  /** One page of the thread, most recent page first. */
-  getChatHistory: (page: number, limit: number) =>
-    requestPage<ChatMessage>(`/api/chat/history${toQueryString({ page, limit })}`),
+  /** One page of the thread, newest first. With `before`, only messages older than that message id. */
+  getChatHistory: (page: number, limit: number, before?: string) =>
+    requestPage<ChatMessage>(`/api/chat/history${toQueryString({ page, limit, before })}`),
 
   /**
    * The user's own day travels with each message, so "today" means their today,

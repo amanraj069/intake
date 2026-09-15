@@ -3,9 +3,24 @@
 import type { DailyIntakeSummary } from "@/types/nutrition";
 import MacroRing from "./MacroRing";
 
+export interface NutritionProgressSummary {
+  totals: {
+    calories: number;
+    proteinG: number;
+    carbG: number;
+    fatG: number;
+  };
+  goal?: {
+    dailyCalorieTarget?: number | null;
+    proteinTargetG?: number | null;
+    carbTargetG?: number | null;
+    fatTargetG?: number | null;
+  } | null;
+}
+
 interface DailyOverviewProgressProps {
   /** Today's intake summary including totals and goal. */
-  summary: DailyIntakeSummary | null;
+  summary: DailyIntakeSummary | NutritionProgressSummary | null;
   loading?: boolean;
   showTitle?: boolean;
 }
@@ -33,36 +48,37 @@ export default function DailyOverviewProgress({ summary, loading, showTitle = tr
   const calorieRatio = calorieTarget ? Math.min(1, totals.calories / calorieTarget) : 0;
 
   return (
-    <div className="space-y-2.5 sm:space-y-3">
+    <div className="space-y-2 sm:space-y-2.5">
       {showTitle && (
         <p className="text-[10px] sm:text-[11px] font-bold text-text-secondary dark:text-dark-text-secondary">Today&apos;s progress</p>
       )}
 
-      <div className={`${CONTAINER_CLASSES} space-y-1.5`}>
-        <div className="flex items-baseline justify-between gap-1">
-          <span className="text-[11px] sm:text-xs font-semibold tracking-wide text-calories dark:text-dark-calories">Calories</span>
-          <span className="text-[11px] sm:text-xs text-text-primary dark:text-dark-text tabular-nums whitespace-nowrap">
-            {Math.round(totals.calories)}
-            {calorieTarget != null && (
-              <span className="text-text-secondary dark:text-dark-text-secondary"> / {Math.round(calorieTarget)}</span>
-            )}
-            <span className="text-text-secondary dark:text-dark-text-secondary"> kcal</span>
-          </span>
-        </div>
-        {calorieTarget != null && (
-          <div className="h-1.5 rounded-full bg-black/[0.06] dark:bg-white/[0.06] overflow-hidden">
-            <div
-              className="h-full rounded-full bg-calories dark:bg-dark-calories transition-all duration-500 ease-out"
-              style={{ width: `${calorieRatio * 100}%` }}
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-stretch gap-2 sm:gap-3">
-        <MacroRing nutrient="protein" current={totals.proteinG} target={goal?.proteinTargetG ?? null} />
-        <MacroRing nutrient="carbs" current={totals.carbG} target={goal?.carbTargetG ?? null} />
-        <MacroRing nutrient="fat" current={totals.fatG} target={goal?.fatTargetG ?? null} />
+      {/* Horizontally scrollable track on phone view, evenly distributed row on tablet/desktop */}
+      <div className="flex items-stretch gap-2 sm:gap-2.5 overflow-x-auto pb-1 pt-0.5 scrollbar-none snap-x snap-mandatory -mx-0.5 px-0.5">
+        <MacroRing
+          nutrient="calories"
+          current={totals.calories}
+          target={calorieTarget}
+          className="min-w-[92px] sm:min-w-0 shrink-0 snap-start sm:shrink"
+        />
+        <MacroRing
+          nutrient="protein"
+          current={totals.proteinG}
+          target={goal?.proteinTargetG ?? null}
+          className="min-w-[92px] sm:min-w-0 shrink-0 snap-start sm:shrink"
+        />
+        <MacroRing
+          nutrient="carbs"
+          current={totals.carbG}
+          target={goal?.carbTargetG ?? null}
+          className="min-w-[92px] sm:min-w-0 shrink-0 snap-start sm:shrink"
+        />
+        <MacroRing
+          nutrient="fat"
+          current={totals.fatG}
+          target={goal?.fatTargetG ?? null}
+          className="min-w-[92px] sm:min-w-0 shrink-0 snap-start sm:shrink"
+        />
       </div>
     </div>
   );

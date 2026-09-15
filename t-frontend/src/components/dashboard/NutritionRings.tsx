@@ -176,38 +176,72 @@ export default function NutritionRings({ calories, protein, carbs, fat }: Nutrit
         </svg>
       </div>
 
-      {/* ── 2x2 Metric Grid ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-2.5 w-full">
-        {RING_DEFS.map((def, i) => {
-          const p = pairs[i];
-          const colour = colourFor(def.key);
-          return (
-            <div
-              key={def.key}
-              className="flex items-center justify-between rounded-xl bg-bg-surface dark:bg-dark-surface px-2.5 py-2 sm:px-3 sm:py-2.5 gap-1.5"
-            >
-              <div className="flex items-center gap-0 sm:gap-1.5 shrink-0">
-                <span
-                  className={`hidden sm:inline-block h-2 w-2 rounded-full shrink-0 ${colour.solidBg} dark:${colour.darkSolidBg}`}
-                  aria-hidden="true"
-                />
-                <span
-                  className={`text-[11px] sm:text-xs font-semibold ${colour.text} dark:${colour.darkText}`}
-                >
-                  {def.label}
-                </span>
-              </div>
-              <p className="text-[11px] sm:text-xs font-semibold text-text-primary dark:text-dark-text whitespace-nowrap text-right tabular-nums">
-                {formatAmount(p.consumed)}
-                <span className="text-text-secondary dark:text-dark-text-secondary font-normal text-[10px] sm:text-[11px]">
-                  {" / "}
-                  {p.target !== null ? `${formatAmount(p.target)}${def.unit}` : `—${def.unit}`}
-                </span>
-              </p>
-            </div>
-          );
-        })}
+      {/* ── Metric Rows ─────────────────────────────────────────── */}
+      <div className="flex flex-col gap-2 sm:gap-2.5 w-full">
+        {/* Row 1: Calories (extended width) & Protein */}
+        <div className="flex items-center gap-2 sm:gap-2.5 w-full">
+          <MetricTile
+            def={RING_DEFS[0]}
+            pair={calories}
+            className="flex-[1.25] sm:flex-[1.2]"
+          />
+          <MetricTile
+            def={RING_DEFS[1]}
+            pair={protein}
+            className="flex-1"
+          />
+        </div>
+
+        {/* Row 2: Carbs & Fat (extended width) */}
+        <div className="flex items-center gap-2 sm:gap-2.5 w-full">
+          <MetricTile
+            def={RING_DEFS[2]}
+            pair={carbs}
+            className="flex-1"
+          />
+          <MetricTile
+            def={RING_DEFS[3]}
+            pair={fat}
+            className="flex-[1.2] sm:flex-[1.18]"
+          />
+        </div>
       </div>
+    </div>
+  );
+}
+
+function MetricTile({
+  def,
+  pair,
+  className = "",
+}: {
+  def: RingDef;
+  pair: MetricPair;
+  className?: string;
+}) {
+  const colour = colourFor(def.key);
+  return (
+    <div
+      className={`flex items-center justify-between rounded-xl bg-bg-surface dark:bg-dark-surface px-2.5 py-2 sm:px-3 sm:py-2.5 gap-1.5 min-w-0 ${className}`}
+    >
+      <div className="flex items-center gap-0 sm:gap-1.5 shrink-0">
+        <span
+          className={`hidden sm:inline-block h-2 w-2 rounded-full shrink-0 ${colour.solidBg} dark:${colour.darkSolidBg}`}
+          aria-hidden="true"
+        />
+        <span
+          className={`text-[11px] sm:text-xs font-semibold ${colour.text} dark:${colour.darkText}`}
+        >
+          {def.label}
+        </span>
+      </div>
+      <p className="text-[11px] sm:text-xs font-semibold text-text-primary dark:text-dark-text whitespace-nowrap text-right tabular-nums min-w-0">
+        {formatAmount(pair.consumed)}
+        <span className="text-text-secondary dark:text-dark-text-secondary font-normal text-[10px] sm:text-[11px]">
+          {" / "}
+          {pair.target !== null ? `${formatAmount(pair.target)}${def.unit}` : `—${def.unit}`}
+        </span>
+      </p>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject } from "react";
-import { ImageAttachIcon, SendIcon } from "@/components/icons";
+import { ImageAttachIcon, NewChatIcon, SendIcon } from "@/components/icons";
 import Spinner from "@/components/ui/Spinner";
 import ComposerImagePreview from "./ComposerImagePreview";
 
@@ -16,6 +16,8 @@ interface ChatComposerProps {
   onChange: (value: string) => void;
   onSend: () => void;
   onSendWithImage?: (image: File, caption: string) => void;
+  /** Shown only once there is a conversation on screen to leave. */
+  onNewChat?: () => void;
   sending: boolean;
   /** Why sending is paused, e.g. a proposed change still awaiting a decision. */
   blockedReason: string | null;
@@ -37,7 +39,16 @@ const SEND_BUTTON_CLASSES =
   "enabled:hover:scale-105 enabled:active:scale-95 " +
   "disabled:bg-border/40 dark:disabled:bg-white/[0.06] disabled:text-text-secondary/40 dark:disabled:text-dark-text-secondary/30 disabled:cursor-not-allowed";
 
-export default function ChatComposer({ value, onChange, onSend, onSendWithImage, sending, blockedReason, inputRef }: ChatComposerProps) {
+export default function ChatComposer({
+  value,
+  onChange,
+  onSend,
+  onSendWithImage,
+  onNewChat,
+  sending,
+  blockedReason,
+  inputRef,
+}: ChatComposerProps) {
   const [attachedImage, setAttachedImage] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,16 +144,31 @@ export default function ChatComposer({ value, onChange, onSend, onSendWithImage,
 
         <div className="flex items-center justify-between gap-3 px-2 pb-2 pt-0.5 sm:px-2.5 sm:pb-2.5 sm:pt-1">
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} aria-label="Attach a food photo" />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending || !!blockedReason}
-            className={ATTACH_BUTTON_CLASSES}
-            aria-label="Attach image"
-          >
-            <ImageAttachIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Photo</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending || !!blockedReason}
+              className={ATTACH_BUTTON_CLASSES}
+              aria-label="Attach image"
+            >
+              <ImageAttachIcon className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Photo</span>
+            </button>
+            {onNewChat && (
+              <button
+                type="button"
+                onClick={onNewChat}
+                // Leaving mid-reply or with a change awaiting a decision would hide something the user still has to see.
+                disabled={sending || !!blockedReason}
+                className={ATTACH_BUTTON_CLASSES}
+                aria-label="Start a new chat"
+              >
+                <NewChatIcon className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">New chat</span>
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-3">
             {showCharacterCount && (

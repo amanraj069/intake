@@ -48,7 +48,7 @@ interface MealEntryFormProps {
   submitLabel: string;
   jsonMode?: boolean;
   onCloseJsonMode?: () => void;
-  onSubmit: (input: FoodEntryInput) => Promise<void>;
+  onSubmit: (input: FoodEntryInput, photoFile?: File | null) => Promise<void>;
   /**
    * Renders the page header. The form owns the date, so it hands the date field
    * over for the page to place among its header actions.
@@ -57,14 +57,7 @@ interface MealEntryFormProps {
   /** Shown between the header and the form, e.g. the last saved entry. */
   banner?: ReactNode;
 }
-
-function getDefaultMealType(): MealType {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 11) return "breakfast";
-  if (hour >= 11 && hour < 16) return "lunch";
-  if (hour >= 16 && hour < 19) return "snack";
-  return "dinner";
-}
+import { getDefaultMealType } from "@/lib/mealTime";
 
 function initialState(entry: FoodEntry | undefined, defaultMealType: MealType | undefined) {
   if (entry) return entryToFormState(entry);
@@ -89,6 +82,7 @@ export default function MealEntryForm({
   const [initial] = useState(() => initialState(entry, defaultMealType));
   const [details, setDetails] = useState<MealDetails>(initial.details);
   const [mode, setMode] = useState<EntryMode>(initial.mode);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<MealFormErrors>(NO_MEAL_FORM_ERRORS);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const mealItems = useMealItems(initial.items);
@@ -114,7 +108,8 @@ export default function MealEntryForm({
     setMode(modeFor(name, nextItems));
   }
 
-  function applyPhotoDraft(result: NutritionExtraction) {
+  function applyPhotoDraft(result: NutritionExtraction, file?: File) {
+    if (file) setPhotoFile(file);
     applyItems(result.extraction.name, result.extraction.items.map(itemToFormValues));
     setErrors(NO_MEAL_FORM_ERRORS);
     setSubmitError(null);
@@ -122,6 +117,7 @@ export default function MealEntryForm({
   }
 
   function discardPhotoDraft() {
+    setPhotoFile(null);
     applyItems(undefined, []);
     setErrors(NO_MEAL_FORM_ERRORS);
     draftReview.clear();
@@ -154,7 +150,7 @@ export default function MealEntryForm({
     }
 
     try {
-      await onSubmit(payload);
+      await onSubmit(payload, photoFile);
     } catch (cause) {
       setSubmitError(toErrorMessage(cause, "Could not save this meal."));
     }

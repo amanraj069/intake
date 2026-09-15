@@ -4,8 +4,8 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode, type Ref } from 
 import Spinner from "./Spinner";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "danger" | "ghost";
-  size?: "sm" | "md" | "lg";
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   loading?: boolean;
   children: ReactNode;
 }
@@ -17,11 +17,16 @@ const VARIANT_CLASSES = {
   primary:
     "bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover focus-visible:outline-accent",
   secondary:
-    "bg-bg-card dark:bg-dark-bg-card border border-border text-text-primary hover:bg-bg-surface dark:border-dark-border dark:text-dark-text dark:hover:bg-dark-surface focus-visible:outline-accent",
+    "bg-bg-card dark:bg-dark-bg-card border border-border text-text-primary hover:bg-black/[0.04] dark:border-dark-border dark:text-dark-text dark:hover:bg-white/[0.08] focus-visible:outline-accent",
   danger:
     "bg-error text-white hover:bg-red-700 dark:bg-error-dark dark:hover:bg-red-500 focus-visible:outline-error",
   ghost:
     "text-text-secondary hover:text-text-primary hover:bg-bg-surface dark:text-dark-text-secondary dark:hover:text-dark-text dark:hover:bg-dark-surface",
+  /** For buttons sitting on an accent-coloured surface. */
+  inverse:
+    "bg-white text-accent-muted hover:bg-white/90 dark:bg-dark-text dark:text-accent-dark-muted dark:hover:bg-dark-text/90 focus-visible:outline-white",
+  inverseOutline:
+    "border border-white/40 text-white hover:bg-white/10 focus-visible:outline-white",
 } as const;
 
 const SIZE_CLASSES = {
@@ -29,6 +34,14 @@ const SIZE_CLASSES = {
   md: "px-5 py-2.5 sm:px-6 sm:py-3 text-sm",
   lg: "px-8 py-4 text-sm",
 } as const;
+
+type ButtonVariant = keyof typeof VARIANT_CLASSES;
+type ButtonSize = keyof typeof SIZE_CLASSES;
+
+/** Button styling for elements that must stay links, such as a Next `Link` CTA. */
+export function buttonClassName(variant: ButtonVariant = "primary", size: ButtonSize = "md"): string {
+  return `${BASE_CLASSES} ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]}`;
+}
 
 function ButtonComponent(
   {
@@ -45,7 +58,7 @@ function ButtonComponent(
   return (
     <button
       ref={ref}
-      className={`${BASE_CLASSES} ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`}
+      className={`${buttonClassName(variant, size)} ${className}`}
       disabled={disabled || loading}
       {...props}
     >

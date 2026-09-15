@@ -67,6 +67,16 @@ export function LogMealIcon(props: IconProps) {
   );
 }
 
+/** A pencil over an open square, for entering something by hand. */
+export function EditIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11 4H4v16h16v-7" />
+      <path d="M18 2.5 21.5 6 12 15.5H8.5V12z" />
+    </Icon>
+  );
+}
+
 /** A square-cornered speech bubble with two lines of text, for the assistant thread. */
 export function AssistantIcon(props: IconProps) {
   return (
@@ -413,6 +423,17 @@ export function CopyIcon(props: IconProps) {
     <Icon {...props}>
       <rect x="9" y="9" width="12" height="12" rx="1" />
       <path d="M5 15V4a1 1 0 0 1 1-1h11" />
+    </Icon>
+  );
+}
+
+/** Speech bubble with a centered plus, for starting a new chat. */
+export function NewChatIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 4h18v13H10l-5 4v-4H3z" />
+      <path d="M12 7.5v6" />
+      <path d="M9 10.5h6" />
     </Icon>
   );
 }

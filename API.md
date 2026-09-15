@@ -27,6 +27,17 @@ List endpoints add pagination metadata beside `data`, which holds the page of re
 This envelope is the standard for every list endpoint in the app. `page` and `limit` default
 to `1` and `20`; `limit` is capped at `100`. An empty result still reports `totalPages: 1`, so
 a client never has to render "page 1 of 0".
+
+Requests are rate limited. A throttled request returns `429` with the standard `RateLimit` and
+`Retry-After` headers and:
+
+```jsonc
+{ "success": false, "message": "Too many requests...", "code": "RATE_LIMITED",
+  "details": { "retryAfterSeconds": 900 } }
+```
+
+Stricter limits apply to login and OTP checks, sign-up, email-sending, AI and upload endpoints;
+the full table is in the README under [API Rate Limiting](./README.md#api-rate-limiting).
 Authenticated routes read the `access_token` httpOnly cookie and return `401` when it is
 missing, expired or invalid. Every request body is validated with zod before any business
 logic runs, so a handler never sees an unchecked payload and a stack trace is never returned.
@@ -230,6 +241,13 @@ Log a food entry for the current user. An entry is one meal made of one or more 
   | `name` | string | no | up to 200 chars, e.g. `"Roti sabji"`; blank or missing names the entry after its items (`"Roti + Paneer sabji"`) |
   | `items` | `FoodItem[]` | yes | 1 - 30 items |
   | `source` | `"manual" \| "ai-image" \| "pdf-import"` | no | defaults to `manual` |
+  | `imageUrl` | string | no | URL of the uploaded meal photo on Cloudinary |
+  | `imagePublicId` | string | no | Cloudinary public asset identifier |
+
+  **Multipart Form Upload Support**:
+  `POST /api/food-entries` accepts either `application/json` or `multipart/form-data`:
+  - `image`: food photo file (`image/jpeg`, `image/png`, `image/webp`, `image/heic`, max 8MB). Automatically uploaded to Cloudinary under `intake/meals/<userId>`.
+  - `data`: JSON string serialized from the entry payload.
 
   Each `FoodItem`:
 
@@ -265,11 +283,20 @@ Log a food entry for the current user. An entry is one meal made of one or more 
   "macros": { "proteinG": 24, "carbG": 60, "fatG": 26 },
   "micros": { "Iron": { "amount": 2, "unit": "mg" }, "Calcium": { "amount": 400, "unit": "mg" } },
   "date": "2026-09-10T00:00:00.000Z",
-  "source": "manual",
+  "source": "ai-image",
+  "imageUrl": "https://res.cloudinary.com/.../intake/meals/userId/photo.jpg",
+  "imagePublicId": "intake/meals/userId/photo",
   "createdAt": "2026-09-12T05:16:32.138Z",
   "updatedAt": "2026-09-12T05:16:32.138Z"
 }
 ```
+
+### `POST /api/food-entries/upload-image` (authenticated)
+
+Uploads a meal photo directly to Cloudinary without creating a meal entry yet.
+
+- Multipart form body: `image` (max 8MB, JPEG/PNG/WebP/HEIC).
+- Response `200`: `{ success: true, message: "Meal image uploaded successfully", data: { imageUrl: string, imagePublicId: string } }`.
 
 Micronutrient totals convert mass units (g, mg, mcg) to mg before adding; a non-mass unit such
 as IU is only added to the same unit and otherwise kept under `"Name (IU)"`.
@@ -706,7 +733,11 @@ trusted. The proposing reply is marked `action.status: "confirmed"`; no new mess
 
 ### `GET /api/chat/history`
 
-- Query: `page` (default `1`), `limit` (default `20`, max `100`).
+- Query: `page` (default `1`), `limit` (default `20`, max `100`), optional `before` (a message id:
+  only messages older than it are returned, and `total`/`totalPages` count only those). The chat
+  page loads older messages with `before` set to the oldest message it holds, so messages sent
+  in the meantime never shift what the next request returns. `404 MESSAGE_NOT_FOUND` when
+  `before` is not one of the caller's messages.
 - Response: the standard pagination envelope, `data` holding `ChatMessage` records sorted by
   `createdAt` descending, so page 1 is the most recent and "load earlier" requests the next page.
   A user message with a photo carries `imageUrl`, one whose reply failed carries `replyError`, and

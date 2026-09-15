@@ -95,6 +95,7 @@
 }
 
 :root {
+  scroll-behavior: smooth;
   color-scheme: light;
   --color-icon-shimmer: #ffffff;
   --color-icon-shimmer-glow: rgba(255, 255, 255, 0.85);
@@ -202,5 +203,89 @@ html.dark,
     background-repeat: no-repeat;
     cursor: pointer;
     opacity: 1 !important;
+  }
+}
+
+/* Swift and smooth entry animations for a luxury, premium feel */
+@keyframes enter-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes enter-scale {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes enter-fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes flow-card-enter {
+  0% {
+    opacity: 0;
+    translate: 0 14px;
+  }
+  100% {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.animate-fade-up {
+  animation: enter-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-scale-in {
+  animation: enter-scale 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-in {
+  animation: enter-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-flow-card {
+  animation: flow-card-enter 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.delay-75 { animation-delay: 75ms; }
+.delay-100 { animation-delay: 100ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-250 { animation-delay: 250ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-350 { animation-delay: 350ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    scroll-behavior: auto !important;
+  }
+  .animate-fade-up,
+  .animate-scale-in,
+  .animate-fade-in,
+  .animate-flow-card {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    translate: 0 0 !important;
   }
 }

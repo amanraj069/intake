@@ -53,7 +53,14 @@ export const chatMessageIdSchema = z.object({
 });
 
 export const chatHistorySchema = z.object({
-  query: z.object({ ...paginationQueryFields }),
+  query: z.object({
+    ...paginationQueryFields,
+    /**
+     * Returns only messages older than this one. Paging from a fixed message
+     * stays stable while new messages are sent, where a page number would shift.
+     */
+    before: objectIdSchema.optional(),
+  }),
 });
 
 export type SendChatMessageInput = z.infer<typeof sendChatMessageSchema>['body'];

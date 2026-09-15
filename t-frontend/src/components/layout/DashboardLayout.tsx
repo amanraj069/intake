@@ -33,7 +33,11 @@ export default function DashboardLayout({ children, fullHeight = false }: Dashbo
   if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-bg-app dark:bg-dark-bg-app text-text-primary dark:text-dark-text">
+    <div
+      className={`${
+        fullHeight ? "h-dvh overflow-hidden" : "min-h-dvh"
+      } bg-bg-app dark:bg-dark-bg-app text-text-primary dark:text-dark-text`}
+    >
       <MobileTopBar
         drawerOpen={drawerOpen}
         onOpenDrawer={() => setDrawerOpen(true)}
@@ -101,12 +105,16 @@ export default function DashboardLayout({ children, fullHeight = false }: Dashbo
       </aside>
 
       <main
-        className={`pt-14 lg:pt-0 min-h-screen ${expanded ? "lg:ml-64" : "lg:ml-16"} ${
+        className={`${
+          fullHeight
+            ? "h-dvh pt-14 lg:pt-0 flex flex-col overflow-hidden"
+            : "pt-14 lg:pt-0 min-h-dvh"
+        } ${expanded ? "lg:ml-64" : "lg:ml-16"} ${
           hydrated ? "transition-[margin] duration-300 ease-[cubic-bezier(0.2,1,0.2,1)]" : ""
         }`}
       >
         {fullHeight ? (
-          <div className="h-[calc(100dvh-3.5rem)] lg:h-dvh">{children}</div>
+          <div className="flex-1 min-h-0 h-full overflow-hidden">{children}</div>
         ) : (
           <div className="px-4 py-5 sm:px-8 sm:py-8 lg:p-12">
             <div className="w-full max-w-5xl mx-auto space-y-6 sm:space-y-12 pb-24">

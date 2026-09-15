@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -19,18 +19,23 @@ function LogMealContent() {
 
   const { submitting, createFoodEntry } = useCreateFoodEntry();
   const [lastEntry, setLastEntry] = useState<FoodEntry | null>(null);
-  // Bumping the key clears the form after a successful save without the form
-  // needing to expose a reset handle.
   const [formInstance, setFormInstance] = useState(0);
   const [jsonMode, setJsonMode] = useState(false);
   const toast = useToast();
 
-  async function handleSubmit(input: FoodEntryInput) {
-    const created = await createFoodEntry(input);
+  useEffect(() => {
+    if (lastEntry) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [lastEntry]);
+
+  async function handleSubmit(input: FoodEntryInput, photoFile?: File | null) {
+    const created = await createFoodEntry(input, photoFile);
     setLastEntry(created);
     setFormInstance((current) => current + 1);
     setJsonMode(false);
     toast.success(`${created.name} logged.`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
