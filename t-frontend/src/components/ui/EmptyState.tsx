@@ -25,7 +25,7 @@ export default function EmptyState({
     >
       {icon && <div className="mb-3 sm:mb-4">{icon}</div>}
       {title && (
-        <h3 className="text-base sm:text-lg md:text-xl font-bold text-text-primary dark:text-dark-text-primary tracking-tight">
+        <h3 className="text-base sm:text-lg md:text-xl font-bold text-text-primary dark:text-white tracking-tight">
           {title}
         </h3>
       )}
