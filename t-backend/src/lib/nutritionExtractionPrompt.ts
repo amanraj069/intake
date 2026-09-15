@@ -24,6 +24,41 @@ const MICRONUTRIENT_LINES = MICRONUTRIENT_CATALOG.map(
   (nutrient) => `- ${nutrient.name} (usually in ${nutrient.labelUnit})`
 ).join('\n');
 
+/**
+ * Which micronutrients to report and how. Shared with the chat assistant, so a
+ * meal logged there carries the same nutrients as one read from a photo.
+ */
+export const MICRONUTRIENT_RULES = `Report only the important, significant ones, at most ${MAX_REPORTED_MICRONUTRIENTS} per item, most significant first. Do not try to cover the whole list.
+- For a label: the micronutrients it prints with an amount of 5 mg or more.
+- For a meal: only nutrients the item is a notable source of (roughly 10% or more of the US FDA Daily Value), or that matter for the food, such as sodium in salty or processed dishes. Skip trace amounts and strictly exclude any micronutrient present in amounts less than 5 mg.
+Leave out anything unknown instead of guessing or reporting zero. Give each amount in "mg" or "mcg". If a label shows only a % Daily Value, convert it using the US FDA Daily Values. Do not report any micronutrient whose final converted amount is less than 5 mg.
+Use names from this list only, spelled exactly as written:
+${MICRONUTRIENT_LINES}`;
+
+/** How each confidence factor is scored. Shared with the chat assistant, so a photo logged there is scored the same way. */
+export const CONFIDENCE_FACTOR_RUBRIC = `foodIdentity: do we know what each item is?
+- 90-100: named product on packaging, or an unmistakable single food (a banana, a boiled egg).
+- 70-89: a recognisable dish, where variants differ little (toast with jam, a margherita pizza).
+- 40-69: the kind of dish is clear but the variant matters (a curry, a sandwich with unseen fillings), or a label with no product name where the food must be inferred from its numbers.
+- 0-39: guessing between quite different foods.
+
+portionSize: do we know how much of each item there is?
+- 90-100: the weight is printed and applies to what is shown (one packaged item), or the user's description states the amount.
+- 70-89: countable items of standard size (two slices of bread, one egg), or a label serving size where one serving is the obvious portion.
+- 40-69: a plate or bowl estimated by eye, with some scale reference (cutlery, a standard plate).
+- 0-39: no scale reference, food piled or partly out of frame, or a label where the amount actually eaten is unknown (a multi-serving container).
+
+nutrientValues: given the items and amounts, how reliable are the calories and macros?
+- 90-100: printed on a legible label.
+- 70-89: a simple food with little hidden variation (fruit, plain rice, a boiled egg).
+- 40-69: a prepared dish where cooking fat, sauces, fillings or recipe change the numbers noticeably.
+- 0-39: mostly hidden ingredients (fried food, creamy sauces, dishes whose fat content cannot be seen).
+
+imageQuality: could the photo be read properly?
+- 90-100: sharp, well lit, the whole food or label in frame.
+- 60-89: minor blur, glare, shadow or cropping that does not hide anything important.
+- 0-59: blur, darkness, glare or cropping that hides part of the food or label.`;
+
 export const EXTRACTION_SYSTEM_INSTRUCTION = `You are a nutrition analyst for a calorie-tracking app. You receive one photo, which is either food (a plated meal, a snack, a drink, a packaged item) or a printed nutrition facts label. The user will review and edit everything you return before it is saved, so be accurate and never invent precision you do not have.
 
 Step 1: classify the photo as imageKind.
@@ -46,37 +81,11 @@ Step 3: nutrition for each item, for that item's quantity only (not per 100 g, a
 - Each item's calories should roughly equal 4 x protein + 4 x carbs + 9 x fat. Labels can differ slightly because of fibre and rounding: keep the printed values.
 - For a meal, use standard food composition data (such as USDA FoodData Central or the Indian Food Composition Tables) and count visible oil, ghee, butter, dressing or sauce in the item it is on.
 
-Step 4: micronutrients for each item. Report only the important, significant ones, at most ${MAX_REPORTED_MICRONUTRIENTS} per item, most significant first. Do not try to cover the whole list.
-- For a label: the micronutrients it prints with an amount of 5 mg or more.
-- For a meal: only nutrients the item is a notable source of (roughly 10% or more of the US FDA Daily Value), or that matter for the food, such as sodium in salty or processed dishes. Skip trace amounts and strictly exclude any micronutrient present in amounts less than 5 mg.
-Leave out anything unknown instead of guessing or reporting zero. Give each amount in "mg" or "mcg". If a label shows only a % Daily Value, convert it using the US FDA Daily Values. Do not report any micronutrient whose final converted amount is less than 5 mg.
-Use names from this list only, spelled exactly as written:
-${MICRONUTRIENT_LINES}
+Step 4: micronutrients for each item. ${MICRONUTRIENT_RULES}
 
 Step 5: confidenceFactors. Score each factor from 0 to 100 on how sure you are, with one short, specific reason. Judge each factor on its own: a clear photo does not make an unknown portion certain. Use these anchors and interpolate between them.
 
-foodIdentity: do we know what each item is?
-- 90-100: named product on packaging, or an unmistakable single food (a banana, a boiled egg).
-- 70-89: a recognisable dish, where variants differ little (toast with jam, a margherita pizza).
-- 40-69: the kind of dish is clear but the variant matters (a curry, a sandwich with unseen fillings), or a label with no product name where the food must be inferred from its numbers.
-- 0-39: guessing between quite different foods.
-
-portionSize: do we know how much of each item there is?
-- 90-100: the weight is printed and applies to what is shown (one packaged item), or the user's description states the amount.
-- 70-89: countable items of standard size (two slices of bread, one egg), or a label serving size where one serving is the obvious portion.
-- 40-69: a plate or bowl estimated by eye, with some scale reference (cutlery, a standard plate).
-- 0-39: no scale reference, food piled or partly out of frame, or a label where the amount actually eaten is unknown (a multi-serving container).
-
-nutrientValues: given the items and amounts, how reliable are the calories and macros?
-- 90-100: printed on a legible label.
-- 70-89: a simple food with little hidden variation (fruit, plain rice, a boiled egg).
-- 40-69: a prepared dish where cooking fat, sauces, fillings or recipe change the numbers noticeably.
-- 0-39: mostly hidden ingredients (fried food, creamy sauces, dishes whose fat content cannot be seen).
-
-imageQuality: could the photo be read properly?
-- 90-100: sharp, well lit, the whole food or label in frame.
-- 60-89: minor blur, glare, shadow or cropping that does not hide anything important.
-- 0-59: blur, darkness, glare or cropping that hides part of the food or label.
+${CONFIDENCE_FACTOR_RUBRIC}
 
 Finally:
 - notes: one short sentence telling the user the main assumption you made, such as "Assumed about one tablespoon of olive oil in the dressing."
@@ -118,14 +127,14 @@ const factorReadingSchema = z.object({
   reason: readerText(MAX_READING_TEXT).refine((reason) => reason.length > 0),
 });
 
-const confidenceFactorsSchema = z.object(
+export const confidenceFactorsSchema = z.object(
   Object.fromEntries(CONFIDENCE_FACTOR_KEYS.map((key) => [key, factorReadingSchema])) as Record<
     ConfidenceFactorKey,
     typeof factorReadingSchema
   >
 );
 
-const aiMicronutrientSchema = z.object({
+export const aiMicronutrientSchema = z.object({
   name: z.string().trim(),
   amount: modelNumber,
   unit: z.enum(['mg', 'mcg']),

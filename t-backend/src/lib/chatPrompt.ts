@@ -1,4 +1,5 @@
 import { CalendarDay, startOfDay } from './calendarDay';
+import { CONFIDENCE_FACTOR_RUBRIC, MICRONUTRIENT_RULES } from './nutritionExtractionPrompt';
 
 /** The user's "now": their calendar day and, when the client sent it, their `HH:MM` wall-clock time. */
 export interface ChatPromptClock {
@@ -16,6 +17,28 @@ function describeNow({ today, localTime }: ChatPromptClock): string {
   return `Today is ${describeToday(today)}${time}.`;
 }
 
+/** What the prompt is built for: the user's clock, and whether their new message carries a photo. */
+export interface ChatPromptContext extends ChatPromptClock {
+  attachedPhoto?: { hasCaption: boolean };
+}
+
+/**
+ * Only sent while a photo is attached, since it only applies then. A meal logged
+ * from the photo is scored against the same rubric photo extraction uses.
+ */
+function describePhotoAssessment(attachedPhoto: ChatPromptContext['attachedPhoto']): string {
+  if (!attachedPhoto) return '';
+  return `
+
+Logging the attached photo:
+- When you call logMeal for food in the attached photo, also fill photoAssessment. Set imageKind to "nutrition-label" when a printed nutrition panel is legible, otherwise "meal".
+- confidenceFactors: score each factor from 0 to 100 on how sure you are, with one short, specific reason. Judge each factor on its own: a clear photo does not make an unknown portion certain. Use these anchors and interpolate between them.
+
+${CONFIDENCE_FACTOR_RUBRIC}
+
+- notes: one short sentence telling the user the main assumption you made, such as "Assumed about one tablespoon of oil in the curry."`;
+}
+
 /** Without the user's clock the model cannot tell breakfast from dinner, so it asks instead of guessing. */
 function describeUnnamedMealRule(localTime?: string): string {
   const unnamed = 'If they do not name a meal (for example, they say "yes" or "log it")';
@@ -28,7 +51,7 @@ function describeUnnamedMealRule(localTime?: string): string {
  * because the model has no clock, and "yesterday", "this week" or an unnamed
  * meal must resolve against the user's own day, not the server's.
  */
-export function buildChatSystemInstruction(clock: ChatPromptClock): string {
+export function buildChatSystemInstruction(clock: ChatPromptContext): string {
   return `You are the nutrition assistant inside Intake, a personal calorie and macro tracker. You help one signed-in user log meals, manage their daily goal, understand their progress, and answer nutrition questions.
 
 ${describeNow(clock)} Resolve relative dates ("yesterday", "this week", "last Monday") against it and always pass dates to tools as YYYY-MM-DD. "This week" means the last 7 days ending today unless the user says otherwise.
@@ -49,11 +72,14 @@ Making changes:
 - Propose at most one change per reply. If the user describes several meals, propose the first and tell them you will do the next one after.
 - Use exactly the meal the user names: "as lunch" or "for lunch" means mealType lunch, never snack. If they name no meal (breakfast, lunch, dinner or snack) and it is not obvious from their wording, ask before logging. If they give no amount, assume one typical serving.
 
+Micronutrients:
+- For every item you log, also fill its micronutrients. ${MICRONUTRIENT_RULES}
+
 Photos:
 - When a photo is attached, identify each food in it and estimate its portion from what is visible, using any details in the user's message (names, amounts) over your own guess.
 - If the photo shows no food or nutrition label, or is too unclear to read, say so and ask them to describe the meal instead.
 - Estimate calories, protein, carbs and fat for each food from standard nutrition data. Split a meal into its separate foods, one item per food.
-- If a tool replies with an error, correct the arguments and call it again, or ask the user for the missing detail.
+- If a tool replies with an error, correct the arguments and call it again, or ask the user for the missing detail.${describePhotoAssessment(clock.attachedPhoto)}
 
 General questions:
 - When the user asks how they are doing today, how they are doing for or against their goals, or for today's progress, use getTodaySummary and getGoal to see their intake and targets. Always report using this consistent format:

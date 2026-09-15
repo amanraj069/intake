@@ -163,6 +163,51 @@ describe('agent loop', () => {
     assert.equal(await FoodEntry.countDocuments({}), 0);
   });
 
+  test('logged items keep catalog micronutrients, converted to mg', async () => {
+    const micronutrients = [
+      { name: 'Selenium', amount: 30, unit: 'mcg' },
+      { name: 'Unobtainium', amount: 5, unit: 'mg' },
+    ];
+    const meal = { ...EGGS_MEAL, items: [{ ...EGGS_MEAL.items[0], micronutrients }] };
+    const model = scriptedModel([modelCall('logMeal', meal)]);
+
+    const result = await runChatTurn({
+      history: [], message: 'I had 2 eggs for breakfast', context: { userId: userA.id, today: TODAY },
+      generateTurn: model.generateTurn,
+    });
+
+    assert.deepEqual((result.pendingAction?.args.items as { micros: unknown }[])[0].micros, {
+      Selenium: { amount: 0.03, unit: 'mg' },
+    });
+  });
+
+  test('a meal logged from an attached photo must carry a photo assessment, scored like photo extraction', async () => {
+    const factor = (score: number) => ({ score, reason: 'Two fried pastries on a plate' });
+    const photoAssessment = {
+      imageKind: 'meal',
+      productNameVisible: false,
+      descriptionStatesAmount: true,
+      confidenceFactors: { foodIdentity: factor(85), portionSize: factor(80), nutrientValues: factor(55), imageQuality: factor(90) },
+      notes: 'Assumed deep-fried samosas of standard size.',
+    };
+    const model = scriptedModel([modelCall('logMeal', EGGS_MEAL), modelCall('logMeal', { ...EGGS_MEAL, photoAssessment })]);
+
+    const result = await runChatTurn({
+      history: [], message: 'log these 2 for breakfast',
+      context: { userId: userA.id, today: TODAY, attachedPhoto: { hasCaption: true } },
+      generateTurn: model.generateTurn,
+    });
+
+    const refusal = model.requests[1].contents.at(-1)?.parts[0].functionResponse?.response.error;
+    assert.match(String(refusal), /photoAssessment: required/);
+    const analysis = result.pendingAction?.photoAnalysis;
+    assert.equal(analysis?.imageKind, 'meal');
+    assert.equal(analysis?.notes, 'Assumed deep-fried samosas of standard size.');
+    assert.ok(analysis && analysis.confidence.score > 0 && analysis.confidence.score <= 95);
+    assert.equal(analysis?.confidence.factors.length, 4);
+    assert.equal(result.pendingAction?.args.extractionAnalysis, undefined, 'never part of the echoed args');
+  });
+
   test('a nutrition question becomes a resolved estimate, never a pending confirmation', async () => {
     const model = scriptedModel([modelCall('estimateNutrition', { items: EGGS_MEAL.items })]);
 
@@ -344,6 +389,20 @@ describe('POST /api/chat/confirm-action', () => {
     assert.equal(result.body.code, 'INVALID_CHAT_ACTION');
     assert.equal(await FoodEntry.countDocuments({}), 0);
     assert.equal((await ChatMessage.findById(messageId))?.action?.status, 'pending');
+  });
+
+  test('ignores a photo or confidence the client adds to the echoed args', async () => {
+    const messageId = await proposeAction(userA, 'logMeal');
+
+    const result = await server.request(userA, 'POST', '/api/chat/confirm-action', {
+      messageId, tool: 'logMeal',
+      args: { ...pendingMeal, imageUrl: 'https://example.com/other.jpg', confidenceScore: 95, confidenceLevel: 'high' },
+    });
+
+    assert.equal(result.status, 201);
+    const entry = await FoodEntry.findById(result.body.data.foodEntry._id);
+    assert.equal(entry?.imageUrl, undefined);
+    assert.equal(entry?.confidenceScore, undefined);
   });
 
   test("cannot confirm another user's proposal", async () => {
