@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { copyImageToMealFolder, deleteUploadedImage } from '../../lib/cloudinary';
 import { AppError } from '../../middleware/errorHandler';
 import { CHAT_WRITE_TOOLS, ChatMessage, IChatMessageDocument } from '../../models/ChatMessage';
 import { IFoodEntryDocument } from '../../models/FoodEntry';
@@ -80,6 +81,14 @@ async function releaseClaim(message: IChatMessageDocument): Promise<void> {
   }
 }
 
+const NO_PHOTO_FIELDS = {
+  imageUrl: undefined,
+  imagePublicId: undefined,
+  confidenceScore: undefined,
+  confidenceLevel: undefined,
+  extractionAnalysis: undefined,
+} satisfies Partial<CreateFoodEntryInput>;
+
 type ValidatedChatAction =
   | { tool: 'logMeal'; entry: CreateFoodEntryInput }
   | { tool: 'setGoal'; changes: GoalChanges };
@@ -88,8 +97,10 @@ function validateAction(action: ConfirmChatActionInput): ValidatedChatAction {
   if (action.tool === 'setGoal') {
     return { tool: 'setGoal', changes: parseActionArgs(setGoalChangesSchema, action.args) };
   }
-  // Provenance is the server's call, whatever the echoed args say.
-  return { tool: 'logMeal', entry: { ...parseActionArgs(logMealArgsSchema, action.args), source: 'ai-chat' } };
+  // Provenance is the server's call, whatever the echoed args say: a photo and
+  // its confidence come only from the stored proposal, in `saveConfirmedMeal`.
+  const entry = parseActionArgs(logMealArgsSchema, action.args);
+  return { tool: 'logMeal', entry: { ...entry, ...NO_PHOTO_FIELDS, source: 'ai-chat' } };
 }
 
 /** Lays the confirmed targets over the goal as it is now, not as it was when proposed, so an edit made in between survives. */
@@ -97,6 +108,44 @@ async function saveGoalChanges(userId: string, changes: GoalChanges): Promise<IG
   const currentGoal = await goalService.findGoalByUserId(userId);
   const goal = parseActionArgs(setGoalArgsSchema, applyGoalChanges(changes, currentGoal));
   return goalService.upsertGoal(userId, goal);
+}
+
+/** Removes a meal photo copy whose meal was never saved. A failure here is logged: the save error is what the user needs. */
+async function discardMealImage(publicId: string): Promise<void> {
+  try {
+    await deleteUploadedImage(publicId);
+  } catch (error) {
+    console.error('[Chat] Could not remove the photo of a meal that failed to save:', error);
+  }
+}
+
+/**
+ * Saves the meal, and when it was proposed from a photo, that photo and its
+ * confidence breakdown with it, exactly as a meal logged from a photo on the
+ * Log Meal page is saved.
+ */
+async function saveConfirmedMeal(
+  userId: string,
+  entry: CreateFoodEntryInput,
+  message: IChatMessageDocument
+): Promise<IFoodEntryDocument> {
+  const mealPhoto = message.action?.mealPhoto;
+  if (!mealPhoto) return foodEntryService.createFoodEntry(userId, entry);
+
+  const image = await copyImageToMealFolder(mealPhoto.imageUrl, userId);
+  try {
+    return await foodEntryService.createFoodEntry(userId, {
+      ...entry,
+      imageUrl: image.url,
+      imagePublicId: image.publicId,
+      confidenceScore: mealPhoto.analysis.confidence.score,
+      confidenceLevel: mealPhoto.analysis.confidence.level,
+      extractionAnalysis: mealPhoto.analysis,
+    });
+  } catch (error) {
+    await discardMealImage(image.publicId);
+    throw error;
+  }
 }
 
 async function executeAction(
@@ -107,7 +156,7 @@ async function executeAction(
   if (action.tool === 'setGoal') {
     return { tool: 'setGoal', message, goal: await saveGoalChanges(userId, action.changes) };
   }
-  return { tool: 'logMeal', message, foodEntry: await foodEntryService.createFoodEntry(userId, action.entry) };
+  return { tool: 'logMeal', message, foodEntry: await saveConfirmedMeal(userId, action.entry, message) };
 }
 
 /**

@@ -133,7 +133,7 @@ function CalorieTrendChart({ data, activeGoal }: CalorieTrendChartProps) {
             />
             {hasTarget && (
               <Line
-                type="stepAfter"
+                type="linear"
                 dataKey="targetCalories"
                 name="Goal"
                 stroke={targetColour}

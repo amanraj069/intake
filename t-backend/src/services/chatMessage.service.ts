@@ -100,11 +100,17 @@ async function loadRecentTurns(userId: string, excludeMessageId?: Types.ObjectId
   }));
 }
 
-/** An estimate is never confirmed: it already answers the question, so it is stored resolved. */
-function toStoredAction(pendingAction: PendingChatAction | null): StoredChatAction | undefined {
+/**
+ * An estimate is never confirmed: it already answers the question, so it is
+ * stored resolved. A meal read from the message's photo keeps that photo and
+ * its confidence breakdown, for confirming to save with the meal.
+ */
+function toStoredAction(pendingAction: PendingChatAction | null, userMessage: IChatMessageDocument): StoredChatAction | undefined {
   if (!pendingAction) return undefined;
   const status = pendingAction.tool === 'estimateNutrition' ? 'estimate' : 'pending';
-  return { tool: pendingAction.tool, status, args: pendingAction.args };
+  const { photoAnalysis } = pendingAction;
+  const mealPhoto = photoAnalysis && userMessage.imageUrl ? { imageUrl: userMessage.imageUrl, analysis: photoAnalysis } : undefined;
+  return { tool: pendingAction.tool, status, args: pendingAction.args, mealPhoto };
 }
 
 function toReplyError(error: unknown): AppError {
@@ -153,13 +159,13 @@ async function produceReply({
       history,
       message: userMessage.content,
       image,
-      context: { userId, today, localTime },
+      context: { userId, today, localTime, attachedPhoto: image ? { hasCaption: Boolean(userMessage.content) } : undefined },
       callbacks,
     });
     const assistantMessage = await saveChatMessage(userId, {
       role: 'assistant',
       content: turn.reply,
-      action: toStoredAction(turn.pendingAction),
+      action: toStoredAction(turn.pendingAction, userMessage),
     });
     return { userMessage, assistantMessage, pendingAction: turn.pendingAction };
   } catch (error) {

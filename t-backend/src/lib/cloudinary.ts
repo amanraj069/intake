@@ -100,11 +100,33 @@ export function uploadChatImage(fileBuffer: Buffer, userId: string): Promise<Upl
  * in Cloudinary as a JPEG with auto quality and bounded dimensions.
  */
 export function uploadMealImage(fileBuffer: Buffer, userId: string): Promise<UploadedImage> {
-  return uploadImageBuffer(fileBuffer, {
+  return uploadImageBuffer(fileBuffer, mealImageOptions(userId));
+}
+
+function mealImageOptions(userId: string): UploadApiOptions {
+  return {
     folder: `${MEAL_IMAGE_FOLDER}/${userId}`,
     format: 'jpg',
     transformation: [{ width: 1600, height: 1600, crop: 'limit' }, { quality: 'auto' }],
-  });
+  };
+}
+
+/**
+ * Copies an already uploaded photo, such as one attached to a chat message,
+ * into the user's meal folder. The meal gets its own asset so deleting the
+ * chat message and deleting the meal can never break each other's image.
+ * Cloudinary fetches the source itself, so the bytes never pass through here.
+ */
+export async function copyImageToMealFolder(sourceUrl: string, userId: string): Promise<UploadedImage> {
+  const client = configuredClient();
+
+  try {
+    const result = await client.uploader.upload(sourceUrl, { ...mealImageOptions(userId), resource_type: 'image' });
+    return { url: result.secure_url, publicId: result.public_id };
+  } catch (error) {
+    console.error('[Cloudinary] Copying an image into the meal folder failed:', error);
+    throw new AppError('Could not save the photo with this meal. Please try again.', 502, 'IMAGE_UPLOAD_FAILED');
+  }
 }
 
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 15 * 1000;

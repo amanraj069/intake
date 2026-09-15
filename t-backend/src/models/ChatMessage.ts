@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import type { ExtractionAnalysis } from '../lib/extractionAnalysis';
 
 export const CHAT_ROLES = ['user', 'assistant'] as const;
 export type ChatRole = (typeof CHAT_ROLES)[number];
@@ -28,6 +29,18 @@ export interface StoredChatAction {
   tool: ChatActionTool;
   status: ChatActionStatus;
   args?: Record<string, unknown>;
+  /** Set on a meal proposed from a photo, so confirming it saves that photo and its confidence breakdown too. */
+  mealPhoto?: StoredMealPhoto;
+}
+
+/**
+ * Server-side only: the client echoes `args` back on confirm, but never this,
+ * so which photo and which confidence a meal is saved with is never its call.
+ */
+export interface StoredMealPhoto {
+  /** The chat message's own upload. Confirming copies it into the meal folder. */
+  imageUrl: string;
+  analysis: ExtractionAnalysis;
 }
 
 /** Why the assistant could not answer a user message, kept so the thread can offer a retry after a reload. */
@@ -63,11 +76,20 @@ export interface IChatMessageDocument extends Document {
   createdAt: Date;
 }
 
+const mealPhotoSchema = new Schema<StoredMealPhoto>(
+  {
+    imageUrl: { type: String, required: true },
+    analysis: { type: Schema.Types.Mixed, required: true },
+  },
+  { _id: false }
+);
+
 const chatActionSchema = new Schema<StoredChatAction>(
   {
     tool: { type: String, enum: CHAT_ACTION_TOOLS, required: true },
     status: { type: String, enum: CHAT_ACTION_STATUSES, required: true },
     args: { type: Schema.Types.Mixed, default: undefined },
+    mealPhoto: { type: mealPhotoSchema, default: undefined },
   },
   { _id: false }
 );

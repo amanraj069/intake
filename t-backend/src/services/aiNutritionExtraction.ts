@@ -4,12 +4,8 @@ import {
   generateStructuredJson,
 } from '../lib/gemini/geminiClient';
 import { toAiAppError } from '../lib/gemini/aiFailure';
-import {
-  CONFIDENCE_FACTOR_KEYS,
-  ConfidenceAssessment,
-  ScoredImageKind,
-  assessConfidence,
-} from '../lib/extractionConfidence';
+import { CONFIDENCE_FACTOR_KEYS, FactorReadings, ScoredImageKind } from '../lib/extractionConfidence';
+import { ExtractionAnalysis, buildExtractionAnalysis } from '../lib/extractionAnalysis';
 import { toInlineImage } from '../lib/inlineImage';
 import { normaliseAiMicronutrients } from '../lib/aiMicronutrients';
 import { MICRONUTRIENT_NAMES } from '../lib/micronutrientCatalog';
@@ -23,7 +19,6 @@ import {
   aiFoodReadingSchema,
   buildExtractionPrompt,
 } from '../lib/nutritionExtractionPrompt';
-import { NutritionTotals, sumItemNutrition } from '../lib/foodItemTotals';
 import { roundToTenth } from '../lib/numbers';
 import { FOOD_ITEM_UNITS } from '../models/FoodEntry';
 import { AppError } from '../middleware/errorHandler';
@@ -38,11 +33,6 @@ import { FoodEntryDraft, FoodItemInput, foodEntryDraftSchema } from '../schemas/
 /** Vision calls run slower than text ones, so they get a longer leash than the client default. */
 const ATTEMPT_TIMEOUT_MS = 25 * 1000;
 const TOTAL_BUDGET_MS = 45 * 1000;
-
-/** How far label or estimate calories may drift from 4/4/9 macro energy before the user is warned. */
-const MAX_ENERGY_MISMATCH = 0.2;
-/** Below this, rounding alone produces large relative mismatches, so none are reported. */
-const MIN_CALORIES_FOR_ENERGY_CHECK = 50;
 
 const MICRONUTRIENT_ITEM_SCHEMA: GeminiResponseSchema = {
   type: 'OBJECT',
@@ -119,15 +109,6 @@ const RESPONSE_SCHEMA: GeminiResponseSchema = {
     'notes',
   ],
 };
-
-export interface ExtractionAnalysis {
-  imageKind: ScoredImageKind;
-  confidence: ConfidenceAssessment;
-  /** The model's main assumption, in one sentence, or null when it gave none. */
-  notes: string | null;
-  /** Things the user should double-check before saving. */
-  warnings: string[];
-}
 
 export interface NutritionExtraction {
   extraction: FoodEntryDraft;
@@ -241,57 +222,10 @@ function toDraft(reading: AiFoodReading): FoodEntryDraft {
   return parsed.data;
 }
 
-function macroCalories(totals: NutritionTotals): number {
-  const { proteinG, carbG, fatG } = totals.macros;
-  return proteinG * 4 + carbG * 4 + fatG * 9;
-}
-
-function hasEnergyMismatch(totals: NutritionTotals): boolean {
-  const fromMacros = macroCalories(totals);
-  const larger = Math.max(totals.calories, fromMacros);
-  if (larger < MIN_CALORIES_FOR_ENERGY_CHECK) return false;
-  return Math.abs(totals.calories - fromMacros) / larger > MAX_ENERGY_MISMATCH;
-}
-
-function findReviewWarnings(
-  totals: NutritionTotals,
-  reading: AiFoodReading,
-  description?: string
-): string[] {
-  const warnings: string[] = [];
-  const userStatedAmount = Boolean(description) && reading.descriptionStatesAmount;
-
-  if (reading.imageKind === 'meal' && !userStatedAmount) {
-    warnings.push('Amounts are estimated from the photo. Check the quantity of each item.');
-  }
-
-  if (hasEnergyMismatch(totals)) {
-    warnings.push(
-      `Calories (${Math.round(totals.calories)} kcal) and macros (about ${Math.round(macroCalories(totals))} kcal) do not agree. Check both.`
-    );
-  }
-
-  return warnings;
-}
-
-function scoreConfidence(
-  totals: NutritionTotals,
-  reading: AiFoodReading,
-  imageKind: ScoredImageKind,
-  description?: string
-): ConfidenceAssessment {
-  if (!reading.confidenceFactors) {
-    console.warn('[NutritionExtraction] AI reading has no confidence factors:', reading);
-    throw unusableResponseError();
-  }
-
-  return assessConfidence(reading.confidenceFactors, {
-    imageKind,
-    productNameVisible: reading.productNameVisible,
-    hasUserDescription: Boolean(description),
-    descriptionStatesAmount: reading.descriptionStatesAmount,
-    energyMismatch: hasEnergyMismatch(totals),
-  });
+function requireConfidenceFactors(reading: AiFoodReading): FactorReadings {
+  if (reading.confidenceFactors) return reading.confidenceFactors;
+  console.warn('[NutritionExtraction] AI reading has no confidence factors:', reading);
+  throw unusableResponseError();
 }
 
 /**
@@ -310,17 +244,17 @@ export async function extractNutritionFromImage(
   const reading = await requestFoodReading(inlineImage, description);
 
   assertFoodDetected(reading);
-  const imageKind = reading.imageKind as ScoredImageKind;
   const extraction = toDraft(reading);
-  const totals = sumItemNutrition(extraction.items);
 
   return {
     extraction,
-    analysis: {
-      imageKind,
-      confidence: scoreConfidence(totals, reading, imageKind, description),
-      notes: reading.notes || null,
-      warnings: findReviewWarnings(totals, reading, description),
-    },
+    analysis: buildExtractionAnalysis(extraction.items, {
+      imageKind: reading.imageKind as ScoredImageKind,
+      confidenceFactors: requireConfidenceFactors(reading),
+      productNameVisible: reading.productNameVisible,
+      descriptionStatesAmount: reading.descriptionStatesAmount,
+      notes: reading.notes,
+      hasUserDescription: Boolean(description),
+    }),
   };
 }

@@ -6,7 +6,8 @@ import * as goalService from '../goal.service';
 import { goalValuesMatch, previewLogMeal, previewSetGoal } from './actionPreview';
 import { ChatWriteToolDefinition, describeValidationError } from './chatToolTypes';
 import { applyGoalChanges, changedGoalTargets } from './goalChanges';
-import { toItemsInput } from './itemArgs';
+import { MICRONUTRIENTS_PARAMETER, toItemsInput } from './itemArgs';
+import { PHOTO_ASSESSMENT_PARAMETER, assessLoggedPhoto } from './photoAssessment';
 
 /**
  * The exact schemas behind `POST /api/food-entries` and `POST /api/goals`. A
@@ -53,10 +54,12 @@ const logMeal: ChatWriteToolDefinition = {
               proteinG: { type: 'NUMBER' },
               carbG: { type: 'NUMBER' },
               fatG: { type: 'NUMBER' },
+              micronutrients: MICRONUTRIENTS_PARAMETER,
             },
             required: ['name', 'unit', 'quantity', 'calories', 'proteinG', 'carbG', 'fatG'],
           },
         },
+        photoAssessment: PHOTO_ASSESSMENT_PARAMETER,
       },
       required: ['mealType', 'items'],
     },
@@ -69,10 +72,12 @@ const logMeal: ChatWriteToolDefinition = {
       return { ok: false, error: `Invalid arguments. date: cannot be after today (${context.today})` };
     }
 
-    return {
-      ok: true,
-      value: { tool: 'logMeal', args: parsed.data, preview: previewLogMeal(parsed.data, context.today) },
-    };
+    const proposal = { tool: 'logMeal' as const, args: parsed.data, preview: previewLogMeal(parsed.data, context.today) };
+    if (!context.attachedPhoto) return { ok: true, value: proposal };
+
+    const photoAnalysis = assessLoggedPhoto(parsed.data.items, rawArgs.photoAssessment, context.attachedPhoto);
+    if (!photoAnalysis.ok) return photoAnalysis;
+    return { ok: true, value: { ...proposal, photoAnalysis: photoAnalysis.value } };
   },
 };
 

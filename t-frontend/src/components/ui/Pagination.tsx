@@ -27,6 +27,8 @@ export default function Pagination({
   disabled = false,
   onPageChange,
 }: PaginationProps) {
+  if (totalPages <= 1) return null;
+
   return (
     <nav
       aria-label="Pagination"

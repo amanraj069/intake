@@ -2,6 +2,7 @@ import { ZodError } from 'zod';
 
 import { GeminiFunctionDeclaration } from '../../lib/gemini/geminiConversation';
 import { CalendarDay } from '../../lib/calendarDay';
+import { ExtractionAnalysis } from '../../lib/extractionAnalysis';
 import { ChatActionTool } from '../../models/ChatMessage';
 
 /**
@@ -14,6 +15,13 @@ export interface ChatToolContext {
   today: CalendarDay;
   /** The user's wall-clock time as `HH:MM`, when the client sent one with an accepted `today`. */
   localTime?: string;
+  /** Set when the user's new message carries a photo, which a meal logged from it is scored against. */
+  attachedPhoto?: AttachedPhoto;
+}
+
+export interface AttachedPhoto {
+  /** The user typed a message with the photo, which may state how much they ate. */
+  hasCaption: boolean;
 }
 
 /** A tool either produced a result or explains to the model what was wrong with its call. */
@@ -30,6 +38,12 @@ export interface PendingChatAction {
   args: Record<string, unknown>;
   /** One human-readable line describing what confirming will do, or what was estimated. */
   preview: string;
+  /**
+   * The confidence breakdown for a meal logged from the attached photo. Kept
+   * out of `args`, which the client echoes back on confirm: it is stored with
+   * the proposal and read from there, so the client never supplies it.
+   */
+  photoAnalysis?: ExtractionAnalysis;
 }
 
 interface ChatToolBase {

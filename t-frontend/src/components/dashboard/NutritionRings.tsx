@@ -16,9 +16,9 @@ interface RingDef {
 
 const RING_DEFS: RingDef[] = [
   { key: "calories", label: "Calories", unit: "kcal", radius: 170 },
-  { key: "protein",  label: "Protein",  unit: "g",    radius: 142 },
+  { key: "fat",      label: "Fat",      unit: "g",    radius: 142 },
   { key: "carbs",    label: "Carbs",    unit: "g",    radius: 114 },
-  { key: "fat",      label: "Fat",      unit: "g",    radius: 86  },
+  { key: "protein",  label: "Protein",  unit: "g",    radius: 86  },
 ];
 
 const STROKE_WIDTH = 20;
@@ -57,7 +57,12 @@ function pctLabel(consumed: number, target: number | null): string {
 /* ─── Component ───────────────────────────────────────────────────── */
 
 export default function NutritionRings({ calories, protein, carbs, fat }: NutritionRingsProps) {
-  const pairs: MetricPair[] = [calories, protein, carbs, fat];
+  const metricPairs: Record<NutritionMetricKey, MetricPair> = {
+    calories,
+    fat,
+    carbs,
+    protein,
+  };
 
   /* Animate on mount: progress from 0 → actual over ~700ms. */
   const [animProgress, setAnimProgress] = useState(0);
@@ -93,8 +98,8 @@ export default function NutritionRings({ calories, protein, carbs, fat }: Nutrit
   }, []);
 
   /* Build aria-label summary. */
-  const ariaSegments = RING_DEFS.map((def, i) => {
-    const p = pairs[i];
+  const ariaSegments = RING_DEFS.map((def) => {
+    const p = metricPairs[def.key];
     return p.target
       ? `${pctLabel(p.consumed, p.target)} of ${def.label.toLowerCase()} goal`
       : `${formatAmount(p.consumed)} ${def.unit} ${def.label.toLowerCase()}, no target`;
@@ -104,15 +109,16 @@ export default function NutritionRings({ calories, protein, carbs, fat }: Nutrit
     <div className="flex flex-col items-center gap-3.5 sm:gap-4 w-full">
       {/* ── Rings SVG ────────────────────────────────────────────── */}
       <div
-        className="w-[275px] h-[275px] max-w-full sm:w-[290px] sm:h-[290px] lg:w-[310px] lg:h-[310px]"
+        className="w-[220px] h-[220px] max-w-full sm:w-[290px] sm:h-[290px] lg:w-[310px] lg:h-[310px]"
         role="img"
         aria-label={ariaSegments}
       >
         <svg viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`} className="w-full h-full">
           <g transform={`rotate(-90 ${VIEWBOX / 2} ${VIEWBOX / 2})`}>
-            {RING_DEFS.map((def, i) => {
+            {RING_DEFS.map((def) => {
               const circ = circumference(def.radius);
-              const pct = clampedPercent(pairs[i].consumed, pairs[i].target);
+              const p = metricPairs[def.key];
+              const pct = clampedPercent(p.consumed, p.target);
               const dashOffset = circ - circ * pct * animProgress;
               const colour = colourFor(def.key);
               // The empty state (no meals logged) shows only the track, so it
@@ -178,21 +184,21 @@ export default function NutritionRings({ calories, protein, carbs, fat }: Nutrit
 
       {/* ── Metric Rows ─────────────────────────────────────────── */}
       <div className="flex flex-col gap-2 sm:gap-2.5 w-full">
-        {/* Row 1: Calories (extended width) & Protein */}
+        {/* Row 1: Calories (extended width) & Fat */}
         <div className="flex items-center gap-2 sm:gap-2.5 w-full">
           <MetricTile
             def={RING_DEFS[0]}
             pair={calories}
-            className="flex-[1.25] sm:flex-[1.2]"
+            className="flex-[1.4] sm:flex-[1.3]"
           />
           <MetricTile
             def={RING_DEFS[1]}
-            pair={protein}
+            pair={fat}
             className="flex-1"
           />
         </div>
 
-        {/* Row 2: Carbs & Fat (extended width) */}
+        {/* Row 2: Carbs & Protein */}
         <div className="flex items-center gap-2 sm:gap-2.5 w-full">
           <MetricTile
             def={RING_DEFS[2]}
@@ -201,8 +207,8 @@ export default function NutritionRings({ calories, protein, carbs, fat }: Nutrit
           />
           <MetricTile
             def={RING_DEFS[3]}
-            pair={fat}
-            className="flex-[1.2] sm:flex-[1.18]"
+            pair={protein}
+            className="flex-1"
           />
         </div>
       </div>
