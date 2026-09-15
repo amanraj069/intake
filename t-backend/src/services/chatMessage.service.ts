@@ -209,13 +209,29 @@ export async function retryChatMessage(userId: string, messageId: string, today:
 }
 
 /** One page of the thread, most recent page first, so "load earlier" is just the next page. */
+/**
+ * Matches messages that sort after the cursor in NEWEST_FIRST order. A deleted
+ * cursor still counts, since the client may have deleted the oldest message it holds.
+ */
+async function olderThanFilter(userId: string, cursorId: string | undefined) {
+  if (!cursorId) return {};
+
+  const cursor = await ChatMessage.findOne({ _id: cursorId, userId }).select('createdAt').lean();
+  if (!cursor) throw new AppError('That message could not be found.', 404, 'MESSAGE_NOT_FOUND');
+
+  return {
+    $or: [{ createdAt: { $lt: cursor.createdAt } }, { createdAt: cursor.createdAt, _id: { $lt: cursor._id } }],
+  };
+}
+
 export async function listChatHistory(
   userId: string,
   query: ChatHistoryQuery
 ): Promise<PaginatedResult<IChatMessageDocument>> {
+  const filter = { userId, ...NOT_DELETED, ...(await olderThanFilter(userId, query.before)) };
   const [messages, total] = await Promise.all([
-    ChatMessage.find({ userId, ...NOT_DELETED }).sort(NEWEST_FIRST).skip(toSkipCount(query)).limit(query.limit),
-    ChatMessage.countDocuments({ userId, ...NOT_DELETED }),
+    ChatMessage.find(filter).sort(NEWEST_FIRST).skip(toSkipCount(query)).limit(query.limit),
+    ChatMessage.countDocuments(filter),
   ]);
 
   return buildPaginatedResult(messages, total, query);

@@ -13,6 +13,8 @@ import onboardingRoutes from './routes/onboarding';
 import aiRoutes from './routes/ai';
 import chatRoutes from './routes/chat';
 import { errorHandler } from './middleware/errorHandler';
+import { generalRateLimit } from './middleware/rateLimit';
+import { trustedProxyHops } from './lib/trustProxy';
 
 /**
  * Builds the fully wired Express app without connecting to the database or
@@ -21,6 +23,7 @@ import { errorHandler } from './middleware/errorHandler';
 export function createApp(): Express {
   const app = express();
 
+  app.set('trust proxy', trustedProxyHops());
   app.use(helmet());
   app.use(
     cors({
@@ -34,9 +37,12 @@ export function createApp(): Express {
 
   configurePassport();
 
+  // Registered before the limiter so uptime monitors are never throttled.
   app.get('/health', (_req, res) => {
     res.json({ success: true, message: 'Server is running' });
   });
+
+  app.use(generalRateLimit);
 
   app.use('/auth', authRoutes);
   app.use('/api/goals', goalRoutes);

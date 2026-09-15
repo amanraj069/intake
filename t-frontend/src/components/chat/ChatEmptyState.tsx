@@ -50,11 +50,11 @@ export default function ChatEmptyState({ onPickPrompt }: ChatEmptyStateProps) {
             key={label}
             type="button"
             onClick={() => onPickPrompt(prompt)}
-            className="group flex items-center gap-2.5 sm:gap-4 rounded-xl sm:rounded-2xl border border-border dark:border-dark-border bg-bg-card/80 dark:bg-dark-bg-card/80 backdrop-blur-xs pl-4 pr-3 py-2.5 sm:pl-6 sm:pr-4 sm:py-3.5 cursor-pointer"
+            className="group flex items-center gap-2 sm:gap-4 rounded-xl sm:rounded-2xl border border-border dark:border-dark-border bg-bg-card/80 dark:bg-dark-bg-card/80 backdrop-blur-xs px-2.5 py-2.5 sm:pl-6 sm:pr-4 sm:py-3.5 cursor-pointer transition-all duration-200 ease-out hover:scale-[1.025] hover:shadow-md hover:border-accent/40 dark:hover:border-accent-dark/40 active:scale-[0.98]"
           >
-            <Icon className="h-5 w-5 sm:h-6 sm:w-6 shrink-0 text-accent dark:text-accent-dark transition-[filter] duration-300 group-hover-shimmer group-hover:animate-icon-shimmer" />
+            <Icon className="h-4.5 w-4.5 sm:h-6 sm:w-6 shrink-0 text-accent dark:text-accent-dark transition-[filter] duration-300 group-hover-shimmer group-hover:animate-icon-shimmer" />
             <span className="min-w-0 flex-1">
-              <span className="block text-xs sm:text-sm font-semibold sm:font-bold text-text-primary dark:text-dark-text truncate">
+              <span className="block text-[11px] sm:text-sm font-semibold sm:font-bold text-text-primary dark:text-dark-text leading-tight sm:truncate">
                 {label}
               </span>
               <span className="hidden sm:block mt-0.5 text-xs text-text-secondary dark:text-dark-text-secondary truncate">

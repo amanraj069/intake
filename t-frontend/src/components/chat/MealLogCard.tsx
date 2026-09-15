@@ -39,7 +39,7 @@ export default function MealLogCard({ action, onLogAnother }: MealLogCardProps) 
 
   return (
     <div className="w-full space-y-3 sm:space-y-4 rounded-2xl rounded-bl-md border border-border dark:border-dark-border bg-bg-card dark:bg-dark-bg-card p-3 sm:p-5 shadow-sm">
-      <span className="text-[13px] sm:text-sm font-bold text-text-primary dark:text-dark-text">Logged as {mealLabel}</span>
+      <span className="block text-[13px] sm:text-sm font-bold text-text-primary dark:text-dark-text pr-7 sm:pr-8 truncate">Logged as {mealLabel}</span>
 
       <DailyOverviewProgress summary={summary} loading={dailyLoading} />
 

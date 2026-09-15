@@ -87,6 +87,8 @@ const foodEntryFields = {
   confidenceScore: z.number().min(0).max(100).optional(),
   confidenceLevel: z.enum(['high', 'medium', 'low']).optional(),
   extractionAnalysis: z.any().optional(),
+  imageUrl: z.string().url('Invalid image URL').max(2000).optional(),
+  imagePublicId: z.string().trim().max(200).optional(),
 };
 
 export const createFoodEntrySchema = z.object({

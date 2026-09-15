@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
-import Button from "@/components/ui/Button";
+import { useState } from "react";
+import { HistoryIcon } from "@/components/icons";
+import Spinner from "@/components/ui/Spinner";
+import { useLoadOnScrollTop } from "@/hooks/useLoadOnScrollTop";
+import { useThreadScroll } from "@/hooks/useThreadScroll";
 import { isUnsentMessage } from "@/lib/chatThread";
 import type { ChatThreadMessage } from "@/types/chat";
 import ChatBubble from "./ChatBubble";
@@ -16,6 +19,10 @@ interface ChatMessageListProps {
   loadingEarlier: boolean;
   earlierError: string | null;
   onLoadEarlier: () => void;
+  /** Set while earlier chats are hidden, to offer opening them above this visit's messages. */
+  onShowPreviousChats?: () => void;
+  /** Opens at the top of the loaded history, fades the messages in and glides down to the newest. */
+  glideOnOpen?: boolean;
   onRetryFailed: (messageId: string) => void;
   onEditFailed: (messageId: string) => void;
   onConfirmAction: (messageId: string) => void;
@@ -23,138 +30,68 @@ interface ChatMessageListProps {
   onDeleteMessage: (messageId: string) => void;
   /** Focuses the composer so the user can log another meal. */
   onLogAnother?: () => void;
+  onSend?: (message: string) => void;
 }
 
-/**
- * Keeps the newest turn in view as the thread grows, except when an older page
- * is prepended: then the view stays anchored on what the user was reading
- * instead of jumping back to the bottom.
- *
- * On initial visit or refresh, it guarantees the user lands at the bottom
- * of the chat even as async content (images, receipts, nutrition cards, fonts)
- * renders and expands.
- */
-function useThreadScroll(messages: ChatThreadMessage[], sending: boolean) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLOListElement>(null);
-  const isAtBottomRef = useRef(true);
-  const skipNextResizeScrollRef = useRef(false);
-
-  const firstId = messages[0]?.id;
-  const lastId = messages.at(-1)?.id;
-  const previous = useRef({ firstId, lastId, scrollHeight: 0 });
-
-  const scrollToBottom = () => {
-    const container = scrollRef.current;
-    if (!container) return;
-    container.scrollTop = container.scrollHeight;
-  };
-
-  // Track whether the user has scrolled away from the bottom.
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-      isAtBottomRef.current = distanceFromBottom <= 80;
-    };
-
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  useLayoutEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    const olderPagePrepended =
-      previous.current.scrollHeight > 0 &&
-      previous.current.firstId !== firstId &&
-      previous.current.lastId === lastId;
-
-    if (olderPagePrepended) {
-      skipNextResizeScrollRef.current = true;
-      container.scrollTop =
-        container.scrollTop + container.scrollHeight - previous.current.scrollHeight;
-    } else {
-      if (previous.current.lastId !== lastId || sending) {
-        isAtBottomRef.current = true;
-      }
-      if (isAtBottomRef.current) {
-        scrollToBottom();
-      }
-    }
-
-    previous.current = { firstId, lastId, scrollHeight: container.scrollHeight };
-  }, [firstId, lastId, sending]);
-
-  // Keep pinned to bottom across multiple frames after mount / refresh while layout settles
-  useEffect(() => {
-    if (!isAtBottomRef.current) return;
-    scrollToBottom();
-    const rafId = requestAnimationFrame(scrollToBottom);
-    const t1 = setTimeout(scrollToBottom, 60);
-    const t2 = setTimeout(scrollToBottom, 200);
-    const t3 = setTimeout(scrollToBottom, 500);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, [firstId, lastId]);
-
-  // Catch image loads in bubbles to ensure scroll stays pinned to bottom
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    const handleLoad = (e: Event) => {
-      if (e.target instanceof HTMLImageElement && isAtBottomRef.current) {
-        scrollToBottom();
-      }
-    };
-
-    container.addEventListener("load", handleLoad, true);
-    return () => container.removeEventListener("load", handleLoad, true);
-  }, []);
-
-  // ResizeObserver on the content to react to dynamic expansions (cards, charts, fonts)
-  useEffect(() => {
-    const content = contentRef.current;
-    if (!content) return;
-
-    const observer = new ResizeObserver(() => {
-      if (skipNextResizeScrollRef.current) {
-        skipNextResizeScrollRef.current = false;
-        return;
-      }
-      if (isAtBottomRef.current) {
-        scrollToBottom();
-      }
-    });
-
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, []);
-
-  return { scrollRef, contentRef };
+/** Staggers the opening fade top to bottom, capped so a long history is not left waiting to appear. */
+function openingDelayMs(index: number): number {
+  return Math.min(index, 8) * 60;
 }
 
-function EarlierMessagesControl({ loading, error, onLoad }: { loading: boolean; error: string | null; onLoad: () => void }) {
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <Button size="sm" variant="ghost" loading={loading} onClick={onLoad}>
-        {error ? "Retry loading earlier messages" : "Load earlier messages"}
-      </Button>
-      {error && (
+const THREAD_NOTICE_CLASSES =
+  "flex items-center justify-center gap-2 text-xs font-light text-text-secondary dark:text-dark-text-secondary";
+
+const THREAD_LINK_CLASSES =
+  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-text-secondary dark:text-dark-text-secondary " +
+  "cursor-pointer transition-colors duration-150 hover:bg-bg-card dark:hover:bg-dark-bg-card hover:text-text-primary dark:hover:text-dark-text";
+
+interface EarlierMessagesIndicatorProps {
+  hasEarlier: boolean;
+  loading: boolean;
+  error: string | null;
+  onLoad: () => void;
+}
+
+/** Sits above the oldest message: a hint to scroll up for more, a loading row, a retry, or the start of the thread. */
+function EarlierMessagesIndicator({ hasEarlier, loading, error, onLoad }: EarlierMessagesIndicatorProps) {
+  if (loading) {
+    return (
+      <div role="status" className={THREAD_NOTICE_CLASSES}>
+        <Spinner size="sm" />
+        Loading earlier messages
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-1">
         <p role="alert" className="text-xs text-error dark:text-error-dark">
           {error}
         </p>
-      )}
-    </div>
+        <button type="button" onClick={onLoad} className={THREAD_LINK_CLASSES}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (!hasEarlier) return <p className={THREAD_NOTICE_CLASSES}>Start of your conversation</p>;
+
+  // Also a button, for touch screens where the thread is too short to scroll.
+  return (
+    <button type="button" onClick={onLoad} className={`${THREAD_LINK_CLASSES} mx-auto flex`}>
+      Scroll up to load more
+    </button>
+  );
+}
+
+function PreviousChatsButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={`${THREAD_LINK_CLASSES} mx-auto flex`}>
+      <HistoryIcon className="h-3.5 w-3.5 text-accent dark:text-accent-dark" />
+      Load previous chats
+    </button>
   );
 }
 
@@ -165,23 +102,37 @@ export default function ChatMessageList({
   loadingEarlier,
   earlierError,
   onLoadEarlier,
+  onShowPreviousChats,
+  glideOnOpen = false,
   onRetryFailed,
   onEditFailed,
   onConfirmAction,
   onCancelAction,
   onDeleteMessage,
   onLogAnother,
+  onSend,
 }: ChatMessageListProps) {
-  const { scrollRef, contentRef } = useThreadScroll(messages, sending);
+  const { scrollRef, contentRef } = useThreadScroll(messages, sending, glideOnOpen);
+  // Only the messages present on opening fade in; pages loaded later appear in place without replaying it.
+  const [openingIds] = useState(() => (glideOnOpen ? new Set(messages.map((message) => message.id)) : null));
+  const canLoadEarlier = !onShowPreviousChats && hasEarlier && !loadingEarlier && !earlierError;
+  useLoadOnScrollTop(scrollRef, canLoadEarlier, onLoadEarlier);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain px-3 pt-4 pb-6 sm:px-8 sm:pt-8 sm:pb-4 lg:px-12">
       <ol ref={contentRef} aria-label="Conversation" aria-live="polite" className="mx-auto w-full max-w-5xl space-y-3 sm:space-y-4">
-        {hasEarlier && (
-          <li>
-            <EarlierMessagesControl loading={loadingEarlier} error={earlierError} onLoad={onLoadEarlier} />
-          </li>
-        )}
+        <li>
+          {onShowPreviousChats ? (
+            <PreviousChatsButton onClick={onShowPreviousChats} />
+          ) : (
+            <EarlierMessagesIndicator
+              hasEarlier={hasEarlier}
+              loading={loadingEarlier}
+              error={earlierError}
+              onLoad={onLoadEarlier}
+            />
+          )}
+        </li>
         {messages.map((message, index) => {
           const isAssistant = message.role === "assistant" || message.action != null;
           const nextMessage = messages[index + 1];
@@ -192,7 +143,11 @@ export default function ChatMessageList({
           const onDelete = message.delivery === "sending" ? undefined : () => onDeleteMessage(message.id);
 
           return (
-            <li key={message.id} className="space-y-2">
+            <li
+              key={message.id}
+              className={`space-y-2 ${openingIds?.has(message.id) ? "animate-flow-card" : ""}`}
+              style={openingIds?.has(message.id) ? { animationDelay: `${openingDelayMs(index)}ms` } : undefined}
+            >
               {message.action ? (
                 <PendingActionCard
                   action={message.action}
@@ -202,6 +157,7 @@ export default function ChatMessageList({
                   onCancel={() => onCancelAction(message.id)}
                   onLogAnother={onLogAnother}
                   onDelete={onDelete}
+                  onSend={onSend}
                 />
               ) : (
                 <ChatBubble

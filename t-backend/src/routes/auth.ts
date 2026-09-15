@@ -12,6 +12,12 @@ import * as accountSecurityController from '../controllers/accountSecurity.contr
 import * as avatarController from '../controllers/avatar.controller';
 import { uploadAvatarFile } from '../middleware/upload';
 import {
+  accountCreationRateLimit,
+  credentialAttemptsRateLimit,
+  emailDeliveryRateLimit,
+  fileUploadsRateLimit,
+} from '../middleware/rateLimit';
+import {
   changePasswordSchema,
   checkEmailSchema,
   confirmSignupOtpSchema,
@@ -32,9 +38,22 @@ const handler = (fn: unknown) => fn as import('express').RequestHandler;
 
 // --- Core auth ---
 
-router.post('/check-email', validate(checkEmailSchema), authController.checkEmail);
-router.post('/register', validate(registerSchema), authController.register);
-router.post('/login', validate(loginSchema), authController.login);
+// Rate limiters that key by account sit after `requireAuth`, which is what puts
+// the user on the request; on signed-out routes they fall back to the client IP.
+
+router.post(
+  '/check-email',
+  accountCreationRateLimit,
+  validate(checkEmailSchema),
+  authController.checkEmail
+);
+router.post(
+  '/register',
+  accountCreationRateLimit,
+  validate(registerSchema),
+  authController.register
+);
+router.post('/login', credentialAttemptsRateLimit, validate(loginSchema), authController.login);
 router.post('/logout', authController.logout);
 router.post('/refresh', authController.refresh);
 router.get('/me', handler(requireAuth), handler(authController.me));
@@ -44,11 +63,13 @@ router.get('/me', handler(requireAuth), handler(authController.me));
 router.post(
   '/signup/resend-otp',
   handler(requireAuth),
+  emailDeliveryRateLimit,
   handler(emailVerificationController.resendSignupOtp)
 );
 router.post(
   '/signup/verify-otp',
   handler(requireAuth),
+  credentialAttemptsRateLimit,
   validate(confirmSignupOtpSchema),
   handler(emailVerificationController.confirmSignupOtp)
 );
@@ -57,19 +78,31 @@ router.get('/verify-email', emailVerificationController.verifyEmail);
 router.post(
   '/resend-verification',
   handler(requireAuth),
+  emailDeliveryRateLimit,
   handler(emailVerificationController.resendVerification)
 );
 
 // --- Password reset (signed out) ---
 
-router.post('/forgot-password', validate(forgotPasswordSchema), passwordRecoveryController.forgotPassword);
-router.post('/reset-password', validate(resetPasswordSchema), passwordRecoveryController.resetPassword);
+router.post(
+  '/forgot-password',
+  emailDeliveryRateLimit,
+  validate(forgotPasswordSchema),
+  passwordRecoveryController.forgotPassword
+);
+router.post(
+  '/reset-password',
+  credentialAttemptsRateLimit,
+  validate(resetPasswordSchema),
+  passwordRecoveryController.resetPassword
+);
 
 // --- Account security (signed in) ---
 
 router.patch(
   '/change-password',
   handler(requireAuth),
+  credentialAttemptsRateLimit,
   validate(changePasswordSchema),
   handler(passwordRecoveryController.changePassword)
 );
@@ -77,6 +110,7 @@ router.patch(
 router.post(
   '/request-otp',
   handler(requireAuth),
+  emailDeliveryRateLimit,
   validate(requestAccountOtpSchema),
   handler(accountSecurityController.requestOtp)
 );
@@ -84,6 +118,7 @@ router.post(
 router.post(
   '/verify-otp',
   handler(requireAuth),
+  credentialAttemptsRateLimit,
   validate(verifyAccountOtpSchema),
   handler(accountSecurityController.verifyOtp)
 );
@@ -93,6 +128,7 @@ router.post(
 router.post(
   '/avatar',
   handler(requireAuth),
+  fileUploadsRateLimit,
   uploadAvatarFile,
   avatarController.uploadAvatar
 );

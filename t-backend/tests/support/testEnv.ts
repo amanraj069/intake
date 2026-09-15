@@ -18,3 +18,6 @@ const PLACEHOLDER_ENV: Record<string, string> = {
 for (const [key, value] of Object.entries(PLACEHOLDER_ENV)) {
   if (!process.env[key]) process.env[key] = value;
 }
+
+// Suites fire many requests from one IP in seconds; throttling them would only test the limiter.
+process.env.RATE_LIMIT_ENABLED = 'false';

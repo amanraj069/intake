@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
+import { aiRequestsRateLimit } from '../middleware/rateLimit';
 import { uploadFoodImageFile } from '../middleware/upload';
 import { validate } from '../middleware/validate';
 import { extractNutritionSchema } from '../schemas/aiExtraction.schema';
@@ -13,6 +14,7 @@ router.use(requireAuth);
 // `req.body` once multer has parsed the form.
 router.post(
   '/extract-nutrition',
+  aiRequestsRateLimit,
   uploadFoodImageFile,
   validate(extractNutritionSchema),
   aiExtractionController.extractNutrition

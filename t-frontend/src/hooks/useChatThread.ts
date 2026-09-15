@@ -54,6 +54,10 @@ export function useChatThread() {
 
   const awaitingReply = useAwaitedReply(messages, setMessages, !history.loading);
 
+  const [showingPreviousChats, setShowingPreviousChats] = useState(false);
+  // A reply still being produced after a reload means the user was mid-conversation: reopen it rather than hide it.
+  if (awaitingReply && !showingPreviousChats) setShowingPreviousChats(true);
+
   const runReplyRequest = useCallback(
     async (message: ChatThreadMessage, request: () => Promise<{ data?: ChatExchange }>) => {
       setSending(true);
@@ -210,8 +214,30 @@ export function useChatThread() {
 
   const dismissDeletedMessage = useCallback(() => setDeletedMessage(null), []);
 
+  const { archiveMessages, previousChatIds } = history;
+
+  /** Clears the screen for a fresh conversation; everything shown so far joins the previous chats. */
+  const startNewChat = useCallback(() => {
+    archiveMessages(messages.map((message) => message.id));
+    setDeletedMessage(null);
+    setShowingPreviousChats(false);
+  }, [archiveMessages, messages]);
+
+  const showPreviousChats = useCallback(() => setShowingPreviousChats(true), []);
+
+  const visibleMessages = showingPreviousChats
+    ? messages
+    : messages.filter((message) => !previousChatIds.has(message.id));
+
   return {
     ...history,
+    /** The thread as it should be drawn: this visit's messages, plus earlier chats once the user opens them. */
+    visibleMessages,
+    showingPreviousChats,
+    // A failed first load cannot tell whether there is history, so the way to retry it stays available.
+    hasPreviousChats: previousChatIds.size > 0 || history.loadError !== null,
+    showPreviousChats,
+    startNewChat,
     /** True while a message sent or retried here, or before a reload, is still waiting for its reply. */
     sending: sending || awaitingReply,
     awaitingDecision: hasUndecidedAction(messages),

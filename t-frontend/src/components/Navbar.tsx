@@ -7,8 +7,26 @@ import BrandMark from "./layout/BrandMark";
 import ThemeToggle from "./ThemeToggle";
 
 const LINK_CLASSES =
-  "text-[10px] sm:text-xs font-bold   text-text-secondary dark:text-dark-text-secondary hover:text-text-primary dark:hover:text-dark-text transition-colors";
+  "text-sm font-medium text-text-secondary dark:text-dark-text-secondary hover:text-text-primary dark:hover:text-dark-text transition-colors";
 
+function HomeSectionLinks() {
+  const scrollToFeatures = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const el = document.getElementById("features");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.history.pushState(null, "", "#features");
+    }
+  };
+
+  return (
+    <nav className="hidden md:flex items-center gap-7" aria-label="Page sections">
+      <a href="#features" onClick={scrollToFeatures} className={LINK_CLASSES}>
+        Features
+      </a>
+    </nav>
+  );
+}
 
 
 function GuestLinks({ pathname }: { pathname: string }) {
@@ -35,9 +53,11 @@ export default function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-black/10 dark:border-white/10 bg-bg-primary/90 dark:bg-dark-bg/90 backdrop-blur-md">
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-black/10 dark:border-white/10 bg-bg-primary/90 dark:bg-dark-bg/90 backdrop-blur-md transform-gpu">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         <BrandMark size="sm" className="text-lg sm:text-xl tracking-tight text-text-primary dark:text-dark-text" />
+
+        {pathname === "/" && <HomeSectionLinks />}
 
         <div className="flex items-center gap-4 sm:gap-6">
           <ThemeToggle />
@@ -46,8 +66,8 @@ export default function Navbar() {
             <div className="flex items-center gap-4 sm:gap-6">
               {user ? (
                 <>
-                  <Link 
-                    href="/dashboard" 
+                  <Link
+                    href="/dashboard"
                     className="text-xs sm:text-sm font-bold   px-5 py-2.5 rounded-lg bg-accent-muted text-white hover:bg-accent-muted-hover dark:bg-accent-dark-muted dark:hover:bg-accent-dark-muted-hover transition-all duration-150 active:scale-[0.97]"
                   >
                     Dashboard
@@ -58,13 +78,13 @@ export default function Navbar() {
                     aria-label="Log out"
                     title="Log out"
                   >
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
                       className="w-5 h-5"
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2.5" 
-                      strokeLinecap="square" 
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="square"
                       strokeLinejoin="miter"
                       viewBox="0 0 24 24"
                     >

@@ -10,6 +10,8 @@ import {
 } from '../schemas/foodEntry.schema';
 import * as dailyIntakeService from '../services/dailyIntake.service';
 import * as foodEntryService from '../services/foodEntry.service';
+import { uploadMealImage as uploadMealImageToCloudinary } from '../lib/cloudinary';
+import { AppError } from '../middleware/errorHandler';
 
 /** Route params for the single-entry endpoints, typed so `id` is a plain string. */
 type FoodEntryParams = { id: string };
@@ -27,12 +29,47 @@ export async function createFoodEntry(
     const userId = getAuthenticatedUserId(req);
     // The parsed body, not the raw one: the schema trims text and turns a blank meal name into "no name".
     const { body } = getValidatedInput(req, createFoodEntrySchema);
+
+    if (req.file) {
+      const uploaded = await uploadMealImageToCloudinary(req.file.buffer, userId);
+      body.imageUrl = uploaded.url;
+      body.imagePublicId = uploaded.publicId;
+    }
+
     const foodEntry = await foodEntryService.createFoodEntry(userId, body);
 
     res.status(201).json({
       success: true,
       message: 'Food entry created successfully',
       data: { foodEntry },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/food-entries/upload-image
+ * Uploads a food image to Cloudinary and returns its URL and public ID.
+ */
+export async function uploadMealImage(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    if (!req.file) {
+      throw new AppError('Choose an image to upload', 400, 'IMAGE_REQUIRED');
+    }
+    const uploaded = await uploadMealImageToCloudinary(req.file.buffer, userId);
+    res.status(200).json({
+      success: true,
+      message: 'Meal image uploaded successfully',
+      data: {
+        imageUrl: uploaded.url,
+        imagePublicId: uploaded.publicId,
+      },
     });
   } catch (error) {
     next(error);

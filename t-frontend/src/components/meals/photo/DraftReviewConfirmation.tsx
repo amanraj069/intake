@@ -34,10 +34,12 @@ export default function DraftReviewConfirmation({
   return (
     <div className="space-y-2">
       <label
-        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 sm:p-5 transition-colors duration-150 ${
+        className={`flex cursor-pointer items-start gap-3 sm:gap-3.5 rounded-2xl border p-4 sm:p-5 shadow-xs transition-all duration-150 ${
           error
-            ? "border-error dark:border-error-dark"
-            : "border-input-border dark:border-dark-input-border hover:border-text-primary/40 dark:hover:border-white/30"
+            ? "border-error dark:border-error-dark bg-white dark:bg-dark-bg-card"
+            : confirmed
+            ? "border-accent/30 dark:border-accent-dark/40 bg-white dark:bg-dark-bg-card hover:border-accent/50"
+            : "border-black/5 dark:border-white/10 bg-white dark:bg-dark-bg-card hover:border-black/15 dark:hover:border-white/20"
         }`}
       >
         <input
@@ -49,17 +51,19 @@ export default function DraftReviewConfirmation({
         />
         <span
           aria-hidden="true"
-          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-accent ${
+          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border transition-all duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-accent ${
             confirmed
-              ? "border-accent bg-accent text-white dark:border-accent-dark dark:bg-accent-dark"
-              : "border-input-border dark:border-dark-input-border"
+              ? "border-accent bg-accent text-white dark:border-accent-dark dark:bg-accent-dark shadow-xs"
+              : "border-black/20 dark:border-white/20 bg-black/[0.03] dark:bg-white/[0.05]"
           }`}
         >
           {confirmed && <CheckIcon className="h-3.5 w-3.5" />}
         </span>
         <span className="text-sm text-text-primary dark:text-dark-text">
-          <span className="font-semibold">I have reviewed the details filled in from my photo.</span>
-          <span className="mt-1 block font-light text-text-secondary dark:text-dark-text-secondary">
+          <span className="font-semibold text-text-primary dark:text-dark-text">
+            I have reviewed the details filled in from my photo.
+          </span>
+          <span className="mt-1 block text-xs sm:text-[13px] font-light text-text-secondary dark:text-dark-text-secondary leading-relaxed">
             Logging as {capitalise(mealType)} on {dayLabel}, with the items, amounts, calories, macros
             and micronutrients above.
           </span>

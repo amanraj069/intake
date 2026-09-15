@@ -67,6 +67,8 @@ export interface FoodEntry {
   confidenceScore?: number;
   confidenceLevel?: ConfidenceLevel;
   extractionAnalysis?: ExtractionAnalysis;
+  imageUrl?: string;
+  imagePublicId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,6 +86,8 @@ export interface FoodEntryInput {
   confidenceScore?: number;
   confidenceLevel?: ConfidenceLevel;
   extractionAnalysis?: ExtractionAnalysis;
+  imageUrl?: string;
+  imagePublicId?: string;
 }
 
 /** The items of an entry, as read from a photo. When and at which meal are the user's call. */

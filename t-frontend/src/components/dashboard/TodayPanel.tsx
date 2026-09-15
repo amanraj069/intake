@@ -87,7 +87,7 @@ export default function TodayPanel({ summary }: TodayPanelProps) {
       aria-label="Today against target"
       className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm border border-border dark:border-dark-border p-4 sm:p-10 lg:p-12"
     >
-      <div className="grid gap-6 sm:gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16 items-center">
+      <div className="grid gap-6 sm:gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 items-center">
         {/* Left: Nutrition rings */}
         <div className="flex flex-col items-center w-full lg:pr-8 lg:border-r border-border dark:border-dark-border">
           <NutritionRings

@@ -53,6 +53,8 @@ export interface IFoodEntryDocument extends Document {
   confidenceScore?: number;
   confidenceLevel?: string;
   extractionAnalysis?: unknown;
+  imageUrl?: string;
+  imagePublicId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -156,6 +158,14 @@ const foodEntrySchema = new Schema<IFoodEntryDocument>(
     },
     extractionAnalysis: {
       type: Schema.Types.Mixed,
+    },
+    imageUrl: {
+      type: String,
+      trim: true,
+    },
+    imagePublicId: {
+      type: String,
+      trim: true,
     },
   },
   {

@@ -13,6 +13,7 @@ export type ExtractionFailure = AiRequestFailure;
 interface UseNutritionExtractionResult {
   status: ExtractionStatus;
   previewUrl: string | null;
+  file: File | null;
   failure: ExtractionFailure | null;
   /** Resolves with the draft, or null when the photo was rejected, failed or was cancelled. */
   extract: (file: File, description?: string) => Promise<NutritionExtraction | null>;
@@ -29,6 +30,7 @@ interface UseNutritionExtractionResult {
 export function useNutritionExtraction(): UseNutritionExtractionResult {
   const [status, setStatus] = useState<ExtractionStatus>("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [failure, setFailure] = useState<ExtractionFailure | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const lastAttemptRef = useRef<{ file: File; description?: string } | null>(null);
@@ -54,6 +56,7 @@ export function useNutritionExtraction(): UseNutritionExtractionResult {
     async (file: File, description?: string) => {
       controllerRef.current?.abort();
       lastAttemptRef.current = { file, description };
+      setFile(file);
       replacePreview(file);
 
       const rejection = foodImageFileError(file);
@@ -94,10 +97,11 @@ export function useNutritionExtraction(): UseNutritionExtractionResult {
   const reset = useCallback(() => {
     controllerRef.current?.abort();
     lastAttemptRef.current = null;
+    setFile(null);
     replacePreview(null);
     setFailure(null);
     setStatus("idle");
   }, [replacePreview]);
 
-  return { status, previewUrl, failure, extract, retry, reset };
+  return { status, previewUrl, file, failure, extract, retry, reset };
 }
