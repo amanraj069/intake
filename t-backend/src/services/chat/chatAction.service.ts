@@ -9,6 +9,7 @@ import { ConfirmChatActionInput } from '../../schemas/chat.schema';
 import { CreateFoodEntryInput } from '../../schemas/foodEntry.schema';
 import * as foodEntryService from '../foodEntry.service';
 import * as goalService from '../goal.service';
+import { addCatalogueSynonyms } from '../mealCatalog.service';
 import { describeValidationError } from './chatToolTypes';
 import { GoalChanges, applyGoalChanges } from './goalChanges';
 import { logMealArgsSchema, setGoalArgsSchema, setGoalChangesSchema } from './writeTools';
@@ -156,7 +157,9 @@ async function executeAction(
   if (action.tool === 'setGoal') {
     return { tool: 'setGoal', message, goal: await saveGoalChanges(userId, action.changes) };
   }
-  return { tool: 'logMeal', message, foodEntry: await saveConfirmedMeal(userId, action.entry, message) };
+  const foodEntry = await saveConfirmedMeal(userId, action.entry, message);
+  await addCatalogueSynonyms(userId, foodEntry, message.action?.catalogueSynonyms);
+  return { tool: 'logMeal', message, foodEntry };
 }
 
 /**

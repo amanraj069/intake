@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 import { GeminiFunctionDeclaration } from '../../lib/gemini/geminiConversation';
 import { CalendarDay } from '../../lib/calendarDay';
 import { ExtractionAnalysis } from '../../lib/extractionAnalysis';
-import { ChatActionTool } from '../../models/ChatMessage';
+import { ChatActionTool, StoredCatalogueSynonyms } from '../../models/ChatMessage';
 
 /**
  * Everything a tool is scoped to. The user id comes from the authenticated
@@ -44,6 +44,8 @@ export interface PendingChatAction {
    * the proposal and read from there, so the client never supplies it.
    */
   photoAnalysis?: ExtractionAnalysis;
+  /** Other names for a proposed meal's foods. Also kept out of `args`, for the same reason. */
+  catalogueSynonyms?: StoredCatalogueSynonyms;
 }
 
 interface ChatToolBase {

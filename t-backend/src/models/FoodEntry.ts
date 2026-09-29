@@ -85,7 +85,8 @@ const microsMapField = {
   default: () => new Map<string, StoredMicronutrient>(),
 };
 
-const foodItemSchema = new Schema<IFoodItem>(
+/** Shared with the meal catalogue, which keeps items in exactly the shape they were logged in. */
+export const foodItemSchema = new Schema<IFoodItem>(
   {
     name: { type: String, required: true, trim: true },
     quantity: { type: Number, required: true, min: 0 },

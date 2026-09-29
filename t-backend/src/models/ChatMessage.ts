@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import type { ExtractionAnalysis } from '../lib/extractionAnalysis';
+import { FOOD_ITEM_UNITS, FoodItemUnit } from './FoodEntry';
 
 export const CHAT_ROLES = ['user', 'assistant'] as const;
 export type ChatRole = (typeof CHAT_ROLES)[number];
@@ -31,6 +32,25 @@ export interface StoredChatAction {
   args?: Record<string, unknown>;
   /** Set on a meal proposed from a photo, so confirming it saves that photo and its confidence breakdown too. */
   mealPhoto?: StoredMealPhoto;
+  /** Other names the model gave a proposed meal's foods, added to the meal catalogue once it is confirmed. */
+  catalogueSynonyms?: StoredCatalogueSynonyms;
+}
+
+/** One proposed food's other names. The food is found again by name and unit, not position, when the meal is saved. */
+export interface StoredFoodSynonyms {
+  name: string;
+  unit: FoodItemUnit;
+  synonyms: string[];
+}
+
+/**
+ * Server-side only, like `mealPhoto`: the client never echoes these back, so
+ * which names reach the user's catalogue is never its call.
+ */
+export interface StoredCatalogueSynonyms {
+  /** Other names for the whole meal, when it has several items. */
+  dish: string[];
+  items: StoredFoodSynonyms[];
 }
 
 /**
@@ -84,12 +104,30 @@ const mealPhotoSchema = new Schema<StoredMealPhoto>(
   { _id: false }
 );
 
+const foodSynonymsSchema = new Schema<StoredFoodSynonyms>(
+  {
+    name: { type: String, required: true },
+    unit: { type: String, enum: FOOD_ITEM_UNITS, required: true },
+    synonyms: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+const catalogueSynonymsSchema = new Schema<StoredCatalogueSynonyms>(
+  {
+    dish: { type: [String], default: [] },
+    items: { type: [foodSynonymsSchema], default: [] },
+  },
+  { _id: false }
+);
+
 const chatActionSchema = new Schema<StoredChatAction>(
   {
     tool: { type: String, enum: CHAT_ACTION_TOOLS, required: true },
     status: { type: String, enum: CHAT_ACTION_STATUSES, required: true },
     args: { type: Schema.Types.Mixed, default: undefined },
     mealPhoto: { type: mealPhotoSchema, default: undefined },
+    catalogueSynonyms: { type: catalogueSynonymsSchema, default: undefined },
   },
   { _id: false }
 );

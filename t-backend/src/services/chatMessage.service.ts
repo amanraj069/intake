@@ -14,7 +14,8 @@ import { PaginatedResult, buildPaginatedResult, toSkipCount } from '../lib/pagin
 import { AppError } from '../middleware/errorHandler';
 import { ChatMessage, ChatRole, IChatMessageDocument, StoredChatAction } from '../models/ChatMessage';
 import { ChatHistoryQuery } from '../schemas/chat.schema';
-import { ChatTurnCallbacks, runChatTurn } from './chatAgent';
+import { ChatTurnCallbacks, ChatTurnResult, runChatTurn } from './chatAgent';
+import { proposeMealFromCatalogue } from './chat/catalogueProposal';
 import { PendingChatAction } from './chat/chatToolTypes';
 import { ChatHistoryTurn } from './chat/conversationContents';
 
@@ -103,14 +104,16 @@ async function loadRecentTurns(userId: string, excludeMessageId?: Types.ObjectId
 /**
  * An estimate is never confirmed: it already answers the question, so it is
  * stored resolved. A meal read from the message's photo keeps that photo and
- * its confidence breakdown, for confirming to save with the meal.
+ * its confidence breakdown, for confirming to save with the meal. Synonyms
+ * travel the same way, to reach the catalogue once the meal is confirmed.
  */
 function toStoredAction(pendingAction: PendingChatAction | null, userMessage: IChatMessageDocument): StoredChatAction | undefined {
   if (!pendingAction) return undefined;
   const status = pendingAction.tool === 'estimateNutrition' ? 'estimate' : 'pending';
   const { photoAnalysis } = pendingAction;
   const mealPhoto = photoAnalysis && userMessage.imageUrl ? { imageUrl: userMessage.imageUrl, analysis: photoAnalysis } : undefined;
-  return { tool: pendingAction.tool, status, args: pendingAction.args, mealPhoto };
+  const { catalogueSynonyms } = pendingAction;
+  return { tool: pendingAction.tool, status, args: pendingAction.args, mealPhoto, catalogueSynonyms };
 }
 
 function toReplyError(error: unknown): AppError {
@@ -144,24 +147,32 @@ interface ReplyRequest extends ReplyOptions {
   image?: InlineImage;
 }
 
+/**
+ * Answers from the user's meal catalogue when the message only asks to log
+ * foods they have logged before, and from the model otherwise. A photo always
+ * goes to the model, since only it can read what the photo shows.
+ */
+async function runReplyTurn({ userId, userMessage, history, image, today, localTime, callbacks }: ReplyRequest): Promise<ChatTurnResult> {
+  const catalogueProposal = image ? null : await proposeMealFromCatalogue(userId, userMessage.content, { today, localTime });
+  if (catalogueProposal) {
+    callbacks?.onTextDelta?.(catalogueProposal.preview);
+    return { reply: catalogueProposal.preview, pendingAction: catalogueProposal };
+  }
+
+  return runChatTurn({
+    history,
+    message: userMessage.content,
+    image,
+    context: { userId, today, localTime, attachedPhoto: image ? { hasCaption: Boolean(userMessage.content) } : undefined },
+    callbacks,
+  });
+}
+
 /** Runs the assistant turn for a stored user message and stores its reply, or records why there is none. */
-async function produceReply({
-  userId,
-  userMessage,
-  history,
-  image,
-  today,
-  localTime,
-  callbacks,
-}: ReplyRequest): Promise<ChatExchange> {
+async function produceReply(request: ReplyRequest): Promise<ChatExchange> {
+  const { userId, userMessage } = request;
   try {
-    const turn = await runChatTurn({
-      history,
-      message: userMessage.content,
-      image,
-      context: { userId, today, localTime, attachedPhoto: image ? { hasCaption: Boolean(userMessage.content) } : undefined },
-      callbacks,
-    });
+    const turn = await runReplyTurn(request);
     const assistantMessage = await saveChatMessage(userId, {
       role: 'assistant',
       content: turn.reply,

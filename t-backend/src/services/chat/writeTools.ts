@@ -8,6 +8,7 @@ import { ChatWriteToolDefinition, describeValidationError } from './chatToolType
 import { applyGoalChanges, changedGoalTargets } from './goalChanges';
 import { MICRONUTRIENTS_PARAMETER, toItemsInput } from './itemArgs';
 import { PHOTO_ASSESSMENT_PARAMETER, assessLoggedPhoto } from './photoAssessment';
+import { ITEM_SYNONYMS_PARAMETER, MEAL_NAME_SYNONYMS_PARAMETER, readCatalogueSynonyms } from './synonymArgs';
 
 /**
  * The exact schemas behind `POST /api/food-entries` and `POST /api/goals`. A
@@ -35,12 +36,13 @@ const logMeal: ChatWriteToolDefinition = {
   declaration: {
     name: 'logMeal',
     description:
-      'Proposes logging one meal; the user confirms before it is saved. Call it only when the user asked to log food or said what they ate at a meal, never just to answer a question about nutrition. Estimate realistic nutrition for each item when the user does not state it.',
+      'Proposes logging one meal; the user confirms before it is saved. Call it only when the user asked to log food or said what they ate at a meal, never just to answer a question about nutrition. Estimate realistic nutrition for each item when the user does not state it. Always fill synonyms: they let the app recognise this food next time without asking you.',
     parameters: {
       type: 'OBJECT',
       properties: {
         mealType: { type: 'STRING', enum: [...MEAL_TYPES] },
         name: { type: 'STRING', description: 'Optional short name for the whole meal' },
+        nameSynonyms: MEAL_NAME_SYNONYMS_PARAMETER,
         date: { type: 'STRING', description: 'Day eaten, YYYY-MM-DD. Defaults to today.' },
         items: {
           type: 'ARRAY',
@@ -55,6 +57,7 @@ const logMeal: ChatWriteToolDefinition = {
               carbG: { type: 'NUMBER' },
               fatG: { type: 'NUMBER' },
               micronutrients: MICRONUTRIENTS_PARAMETER,
+              synonyms: ITEM_SYNONYMS_PARAMETER,
             },
             required: ['name', 'unit', 'quantity', 'calories', 'proteinG', 'carbG', 'fatG'],
           },
@@ -72,7 +75,12 @@ const logMeal: ChatWriteToolDefinition = {
       return { ok: false, error: `Invalid arguments. date: cannot be after today (${context.today})` };
     }
 
-    const proposal = { tool: 'logMeal' as const, args: parsed.data, preview: previewLogMeal(parsed.data, context.today) };
+    const proposal = {
+      tool: 'logMeal' as const,
+      args: parsed.data,
+      preview: previewLogMeal(parsed.data, context.today),
+      catalogueSynonyms: readCatalogueSynonyms(rawArgs, parsed.data.items),
+    };
     if (!context.attachedPhoto) return { ok: true, value: proposal };
 
     const photoAnalysis = assessLoggedPhoto(parsed.data.items, rawArgs.photoAssessment, context.attachedPhoto);

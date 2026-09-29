@@ -8,6 +8,7 @@ import { sumItemNutrition } from '../lib/foodItemTotals';
 import { roundToTenth } from '../lib/numbers';
 import { AppError } from '../middleware/errorHandler';
 import { buildFoodEntryFields } from './foodEntry.service';
+import { recordLoggedMeals } from './mealCatalog.service';
 
 export type ImportSkipReason = 'invalid' | 'duplicate';
 
@@ -138,7 +139,8 @@ async function insertEntries(userId: string, entries: readonly ValidEntry[]): Pr
   if (entries.length === 0) return;
 
   try {
-    await FoodEntry.insertMany(entries.map(({ input }) => toImportedFields(userId, input)));
+    const saved = await FoodEntry.insertMany(entries.map(({ input }) => toImportedFields(userId, input)));
+    await recordLoggedMeals(userId, saved);
   } catch (cause) {
     console.error('[FoodEntryImport] Bulk insert failed:', cause);
     throw new AppError(

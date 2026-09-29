@@ -702,6 +702,14 @@ response carries it as `details.userMessage` so the client can retry it by id.
   `args` holds only the targets that change, e.g. `{ "proteinTargetG": 150 }`. The proposal is
   validated as the complete goal it would produce, and `preview` lists each change as old to new.
   Nothing is saved by this endpoint: a write happens only through `confirm-action`.
+- Meal catalogue: when a text-only message just asks to log foods the user has logged before (e.g.
+  "had roti sabji for lunch", "log 3 rotis for dinner"), the reply is built from their saved meals
+  with no model call. The response has the same shape: a pending `logMeal` action whose `preview`
+  starts with `From your saved meals:`. Streaming clients get the preview as one `token` event and
+  no `status` events. Foods match by name or by a synonym learned from an earlier `logMeal`
+  proposal. A `logMeal` proposal from the model may carry `pendingAction.catalogueSynonyms`
+  (`{ dish: string[], items: [{ name, unit, synonyms }] }`). It is informational: the server keeps its
+  own copy and adds it to the catalogue on confirm, and it is never read from the confirm body.
 - Tool errors inside a turn: invalid arguments, an unknown tool name, or a `4xx` failure from the
   underlying service are sent back to the model, which corrects the call or asks the user. They
   never reach the client directly.

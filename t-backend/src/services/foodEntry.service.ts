@@ -13,6 +13,7 @@ import { defaultEntryName } from '../lib/foodEntryName';
 import { sumItemNutrition } from '../lib/foodItemTotals';
 import { PaginatedResult, buildPaginatedResult, toSkipCount } from '../lib/pagination';
 import { deleteUploadedImage, extractPublicIdFromUrl } from '../lib/cloudinary';
+import { recordLoggedMeals } from './mealCatalog.service';
 
 /** How many days a list request covers when the caller gives no date bounds. */
 const DEFAULT_RANGE_DAYS = 7;
@@ -74,7 +75,9 @@ export async function createFoodEntry(
   userId: string,
   input: CreateFoodEntryInput
 ): Promise<IFoodEntryDocument> {
-  return FoodEntry.create(buildFoodEntryFields(userId, input));
+  const entry = await FoodEntry.create(buildFoodEntryFields(userId, input));
+  await recordLoggedMeals(userId, [entry]);
+  return entry;
 }
 
 /**
@@ -112,6 +115,8 @@ export async function updateFoodEntry(
   const entry = await findOwnedFoodEntry(userId, entryId);
   applyFoodEntryUpdate(entry, input);
   await entry.save();
+  // A corrected portion or name should be what the chat offers next time.
+  if (input.items !== undefined || input.name !== undefined) await recordLoggedMeals(userId, [entry]);
   return entry;
 }
 
