@@ -17,6 +17,10 @@ const TITLES: Record<string, string> = {
   AI_UNAVAILABLE: "Import unavailable",
   AI_BAD_RESPONSE: "Parsing incomplete",
   NETWORK: "Connection problem",
+  IMPORT_FAILED: "Import failed",
+  IMPORT_JOB_NOT_FOUND: "Import expired",
+  IMPORT_STATUS_UNAVAILABLE: "Import status unavailable",
+  IMPORT_TIMED_OUT: "Import is taking too long",
 };
 
 interface ImportFailureNoticeProps {

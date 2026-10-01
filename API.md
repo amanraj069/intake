@@ -47,6 +47,24 @@ logic runs, so a handler never sees an unchecked payload and a stack trace is ne
 
 ---
 
+## Idempotent writes
+
+Three writes accept an optional `Idempotency-Key` header, so a double tap or a retry after a lost
+response cannot save twice: `POST /api/food-entries`, `POST /api/chat/confirm-action` and
+`POST /api/food-entries/import/confirm`.
+
+- The key is 8-128 letters, digits, `-` or `_` (a UUID works). It is scoped to the signed-in user
+  and the endpoint, and remembered for 24 hours.
+- First request with a key: runs normally.
+- Repeat after it succeeded: nothing is written again; the first response comes back with the same
+  status and body, plus the header `Idempotent-Replayed: true`.
+- Repeat while the first is still running: `409` `IDEMPOTENCY_REQUEST_IN_PROGRESS`. Retry shortly.
+- Same key with a different body: `422` `IDEMPOTENCY_KEY_REUSED`.
+- Malformed key: `400` `INVALID_IDEMPOTENCY_KEY`.
+- Only successes are remembered. After any error the key is freed, so the same request can be
+  retried or corrected.
+- Without the header, these endpoints behave exactly as before.
+
 ## Health
 
 | Method | Endpoint | Auth | Description |
@@ -598,12 +616,46 @@ confirm (save the reviewed rows). Both use the same Gemini integration as photo 
 
 ### `POST /api/food-entries/import/preview` (authenticated)
 
-Extracts the PDF's text with `pdf-parse`, asks Gemini for one row per food eaten, and returns
-the rows for review. **Saves nothing.**
+Checks the PDF and extracts its text with `pdf-parse` right away, then queues the AI reading as a
+background job and responds at once. **Saves nothing.** Poll the job (below) for the rows.
 
 - Body: `multipart/form-data` with `file` (required) - one PDF, 5MB and 10 pages max, with a
   text layer. The bytes are checked for a PDF signature, not just the declared type.
+- Response `202` `data`: `{ "jobId": "3f0c9a52-6d1e-4c3b-9a57-0f6f5b0f2d11" }`
+- PDF problems (`PDF_*` codes below) come back from this request, never from the job.
+
+### `GET /api/food-entries/import/jobs/:jobId` (authenticated)
+
+A queued import's state, progress and, once finished, its rows or failure. Only the user who
+uploaded the PDF can read the job; anyone else gets `404`. Finished jobs are kept for an hour.
+
+- Params: `jobId` - the UUID returned by the upload.
 - Response `200` `data`:
+
+```json
+{
+  "jobId": "3f0c9a52-6d1e-4c3b-9a57-0f6f5b0f2d11",
+  "state": "processing",
+  "stage": "splitting",
+  "percent": 70,
+  "attempt": 1,
+  "maxAttempts": 3,
+  "result": null,
+  "error": null
+}
+```
+
+- `state`: `queued`, `processing`, `retrying` (waiting out the backoff after a provider failure),
+  `completed` or `failed`.
+- `stage`: the AI pass reached, `reading`, `splitting` or `filling`; `null` before the first.
+- `result`: the preview below, once `completed`.
+- `error`: `{ message, code, retryable }` once `failed`, with a code from the table below.
+  `retryable` is true when uploading the same file again could succeed.
+- Errors: `400` for an id that is not a UUID, `401` when not signed in, `404`
+  `IMPORT_JOB_NOT_FOUND` for an unknown, expired or other user's job, `503`
+  `IMPORT_STATUS_UNAVAILABLE` when Redis holds the job but cannot be reached.
+
+`result` of a completed job:
 
 ```json
 {
@@ -654,7 +706,8 @@ household measure (a bowl, a katori), a missing date, meal, name, amount, calori
 value outside the single-entry limits. Diary items carry no micronutrients. Daily totals, headers and notes are not rows. At most 100 rows are
 returned; a longer diary gets a `warnings` entry saying so.
 
-Errors, each with a `code`:
+Errors, each with a `code`. The status is the upload's response for the first group; the rest
+arrive as the job's `error`, where the status column is only for reference:
 
 | Status | `code` | When |
 |---|---|---|
@@ -671,7 +724,8 @@ Errors, each with a `code`:
 | `422` | `NOT_A_FOOD_DIARY` | The text is not a food log; `message` is the model's reason |
 | `422` | `NO_ENTRIES_FOUND` | A diary with no food rows |
 | `502` | `AI_BAD_RESPONSE` | The model's answer failed validation |
-| `503` | `AI_UNAVAILABLE` | No Gemini key or model answered within 80 seconds |
+| `503` | `AI_UNAVAILABLE` | No Gemini key or model answered within 80 seconds, on all 3 attempts |
+| `500` | `IMPORT_FAILED` | An unexpected server error, on all 3 attempts |
 
 ### `POST /api/food-entries/import/confirm` (authenticated)
 

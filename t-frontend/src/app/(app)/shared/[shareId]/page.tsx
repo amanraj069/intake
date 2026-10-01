@@ -21,9 +21,9 @@ export default function SharedMealPage({ params }: { params: Promise<{ shareId: 
   return (
     <div className="space-y-3 sm:space-y-6">
       <PageHeader
-        eyebrow="Shared with you"
         title={sharedMeal?.meal.name ?? "Shared meal"}
         showBackButton
+        wrapTitle
       />
       {loading && <SkeletonRows count={5} />}
       {!loading && loadError && <ErrorState message={loadError} onRetry={reload} />}

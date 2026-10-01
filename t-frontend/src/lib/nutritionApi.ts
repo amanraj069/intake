@@ -1,4 +1,5 @@
 import { request, requestPage } from "./apiClient";
+import { idempotencyHeaders } from "./idempotency";
 import { toQueryString } from "./queryString";
 import type {
   DailyIntakeSeries,
@@ -41,7 +42,9 @@ export const nutritionApi = {
 
   getFoodEntry: (id: string) => request<FoodEntryData>(`/api/food-entries/${id}`),
 
-  createFoodEntry: (entry: FoodEntryInput, photoFile?: File | Blob | null) => {
+  /** Pass the same `idempotencyKey` when retrying one submission, so it can only be saved once. */
+  createFoodEntry: (entry: FoodEntryInput, photoFile?: File | Blob | null, idempotencyKey?: string) => {
+    const headers = idempotencyHeaders(idempotencyKey);
     if (photoFile) {
       const form = new FormData();
       form.append("data", JSON.stringify(entry));
@@ -49,11 +52,13 @@ export const nutritionApi = {
       return request<FoodEntryData>("/api/food-entries", {
         method: "POST",
         body: form,
+        headers,
       });
     }
     return request<FoodEntryData>("/api/food-entries", {
       method: "POST",
       body: JSON.stringify(entry),
+      headers,
     });
   },
 

@@ -14,7 +14,7 @@ interface DetailSectionProps {
 export default function DetailSection({ title, description, aside, children }: DetailSectionProps) {
   return (
     <section className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm">
-      <header className="flex items-end justify-between gap-4 border-b border-border dark:border-dark-border px-4 py-4 sm:px-7 sm:py-5">
+      <header className="flex items-end justify-between gap-3 sm:gap-4 border-b border-border dark:border-dark-border px-4 py-3 sm:px-7 sm:py-5">
         <div className="min-w-0">
           <h2 className="text-sm font-extrabold text-text-primary dark:text-dark-text">{title}</h2>
           {description && (
@@ -25,7 +25,7 @@ export default function DetailSection({ title, description, aside, children }: D
         </div>
         {aside && <div className="shrink-0">{aside}</div>}
       </header>
-      <div className="p-4 sm:p-7">{children}</div>
+      <div className="px-4 py-3.5 sm:p-7">{children}</div>
     </section>
   );
 }

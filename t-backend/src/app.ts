@@ -31,6 +31,8 @@ export function createApp(): Express {
     cors({
       origin: process.env.FRONTEND_URL || 'http://localhost:3000',
       credentials: true,
+      // Lets the client tell a replayed response from a fresh one; request headers are reflected by default.
+      exposedHeaders: ['Idempotent-Replayed'],
     })
   );
   app.use(express.json());

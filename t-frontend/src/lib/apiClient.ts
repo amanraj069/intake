@@ -110,13 +110,14 @@ async function send<TResponse extends ApiResponse<unknown>>(
   // happens when no Content-Type is set by hand.
   const isFormData = options.body instanceof FormData;
 
+  // `options` is spread first so a caller's headers merge with the defaults instead of replacing them.
   const config: RequestInit = {
     credentials: "include", // Always send cookies
+    ...options,
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...options.headers,
     },
-    ...options,
   };
 
   const response = await fetchOrThrow(endpoint, config);

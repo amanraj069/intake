@@ -53,7 +53,7 @@ export default function FoodDiaryImport() {
   }
 
   if (preview.status === "parsing" && file) {
-    return <ImportProgress fileName={file.name} onCancel={preview.reset} />;
+    return <ImportProgress fileName={file.name} job={preview.job} onCancel={preview.reset} />;
   }
 
   if (preview.status === "failed" && preview.failure) {

@@ -1,12 +1,14 @@
 # Redis in INTAKE
 
-Redis is **optional**. It holds two kinds of short-lived state that would otherwise live in the
+Redis is **optional**. It holds three kinds of short-lived state that would otherwise live in the
 memory of a single server process:
 
 1. **Rate-limit counters** for every throttling policy.
 2. **Session revocation**: signed-out sessions, rotated refresh tokens, and "sign out
    everywhere" cutoffs. These are checked on **every authenticated request**, so a revoked access
    token stops working immediately, not when it expires.
+3. **The PDF import queue** (BullMQ): queued and finished import jobs, their progress, and a
+   dead-letter queue for imports that failed every retry.
 
 With `REDIS_URL` set, that state is shared by every backend instance and survives restarts and
 deploys. Without it, the backend uses in-process memory with exactly the same logic, which is fine
@@ -156,8 +158,16 @@ both ──► lib/redis.ts (one shared ioredis client) ──► Redis
 | `intake:auth:rotated-token:<jti>` | string (integer) | Epoch seconds the refresh token was exchanged | Remaining lifetime of that refresh token | `POST /auth/refresh` | `POST /auth/refresh` |
 | `intake:auth:sessions-revoked-at:<userId>` | string (integer) | Epoch seconds of the last "sign out everywhere" | 7 days (one refresh-token lifetime) | Password reset and both password-change flows | `requireAuth`, `POST /auth/refresh` |
 
-No hashes, sets or lists are used. Every key is a plain string with a TTL, so Redis never holds
-anything that outlives its purpose and no cleanup job is needed.
+The keys above are plain strings with a TTL, so Redis never holds anything that outlives its
+purpose and no cleanup job is needed for them.
+
+The PDF import queue lives under `intake:bull:food-diary-import:*` and
+`intake:bull:food-diary-import-dead-letter:*`. BullMQ owns these keys (hashes per job, plus lists,
+sorted sets and a stream for its own bookkeeping); the app never writes them directly. Each job
+holds the user's id and the diary's extracted text (at most 50,000 characters), never the PDF.
+Retention is set when the job is added rather than by TTL: completed jobs are removed after an hour,
+failed jobs after a day, and dead letters are pruned after 7 days whenever a worker starts. BullMQ
+needs `maxmemory-policy noeviction` too, since an evicted job key corrupts the queue.
 
 ### 1. Rate-limit counters
 
@@ -339,6 +349,14 @@ errors, and limits keep working.
 | Redis comes back | A fresh `RedisStore` is attached per policy; counting moves back to Redis | The buffer is replayed into Redis with each record's remaining TTL, then cleared |
 | Redis restarted with data lost | Windows restart from zero | Revocations forgotten early (prevented by AOF; see [Required Redis configuration](#required-redis-configuration)) |
 
+**PDF imports** follow the same rule. An upload made while Redis is unreachable runs on the
+in-memory import queue of the instance that received it, with the same retries and progress, so
+the user notices nothing. Jobs already in Redis keep running once it returns; until then, polling
+one of them answers `503` `IMPORT_STATUS_UNAVAILABLE`, which the client retries before giving up.
+If a worker dies mid-import (a crash or a deploy that outlasts the shutdown grace period), BullMQ
+sees the job's lock expire and hands it to another worker as stalled, so the import is retried
+rather than lost.
+
 What users see during an outage, verified end to end (`/auth/me` took about 3 ms with Redis
 down):
 
@@ -489,6 +507,10 @@ Accepted trade-offs, each small enough not to justify the extra complexity of fi
 | `t-backend/src/lib/redis.ts` | Shared ioredis client, readiness (`isRedisReady`, `onRedisReady`), startup wait and config check, outage logging, `/health` status, shutdown |
 | `t-backend/src/lib/fallbackRateLimitStore.ts` | Rate-limit store: Redis while ready, in-memory otherwise, re-attached on reconnect |
 | `t-backend/src/lib/redisKeys.ts` | Every key name and prefix |
+| `t-backend/src/queues/foodDiaryImport.queue.ts` | Import queue and dead-letter queue (producer side), job status view |
+| `t-backend/src/queues/foodDiaryImport.worker.ts` | Import worker: concurrency, rate limiter, retry classification, dead-lettering |
+| `t-backend/src/queues/memoryImportJobs.ts` | The in-memory import queue used without Redis |
+| `t-backend/src/services/foodDiaryImportJob.service.ts` | Chooses the queue per upload, falling back to memory, and reads job status |
 | `t-backend/src/lib/ttlStore.ts` | `TtlStore` interface; `MemoryTtlStore`, and `ResilientRedisTtlStore` with its outage buffer and replay |
 | `t-backend/src/middleware/rateLimit.ts` | One `FallbackRateLimitStore` per policy, or the default memory store without Redis |
 | `t-backend/src/lib/rateLimitPolicies.ts` | Window and limit for each policy |

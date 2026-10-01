@@ -31,12 +31,36 @@ export interface ImportPreviewRow {
   issues: string[];
 }
 
-/** Returned by POST /api/food-entries/import/preview. Nothing has been saved yet. */
+/** A finished import job's result. Nothing has been saved yet. */
 export interface FoodDiaryPreview {
   pageCount: number;
   rows: ImportPreviewRow[];
   /** Problems with the document as a whole, rather than with one row. */
   warnings: string[];
+}
+
+/** The AI passes a queued import goes through, in order. */
+export type ImportStage = "reading" | "splitting" | "filling";
+
+export type ImportJobState = "queued" | "processing" | "retrying" | "completed" | "failed";
+
+export interface ImportJobFailure {
+  message: string;
+  code: string;
+  retryable: boolean;
+}
+
+/** Returned by GET /api/food-entries/import/jobs/:jobId. */
+export interface FoodDiaryImportJob {
+  jobId: string;
+  state: ImportJobState;
+  stage: ImportStage | null;
+  percent: number;
+  /** 1-based attempt running now, or the last one made. */
+  attempt: number;
+  maxAttempts: number;
+  result: FoodDiaryPreview | null;
+  error: ImportJobFailure | null;
 }
 
 export interface ImportSkip {

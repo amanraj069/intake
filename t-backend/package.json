@@ -6,6 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "tsx src/index.ts",
+    "worker": "tsx src/worker.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "migrate:food-items": "tsx scripts/migrateFoodEntriesToItems.ts",
     "migrate:chat-confirmations": "tsx scripts/migrateChatConfirmations.ts",
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "bullmq": "^6.3.11",
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

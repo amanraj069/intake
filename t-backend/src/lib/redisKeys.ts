@@ -6,6 +6,9 @@
 const NAMESPACE = 'intake';
 
 export const redisKeys = {
+  /** Prefix handed to BullMQ; it appends `:<queue name>:<job id>` and its own bookkeeping keys. */
+  queuePrefix: `${NAMESPACE}:bull`,
+
   /** Prefix handed to rate-limit-redis; the limiter appends the client key (`user:<id>` or `ip:<addr>`). */
   rateLimitPrefix: (policyName: string) => `${NAMESPACE}:rl:${policyName}:`,
 

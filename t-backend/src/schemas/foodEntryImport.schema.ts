@@ -16,3 +16,7 @@ export const confirmFoodEntryImportSchema = z.object({
 });
 
 export type ConfirmFoodEntryImportInput = z.infer<typeof confirmFoodEntryImportSchema>['body'];
+
+export const foodDiaryImportJobSchema = z.object({
+  params: z.object({ jobId: z.string().uuid('Must be a valid import id') }),
+});

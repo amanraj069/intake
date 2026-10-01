@@ -24,11 +24,18 @@ export interface ApiResult {
   // Response bodies differ per endpoint; each test asserts on the fields it needs.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body: any;
+  headers: Headers;
 }
 
 export interface TestServer {
   baseUrl: string;
-  request(user: TestUser | null, method: string, path: string, body?: unknown): Promise<ApiResult>;
+  request(
+    user: TestUser | null,
+    method: string,
+    path: string,
+    body?: unknown,
+    headers?: Record<string, string>
+  ): Promise<ApiResult>;
   close(): Promise<void>;
 }
 
@@ -59,7 +66,8 @@ export async function startTestServer(): Promise<TestServer> {
     user: TestUser | null,
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
+    headers: Record<string, string> = {}
   ): Promise<ApiResult> {
     const isMultipart = body instanceof FormData;
     const response = await fetch(`${baseUrl}${path}`, {
@@ -68,10 +76,11 @@ export async function startTestServer(): Promise<TestServer> {
         // FormData needs the boundary fetch generates, so its Content-Type is never set by hand.
         ...(isMultipart ? {} : { 'Content-Type': 'application/json' }),
         ...(user ? { Cookie: `access_token=${user.accessToken}` } : {}),
+        ...headers,
       },
       body: body === undefined || isMultipart ? body : JSON.stringify(body),
     });
-    return { status: response.status, body: await response.json() };
+    return { status: response.status, body: await response.json(), headers: response.headers };
   }
 
   async function close(): Promise<void> {

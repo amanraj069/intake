@@ -19,16 +19,16 @@ interface NutrientFigure {
 function NutrientTile({ figure }: { figure: NutrientFigure }) {
   const colour = colourFor(figure.key);
   return (
-    <div className="rounded-xl bg-bg-surface dark:bg-dark-surface p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm">
+    <div className="min-w-0 rounded-xl bg-bg-surface dark:bg-dark-surface p-3 sm:p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm">
       <div className="flex items-center gap-1.5">
         <span className={`h-2 w-2 rounded-full shrink-0 ${colour.solidBg}`} aria-hidden="true" />
-        <span className={`text-xs font-semibold ${colour.text}`}>{figure.label}</span>
+        <span className={`text-[11px] sm:text-xs font-semibold ${colour.text}`}>{figure.label}</span>
       </div>
-      <p className="mt-2 text-2xl font-extrabold tabular-nums text-text-primary dark:text-dark-text">
+      <p className="mt-1.5 sm:mt-2 text-lg sm:text-2xl font-extrabold tabular-nums text-text-primary dark:text-dark-text">
         {formatAmount(figure.amount)}
-        <span className="ml-1 text-xs font-medium text-text-secondary dark:text-dark-text-secondary">{figure.unit}</span>
+        <span className="ml-1 text-[10px] sm:text-xs font-medium text-text-secondary dark:text-dark-text-secondary">{figure.unit}</span>
       </p>
-      <p className="mt-0.5 text-[11px] font-light text-text-secondary dark:text-dark-text-secondary">
+      <p className="mt-0.5 text-[10px] sm:text-[11px] font-light text-text-secondary dark:text-dark-text-secondary">
         {figure.energyPercent === null ? "Whole meal" : `${figure.energyPercent}% of calories`}
       </p>
     </div>
@@ -67,14 +67,14 @@ export default function MealNutritionBreakdown({ meal }: { meal: FoodEntry }) {
 
   return (
     <DetailSection title="Nutrition" description="Totals for the whole meal">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {[calories, ...macros].map((figure) => (
           <NutrientTile key={figure.key} figure={figure} />
         ))}
       </div>
 
       {split && (
-        <div className="mt-5 space-y-2">
+        <div className="mt-4 sm:mt-5 space-y-2">
           <p className="text-[11px] font-light text-text-secondary dark:text-dark-text-secondary">Where the calories come from</p>
           <EnergySplitBar figures={macros} />
         </div>

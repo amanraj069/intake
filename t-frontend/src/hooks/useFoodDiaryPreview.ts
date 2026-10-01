@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { toAiRequestFailure, type AiRequestFailure } from "@/lib/aiRequestFailure";
 import { asPdfUpload, foodDiaryPdfFileError } from "@/lib/foodDiaryPdfFile";
-import type { FoodDiaryPreview } from "@/types/foodImport";
+import { waitForImportJob } from "@/lib/importJobPolling";
+import type { FoodDiaryImportJob, FoodDiaryPreview } from "@/types/foodImport";
 
 export type PreviewStatus = "idle" | "parsing" | "failed" | "done";
 
@@ -12,21 +13,32 @@ interface UseFoodDiaryPreviewResult {
   status: PreviewStatus;
   failure: AiRequestFailure | null;
   preview: FoodDiaryPreview | null;
+  /** The queued import's latest state while parsing; null until the upload is accepted. */
+  job: FoodDiaryImportJob | null;
   /** Resolves with the preview, or null when the file was rejected, parsing failed or was cancelled. */
   parse: (file: File) => Promise<FoodDiaryPreview | null>;
-  /** Aborts any request in flight and returns to the empty state. */
+  /** Stops waiting for the import in flight and returns to the empty state. */
   reset: () => void;
 }
 
+const PARSE_FALLBACK_MESSAGE = "Something went wrong while reading the PDF.";
+
+async function uploadForImport(file: File, signal: AbortSignal): Promise<string> {
+  const response = await api.startFoodDiaryImport(asPdfUpload(file), signal);
+  if (!response.data?.jobId) throw new ApiError("The server did not start the import.", 502, undefined, "AI_BAD_RESPONSE");
+  return response.data.jobId;
+}
+
 /**
- * Sends one PDF to the preview endpoint at a time. A new parse, a cancel or
- * leaving the page aborts the request in flight, so a stale result can never
- * replace the rows of a newer file.
+ * Uploads one PDF, then follows its import job on the server until the rows
+ * are ready. A new parse, a cancel or leaving the page stops following it, so
+ * a stale result can never replace the rows of a newer file.
  */
 export function useFoodDiaryPreview(): UseFoodDiaryPreviewResult {
   const [status, setStatus] = useState<PreviewStatus>("idle");
   const [failure, setFailure] = useState<AiRequestFailure | null>(null);
   const [preview, setPreview] = useState<FoodDiaryPreview | null>(null);
+  const [job, setJob] = useState<FoodDiaryImportJob | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => () => controllerRef.current?.abort(), []);
@@ -40,6 +52,7 @@ export function useFoodDiaryPreview(): UseFoodDiaryPreviewResult {
     async (file: File) => {
       controllerRef.current?.abort();
       setPreview(null);
+      setJob(null);
 
       const rejection = foodDiaryPdfFileError(file);
       if (rejection) {
@@ -53,16 +66,20 @@ export function useFoodDiaryPreview(): UseFoodDiaryPreviewResult {
       setStatus("parsing");
 
       try {
-        const response = await api.previewFoodDiaryImport(asPdfUpload(file), controller.signal);
+        const jobId = await uploadForImport(file, controller.signal);
+        const finished = await waitForImportJob(jobId, controller.signal, setJob);
         if (controller.signal.aborted) return null;
-        if (!response.data) throw new ApiError("The server returned no rows.", 502, undefined, "AI_BAD_RESPONSE");
 
-        setPreview(response.data);
+        if (!finished.result) {
+          fail(finished.error ?? { message: PARSE_FALLBACK_MESSAGE, code: "UNKNOWN", retryable: true });
+          return null;
+        }
+        setPreview(finished.result);
         setStatus("done");
-        return response.data;
+        return finished.result;
       } catch (cause) {
         if (controller.signal.aborted) return null;
-        fail(toAiRequestFailure(cause, "Something went wrong while reading the PDF."));
+        fail(toAiRequestFailure(cause, PARSE_FALLBACK_MESSAGE));
         return null;
       }
     },
@@ -72,9 +89,10 @@ export function useFoodDiaryPreview(): UseFoodDiaryPreviewResult {
   const reset = useCallback(() => {
     controllerRef.current?.abort();
     setPreview(null);
+    setJob(null);
     setFailure(null);
     setStatus("idle");
   }, []);
 
-  return { status, failure, preview, parse, reset };
+  return { status, failure, preview, job, parse, reset };
 }

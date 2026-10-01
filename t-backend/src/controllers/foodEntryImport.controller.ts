@@ -2,14 +2,14 @@ import { Request, Response, NextFunction } from 'express';
 import { getAuthenticatedUserId } from '../lib/authenticatedUser';
 import { AppError } from '../middleware/errorHandler';
 import { getValidatedInput } from '../middleware/validate';
-import { confirmFoodEntryImportSchema } from '../schemas/foodEntryImport.schema';
-import * as foodDiaryPreviewService from '../services/foodDiaryPreview.service';
+import { confirmFoodEntryImportSchema, foodDiaryImportJobSchema } from '../schemas/foodEntryImport.schema';
+import * as foodDiaryImportJobService from '../services/foodDiaryImportJob.service';
 import * as foodEntryImportService from '../services/foodEntryImport.service';
 
 /**
  * POST /api/food-entries/import/preview
- * Accepts a multipart `file` (food diary PDF) and returns parsed rows for
- * review, each flagged with any issues. Saves nothing.
+ * Accepts a multipart `file` (food diary PDF), checks it can be read, and
+ * queues the AI parse. Responds 202 with the `jobId` to poll. Saves nothing.
  */
 export async function previewFoodEntryImport(
   req: Request,
@@ -21,13 +21,34 @@ export async function previewFoodEntryImport(
       throw new AppError('Choose a PDF to import', 400, 'PDF_REQUIRED');
     }
 
-    const preview = await foodDiaryPreviewService.previewFoodDiaryImport(req.file.buffer);
+    const userId = getAuthenticatedUserId(req);
+    const job = await foodDiaryImportJobService.startFoodDiaryImport(userId, req.file.buffer);
 
-    res.status(200).json({
+    res.status(202).json({
       success: true,
-      message: 'Diary read. Review the rows before importing.',
-      data: preview,
+      message: 'Diary queued for reading.',
+      data: job,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/food-entries/import/jobs/:jobId
+ * Returns a queued import's state and progress, and its preview rows once complete.
+ */
+export async function getFoodEntryImportJob(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const { params } = getValidatedInput(req, foodDiaryImportJobSchema);
+    const job = await foodDiaryImportJobService.getFoodDiaryImportJob(userId, params.jobId);
+
+    res.status(200).json({ success: true, message: 'Import status', data: job });
   } catch (error) {
     next(error);
   }

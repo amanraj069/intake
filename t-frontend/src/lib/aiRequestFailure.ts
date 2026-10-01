@@ -8,8 +8,11 @@ export interface AiRequestFailure {
   retryable: boolean;
 }
 
-/** Failures caused by the service rather than the file: the same file is worth another try. */
-const TRANSIENT_CODES = new Set(["AI_UNAVAILABLE", "AI_BAD_RESPONSE", "NETWORK"]);
+/**
+ * Failures caused by the service rather than the file: the same file is worth
+ * another try. An expired import job counts too, since uploading again starts a new one.
+ */
+const TRANSIENT_CODES = new Set(["AI_UNAVAILABLE", "AI_BAD_RESPONSE", "NETWORK", "IMPORT_FAILED", "IMPORT_JOB_NOT_FOUND"]);
 
 /** Classifies a failed AI upload so the UI can decide whether to offer "Try again". */
 export function toAiRequestFailure(cause: unknown, fallbackMessage: string): AiRequestFailure {
