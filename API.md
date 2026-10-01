@@ -409,6 +409,34 @@ Delete one of the current user's entries.
 - Params: `id` - a 24-character Mongo ObjectId.
 - Response `200`: `{ success: true, message: "Food entry deleted successfully" }`.
 - `404` if no entry has that id, `403` if it belongs to another user.
+- Any shares of the entry (see Shared meals) are removed with it.
+
+---
+
+## Shared meals
+
+Each share is one document in the `sharedItems` collection: `{ userIdSharing, userIdShared, mealId }`.
+The sharer is always the authenticated user from the access token, never a field in the request.
+
+### `POST /api/shared-meals` (authenticated)
+
+Share one of the current user's meals with another user, found by email.
+
+- Body: `{ mealId: string, email: string }`. `mealId` is a 24-character ObjectId; `email` is matched
+  case-insensitively.
+- Response `201`: `{ success: true, message: "Meal shared successfully" }`.
+- `404` with `code: "RECIPIENT_NOT_FOUND"` if no account has that email.
+- `400` with `code: "CANNOT_SHARE_WITH_SELF"` if the email is the caller's own.
+- `409` with `code: "ALREADY_SHARED"` if the meal is already shared with that user.
+- `404` if the meal does not exist, `403` if it belongs to another user.
+
+### `GET /api/shared-meals` (authenticated)
+
+One page of the meals other users have shared with the current user, newest share first.
+
+- Query: `page` (default 1), `limit` (default 20, max 100).
+- Response `200`: the pagination envelope, with `data: SharedMeal[]` where
+  `SharedMeal = { id, sharedAt, sharedBy: { id, email, firstName, lastName }, meal: FoodEntry }`.
 
 ---
 

@@ -12,6 +12,7 @@ import reportRoutes from './routes/reports';
 import onboardingRoutes from './routes/onboarding';
 import aiRoutes from './routes/ai';
 import chatRoutes from './routes/chat';
+import sharedMealRoutes from './routes/sharedMeals';
 import { errorHandler } from './middleware/errorHandler';
 import { generalRateLimit } from './middleware/rateLimit';
 import { trustedProxyHops } from './lib/trustProxy';
@@ -51,6 +52,7 @@ export function createApp(): Express {
   app.use('/api/onboarding', onboardingRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/chat', chatRoutes);
+  app.use('/api/shared-meals', sharedMealRoutes);
 
   app.use(errorHandler);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
@@ -17,6 +17,7 @@ import type { FoodEntry } from "@/types/nutrition";
 import { EmptyPlateIcon } from "@/components/icons";
 import FoodEntryList from "./FoodEntryList";
 import MealFilters from "./MealFilters";
+import ShareMealDialog from "./ShareMealDialog";
 
 /** Filters, pages through and edits the current user's logged entries. */
 export default function MealsBrowser() {
@@ -25,8 +26,12 @@ export default function MealsBrowser() {
   const { entries, pageMeta, loading, loadError, deletingId, reload, deleteEntry } =
     useFoodEntries(query);
   const [pendingDeletion, setPendingDeletion] = useState<FoodEntry | null>(null);
+  const [mealToShare, setMealToShare] = useState<FoodEntry | null>(null);
   const router = useRouter();
   const toast = useToast();
+
+  // Stable, so the dialog's Escape listener is not re-bound on every render.
+  const closeShareDialog = useCallback(() => setMealToShare(null), []);
 
   async function confirmDeletion() {
     if (!pendingDeletion) return;
@@ -84,6 +89,7 @@ export default function MealsBrowser() {
             entries={entries}
             deletingId={deletingId}
             onDelete={setPendingDeletion}
+            onShare={setMealToShare}
             onRowClick={(entry) => router.push(`/meals/${entry._id}/edit`)}
           />
           <Pagination
@@ -106,6 +112,8 @@ export default function MealsBrowser() {
         onConfirm={confirmDeletion}
         onCancel={() => setPendingDeletion(null)}
       />
+
+      <ShareMealDialog meal={mealToShare} onClose={closeShareDialog} />
     </div>
   );
 }

@@ -173,6 +173,12 @@ The test suite never calls Gemini or Google, and fills in placeholder JWT and OA
 - **"On target" means 90% to 110%** of the active target.
 - **Calorie split uses 4/4/9.** The dashboard computes energy share at 4 kcal/g protein, 4 kcal/g carbs and 9 kcal/g fat.
 
+### Shared meals
+
+- **Shares point at the live meal.** A share stores only `userIdSharing`, `userIdShared` and `mealId`, so the recipient always sees the owner's current version. Deleting the meal removes its shares.
+- **Shares are read-only.** Recipients can view a shared meal on their dashboard but cannot edit it, delete it or log it as their own.
+- **Recipients must already have an account.** Sharing with an unregistered email fails with an error; no invite is sent.
+
 ### AI photo and label extraction
 
 - **AI results are drafts.** Extracted nutrition fills the meal form but is never saved until the user reviews it and confirms.
