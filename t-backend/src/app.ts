@@ -12,9 +12,11 @@ import reportRoutes from './routes/reports';
 import onboardingRoutes from './routes/onboarding';
 import aiRoutes from './routes/ai';
 import chatRoutes from './routes/chat';
+import sharedMealRoutes from './routes/sharedMeals';
 import { errorHandler } from './middleware/errorHandler';
 import { generalRateLimit } from './middleware/rateLimit';
 import { trustedProxyHops } from './lib/trustProxy';
+import { redisStatus } from './lib/redis';
 
 /**
  * Builds the fully wired Express app without connecting to the database or
@@ -39,7 +41,7 @@ export function createApp(): Express {
 
   // Registered before the limiter so uptime monitors are never throttled.
   app.get('/health', (_req, res) => {
-    res.json({ success: true, message: 'Server is running' });
+    res.json({ success: true, message: 'Server is running', data: { redis: redisStatus() } });
   });
 
   app.use(generalRateLimit);
@@ -51,6 +53,7 @@ export function createApp(): Express {
   app.use('/api/onboarding', onboardingRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/chat', chatRoutes);
+  app.use('/api/shared-meals', sharedMealRoutes);
 
   app.use(errorHandler);
 

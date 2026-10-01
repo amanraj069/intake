@@ -1,3 +1,5 @@
+import { emailError } from "./email";
+
 /** Mirrors `registerSchema` in t-backend/src/schemas/auth.schema.ts. Keep the two in sync. */
 const MAX_NAME_LENGTH = 50;
 const MIN_PASSWORD_LENGTH = 8;
@@ -63,11 +65,7 @@ export function validateSignupStep1(values: SignupStep1Values): SignupStep1Error
   const errors: SignupStep1Errors = {
     firstName: nameError(values.firstName, "First name"),
     lastName: nameError(values.lastName, "Last name"),
-    email: !values.email.trim()
-      ? "Email is required"
-      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())
-      ? "Please enter a valid email address"
-      : undefined,
+    email: emailError(values.email),
   };
 
   return Object.fromEntries(

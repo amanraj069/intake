@@ -35,6 +35,17 @@ export function OverviewIcon(props: IconProps) {
   );
 }
 
+export function PeopleIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="8" r="4" />
+      <path d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1" />
+      <path d="M16 4.1a4 4 0 0 1 0 7.8" />
+      <path d="M19 14.3a6 6 0 0 1 3 5.2V21" />
+    </Icon>
+  );
+}
+
 export function GoalsIcon(props: IconProps) {
   return (
     <Icon {...props}>

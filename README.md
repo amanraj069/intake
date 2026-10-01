@@ -6,7 +6,7 @@
 
 INTAKE is a full-stack nutrition tracking app. Users set daily calorie and macro goals, log meals (single foods or multi-dish meals), extract nutrition from food photos and labels with Gemini AI, bulk import PDF food diaries, chat with an assistant that can read their data and propose meals or goal changes, and review progress on a dashboard and reports page.
 
-The REST API is documented in [API.md](./API.md).
+The REST API is documented in [API.md](./API.md). Optional Redis-backed rate limiting and session revocation are documented in [REDIS.md](./REDIS.md).
 
 ---
 
@@ -17,6 +17,7 @@ The REST API is documented in [API.md](./API.md).
 | Frontend (`t-frontend`) | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Recharts |
 | Backend (`t-backend`) | Express 4, TypeScript, Zod validation |
 | Database | MongoDB with Mongoose 8 |
+| Cache / shared state | Redis via ioredis *(optional)*: rate-limit counters (`rate-limit-redis`) and refresh-token revocation |
 | Auth | JWT in `httpOnly` cookies, Passport.js Google OAuth 2.0, bcryptjs |
 | AI | Google Gemini API (photo extraction, PDF parsing, chat assistant) |
 | Media storage | Cloudinary |
@@ -31,6 +32,7 @@ The REST API is documented in [API.md](./API.md).
 - **MongoDB**: a local instance (`mongodb://localhost:27017`) or a [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster
 - **Gemini API key**: at least one, from [Google AI Studio](https://aistudio.google.com/apikey)
 - **Resend API key**: from [Resend](https://resend.com/api-keys), for verification and OTP emails
+- **Redis** *(optional)*: for rate limits and session revocation shared across instances and restarts. Without it the backend uses memory. See [REDIS.md](./REDIS.md)
 - **Cloudinary account** *(optional)*: for avatars and photo uploads
 - **Google OAuth credentials** *(optional)*: for "Sign in with Google"
 
@@ -80,6 +82,7 @@ cp t-frontend/.env.example t-frontend/.env
 | `GOOGLE_CALLBACK_URL` | No | Default `http://localhost:9000/auth/google/callback` |
 | `TRUST_PROXY` | No | Number of reverse proxies in front of the server. Keep `0` locally |
 | `RATE_LIMIT_ENABLED` | No | Set to `false` to disable rate limiting. Default `true` |
+| `REDIS_URL` | No | e.g. `redis://localhost:6379`. Stores rate-limit counters and token revocations in Redis. Unset: in-memory. If Redis is unreachable (at startup or later) the backend keeps working on in-memory stores and switches back when it reconnects |
 
 Generate each JWT secret with:
 
@@ -105,7 +108,18 @@ brew services start mongodb-community
 docker run -d -p 27017:27017 --name intake-mongo mongo:7
 ```
 
-### 4. Third-party services
+### 4. Start Redis (optional)
+
+Skip this step to run on in-memory stores. To use Redis, start it and set `REDIS_URL=redis://localhost:6379` in `t-backend/.env`. Every key expires on its own, but the instance must use `maxmemory-policy noeviction` and `appendonly yes`, so revoked sessions cannot be evicted or lost on a restart. The backend warns at startup if it can see either setting is wrong. What is stored and why is in [REDIS.md](./REDIS.md).
+
+```bash
+docker run -d -p 6379:6379 --name intake-redis redis:7 \
+  redis-server --appendonly yes --maxmemory-policy noeviction
+```
+
+`GET /health` reports `data.redis` as `connected`, `unavailable` or `disabled`.
+
+### 5. Third-party services
 
 - **Resend:** with `EMAIL_FROM=onboarding@resend.dev`, emails are only delivered to the address registered on your Resend account. To email other addresses, verify a domain in Resend and use an address on it.
 - **Cloudinary:** if not configured, avatar and photo upload endpoints return `503`; everything else still works.
@@ -149,7 +163,7 @@ cd t-frontend
 npm run lint
 ```
 
-The test suite never calls Gemini or Google, and fills in placeholder JWT and OAuth values when `.env` is missing them.
+The test suite never calls Gemini or Google, and fills in placeholder JWT and OAuth values when `.env` is missing them. It also ignores `REDIS_URL` and runs on the in-memory stores, so it never touches a local Redis.
 
 ---
 
@@ -173,6 +187,16 @@ The test suite never calls Gemini or Google, and fills in placeholder JWT and OA
 - **"On target" means 90% to 110%** of the active target.
 - **Calorie split uses 4/4/9.** The dashboard computes energy share at 4 kcal/g protein, 4 kcal/g carbs and 9 kcal/g fat.
 
+### Shared meals
+
+- **Shares point at the live meal.** A share stores only `userIdSharing`, `userIdShared` and `mealId`, so the recipient always sees the owner's current version. Deleting the meal removes its shares.
+- **Shares are read-only.** Recipients open a shared meal from the Shared page to see its full details (photo, dishes, macros, micronutrients) but cannot edit it, delete it or log it as their own. Opening it marks the share as seen.
+- **The Shared page shows both directions.** "Shared with me" lists meals others sent you, one row per share. "Shared by me" lists one row per meal with everyone it is shared with.
+- **"New" means not yet shown on the Shared page.** Each share stores `seenAt`. Opening "Shared with me" marks the shares on that page as seen, which clears the sidebar dot at once; the per-meal dots stay for that visit so the user can tell what was new. Shares created before `seenAt` existed count as new once.
+- **The red dot is polled, not pushed.** The unseen count refreshes on navigation, on window focus and every 60 seconds, so a new share can take up to a minute to appear while the user stays on one page.
+- **Only the owner manages access.** From "Shared by me", the row menu's "Manage access" lists every recipient; unticking people and choosing "Update access" deletes their shares. Revoking someone who no longer has access is a no-op, not an error.
+- **Recipients must already have an account.** Sharing with an unregistered email fails with an error; no invite is sent.
+
 ### AI photo and label extraction
 
 - **AI results are drafts.** Extracted nutrition fills the meal form but is never saved until the user reviews it and confirms.
@@ -194,11 +218,21 @@ The test suite never calls Gemini or Google, and fills in placeholder JWT and OA
 - **Context is the last 20 messages.** Tool calls made while producing a reply are not stored. The stored thread is never pruned (known limitation).
 - **Turns are bounded:** at most 5 tool calls, 10 seconds per tool and 60 seconds per turn. Failed replies can be retried.
 - **The client sends its local date and time** so "today", "yesterday" and the default meal type match the user's timezone. If the date is more than a day off from the server's, it is ignored.
+- **Repeat meals skip the model.** Every saved meal adds itself and each of its items to a per-user meal catalogue (from any source: the form, a photo, a PDF import or the chat). A text message that only asks to log catalogue foods ("had roti sabji for lunch", "log 3 rotis for dinner") is proposed from the catalogue on the usual Confirm/Cancel card, with no Gemini call. The shortcut is strict: every food in the message must be in the catalogue, the meal must be named or inferable from the local time, and the day must be today or yesterday. Questions, photos, new foods, modifiers ("with less oil"), follow-ups ("log it") and a quantity in a different unit than was logged (e.g. grams of a food logged as a count) all go to the model.
+- **The catalogue is two linked collections.** `MealCatalogItem` holds one document per food and unit (so "Roti" counted and "Roti" weighed are separate) with its latest logged portion. `MealCatalogDish` holds only a name and links to its items with the dish's own quantities, so its nutrition is always derived from the items: correcting a food corrects every dish that contains it. Names match ignoring case, plurals and articles. Dishes are looked up first; only foods no dish matched, and foods given with an amount, are looked up as items. Deleting a meal does not remove its foods from the catalogue.
+- **Synonyms come free with the first log.** When the assistant proposes a meal, the same tool call also returns other names for each food and the meal (English, Hindi, Devanagari, common Hinglish spellings, e.g. "Rice": "chawal", "चावल"). They are kept server-side on the proposal and added to the catalogue only when the user confirms, and only for foods the user did not change first. Later messages match a food by its name or any synonym. An exact name always wins; a synonym shared by two different foods (two kinds of "dal") is left to the model.
+- **Hinglish and Devanagari messages are read too** ("maine lunch mein 2 roti aur dal khayi", "मैंने लंच में रोटी खाई"): meal words such as "nashta", postpositions such as "mein" and "ke liye", Hindi numbers and Hindi question words. "kal" is always left to the model, since it means both yesterday and tomorrow.
+- **Amounts rescale the stored portion.** An amount in the unit a food was logged in is scaled from its latest portion, micronutrients included ("1 roti" after logging 3 rotis is a third of everything). A count in front of a saved dish that is not also an item means servings, scaling every linked food ("half roti sabji").
 - **No agent framework.** The tool loop is a small explicit loop over Gemini function calling, since the tools are flat and need no branching or long-running workflows.
 
 ### Authentication and security
 
-- **Sessions use `httpOnly` cookies** holding an access token and a refresh token.
+- **Sessions use `httpOnly` cookies** holding an access token (15 minutes) and a refresh token (7 days).
+- **Sessions are revocable immediately.** Each sign-in gets a session id (`sid`) carried by both tokens. Logging out revokes the session, and every authenticated request checks it (one Redis `MGET`), so a copied access token stops working at once rather than when it expires. Revoked requests return `401` with code `SESSION_REVOKED`.
+- **Refresh tokens are rotated, with reuse detection.** Each carries a unique `jti`. Refreshing retires the old token; another tab may reuse it for 30 seconds, so concurrent refreshes do not sign the user out. A retired token presented after that means it was copied, so the whole session is ended and the user signs in again.
+- **Sign out other devices.** The profile page can end every other session of the account at once (`POST /auth/logout-other-devices`); this browser stays signed in.
+- **Password changes sign out every other session.** A password reset, or either password-change flow, rejects all refresh tokens issued before it; the browser that made a change gets fresh cookies and stays signed in.
+- **Redis outages never sign anyone out.** If Redis is unreachable, session checks, refresh, logout and password flows run on in-memory stores, and the records written meanwhile are replayed into Redis when it reconnects. Revocations made *before* the outage are not visible until it ends; that is the only effect, and it is on security, not on users.
 - **OTPs** are 6 digits, stored hashed, expire after 10 minutes and are invalidated after 5 wrong attempts. Password changes need an OTP sent to the current email; email changes need an OTP sent to the new address.
 - **Google accounts** cannot change their password or email in the app.
 - **Data isolation.** The user is always taken from the session token, never from the request. Every query is scoped to that user, and accessing another user's meal returns `403`.
@@ -206,5 +240,8 @@ The test suite never calls Gemini or Google, and fills in placeholder JWT and OA
 ### Rate limiting
 
 - **Limits per policy:** general 500 requests / 15 min; failed credential attempts 10 / 15 min; account creation 20 / hour; emails 5 / hour; AI requests 40 / 15 min; avatar uploads 10 / hour. Throttled requests return `429` with a `RATE_LIMITED` code.
-- **Signed-in requests are counted per account**, signed-out requests per IP. Endpoints under the same policy share one counter.
-- **Counters are in memory** (known limitation): they reset on restart and are not shared across multiple server instances.
+- **Route-level limits count signed-in requests per account**, signed-out requests per IP. The `general` limit always counts per IP, because it runs before any route has identified the user, so people behind one shared IP share its 500-request budget. Endpoints under the same policy share one counter.
+- **Counters live in Redis when `REDIS_URL` is set**, one key per policy and client, so they are shared across instances and survive restarts and deploys. Without Redis they are in memory: they reset on restart and each instance counts separately (use Redis for multi-instance deployments).
+- **Rate limits survive Redis outages.** Each policy counts in Redis while it is reachable and in memory while it is not, so limits (including the 10-failures brute-force limit) never switch off and never return errors.
+- **A dropped Redis connection costs nothing per request.** Commands are never queued behind a dead connection; they go straight to memory (measured: about 3 ms per request during an outage).
+- Key layout, TTLs and failure behaviour are documented in [REDIS.md](./REDIS.md).

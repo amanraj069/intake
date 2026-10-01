@@ -1,7 +1,10 @@
 import { NextFunction, Request, RequestHandler, Response } from 'express';
-import { AugmentedRequest, ipKeyGenerator, rateLimit } from 'express-rate-limit';
+import { AugmentedRequest, ipKeyGenerator, rateLimit, Store } from 'express-rate-limit';
 
 import { RATE_LIMIT_POLICIES, RateLimitPolicy } from '../lib/rateLimitPolicies';
+import { FallbackRateLimitStore } from '../lib/fallbackRateLimitStore';
+import { isRedisConfigured } from '../lib/redis';
+import { redisKeys } from '../lib/redisKeys';
 import { AppError } from './errorHandler';
 
 export const RATE_LIMITED_CODE = 'RATE_LIMITED';
@@ -27,6 +30,16 @@ function secondsUntil(resetTime: Date | undefined, fallbackMs: number): number {
 }
 
 /**
+ * Each policy gets its own store and key prefix: one store shared between
+ * limiters would make them count into the same bucket. Returning undefined
+ * keeps express-rate-limit's default per-process memory store.
+ */
+function storeFor(policy: RateLimitPolicy): Store | undefined {
+  if (!isRedisConfigured()) return undefined;
+  return new FallbackRateLimitStore(redisKeys.rateLimitPrefix(policy.name));
+}
+
+/**
  * Builds an Express middleware enforcing one policy. Rejections go through the
  * central error handler, so a 429 has the same envelope as every other failure.
  */
@@ -38,6 +51,7 @@ export function createRateLimiter(policy: RateLimitPolicy): RequestHandler {
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     keyGenerator: clientKey,
+    store: storeFor(policy),
     skip: () => !isRateLimitingEnabled(),
     handler: (req: Request, _res: Response, next: NextFunction) => {
       const retryAfterSeconds = secondsUntil(

@@ -66,7 +66,7 @@ export function targetFor(metric: NutritionMetric, goal: Goal | null): number | 
 /** Energy per gram of each macro, the standard Atwater factors. */
 const KCAL_PER_GRAM = { protein: 4, carb: 4, fat: 9 } as const;
 
-/** How the day's energy divides between the three macros, in whole percent. */
+/** How a day's or a meal's energy divides between the three macros, in whole percent. */
 export interface MacroEnergySplit {
   proteinPercent: number;
   carbPercent: number;
@@ -79,7 +79,9 @@ export interface MacroEnergySplit {
  * would be a division by zero. Rounding each share independently means they
  * can sum to 99 or 101; the exact grams are shown beside them either way.
  */
-export function toMacroEnergySplit(totals: DailyNutritionTotals): MacroEnergySplit | null {
+export function toMacroEnergySplit(
+  totals: Pick<DailyNutritionTotals, "proteinG" | "carbG" | "fatG">
+): MacroEnergySplit | null {
   const proteinKcal = totals.proteinG * KCAL_PER_GRAM.protein;
   const carbKcal = totals.carbG * KCAL_PER_GRAM.carb;
   const fatKcal = totals.fatG * KCAL_PER_GRAM.fat;

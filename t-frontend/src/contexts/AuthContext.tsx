@@ -9,10 +9,19 @@ import {
   type ReactNode,
 } from "react";
 import { api, type RegistrationInput, type User, ApiError } from "@/lib/api";
+import { toErrorMessage } from "@/lib/errorMessage";
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  /**
+   * Set when the server could not confirm the session (offline, restarting,
+   * 5xx). That says nothing about whether the user is signed in, so they are
+   * shown a retry instead of being sent to the login page.
+   */
+  sessionError: string | null;
+  /** Tries to confirm the session again after `sessionError`. */
+  retrySession: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   /** Resolves with whether the verification code email was actually sent. */
   signup: (input: RegistrationInput) => Promise<{ verificationCodeSent: boolean }>;
@@ -25,6 +34,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
+  sessionError: null,
+  retrySession: async () => {},
   login: async () => {},
   signup: async () => ({ verificationCodeSent: false }),
   logout: async () => {},
@@ -32,47 +43,51 @@ const AuthContext = createContext<AuthContextValue>({
   setSessionUser: () => {},
 });
 
+/** Remembers the email and avatar for the "Continue as ..." Google button. */
+function rememberGoogleAccount(user: User | null): void {
+  if (user?.authProvider !== "google") return;
+  try {
+    localStorage.setItem("intake_last_google_email", user.email);
+    if (user.avatarUrl) localStorage.setItem("intake_last_google_avatar", user.avatarUrl);
+  } catch {
+    // Storage can be unavailable (private mode, quota); the button then just shows the generic label.
+  }
+}
+
+/** The API client has already tried a token refresh, so a 401 here means the session is over. */
+function isSignedOut(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
-  // Fetch current user on mount (from httpOnly cookie)
   const refreshUser = useCallback(async () => {
     try {
       const res = await api.me();
-      const u = res.data?.user ?? null;
-      setUser(u);
-      // Remember the email + avatar for the "Continue as …" Google button
-      if (u?.authProvider === "google") {
-        try {
-          localStorage.setItem("intake_last_google_email", u.email);
-          if (u.avatarUrl) localStorage.setItem("intake_last_google_avatar", u.avatarUrl);
-        } catch {}
-      }
+      const nextUser = res.data?.user ?? null;
+      setUser(nextUser);
+      setSessionError(null);
+      rememberGoogleAccount(nextUser);
     } catch (error) {
-      // If access token expired, try refreshing
-      if (error instanceof ApiError && error.status === 401) {
-        try {
-          await api.refresh();
-          const res = await api.me();
-          const u = res.data?.user ?? null;
-          setUser(u);
-          if (u?.authProvider === "google") {
-            try {
-              localStorage.setItem("intake_last_google_email", u.email);
-              if (u.avatarUrl) localStorage.setItem("intake_last_google_avatar", u.avatarUrl);
-            } catch {}
-          }
-        } catch {
-          setUser(null);
-        }
-      } else {
+      if (isSignedOut(error)) {
         setUser(null);
+        setSessionError(null);
+        return;
       }
+      // Any user already loaded is kept: a failed check is not a sign-out.
+      setSessionError(toErrorMessage(error, "We could not reach the server to confirm your session."));
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const retrySession = useCallback(async () => {
+    setLoading(true);
+    await refreshUser();
+  }, [refreshUser]);
 
   useEffect(() => {
     // Resolving the session from the httpOnly cookie is the point of this
@@ -104,7 +119,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, signup, logout, refreshUser, setSessionUser }}
+      value={{
+        user,
+        loading,
+        sessionError,
+        retrySession,
+        login,
+        signup,
+        logout,
+        refreshUser,
+        setSessionUser,
+      }}
     >
       {children}
     </AuthContext.Provider>

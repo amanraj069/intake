@@ -5,6 +5,7 @@ import { importApi } from "./importApi";
 import { nutritionApi } from "./nutritionApi";
 import { onboardingApi } from "./onboardingApi";
 import { reportsApi } from "./reportsApi";
+import { sharedMealsApi } from "./sharedMealsApi";
 
 /** Single entry point for every backend call, composed from per-domain modules. */
 export const api = {
@@ -15,6 +16,7 @@ export const api = {
   ...nutritionApi,
   ...onboardingApi,
   ...reportsApi,
+  ...sharedMealsApi,
 };
 
 export { ApiError, API_URL } from "./apiClient";

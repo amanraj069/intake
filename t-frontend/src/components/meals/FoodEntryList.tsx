@@ -7,13 +7,14 @@ interface FoodEntryListProps {
   entries: FoodEntry[];
   deletingId: string | null;
   onDelete: (entry: FoodEntry) => void;
+  onShare: (entry: FoodEntry) => void;
   onRowClick: (entry: FoodEntry) => void;
 }
 
 /**
  * The entries table, with clear column headings including Date.
  */
-export default function FoodEntryList({ entries, deletingId, onDelete, onRowClick }: FoodEntryListProps) {
+export default function FoodEntryList({ entries, deletingId, onDelete, onShare, onRowClick }: FoodEntryListProps) {
   return (
     <div className="bg-bg-card dark:bg-dark-bg-card rounded-2xl shadow-sm border-0">
       <div className="overflow-x-auto lg:overflow-visible">
@@ -41,6 +42,7 @@ export default function FoodEntryList({ entries, deletingId, onDelete, onRowClic
                 deleting={deletingId === entry._id}
                 disabled={deletingId !== null}
                 onDelete={() => onDelete(entry)}
+                onShare={() => onShare(entry)}
                 onClick={() => onRowClick(entry)}
               />
             ))}

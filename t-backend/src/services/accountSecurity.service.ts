@@ -2,6 +2,7 @@ import { User, IUserDocument } from '../models/User';
 import { AppError } from '../middleware/errorHandler';
 import { hashPassword, verifyPassword } from '../lib/password';
 import { clearOtpState, consumeOtp, issueOtp } from './otpChallenge.service';
+import { revokeAllSessions } from './sessionRevocation.service';
 import type { RequestAccountOtpInput, VerifyAccountOtpInput } from '../schemas/auth.schema';
 
 /**
@@ -125,6 +126,9 @@ export async function verifyAccountOtp(
 
   clearOtpState(user);
   await user.save();
+
+  // Only after the save: a failed save must not sign the user out of anything.
+  if (input.purpose === 'change-password') await revokeAllSessions(userId);
 
   return user;
 }

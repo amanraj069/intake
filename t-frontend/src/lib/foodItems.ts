@@ -17,6 +17,11 @@ export function formatItemAmount({ quantity, unit }: MeasuredItem): string {
   return unit === "count" ? `× ${quantity}` : `${quantity} ${unit}`;
 }
 
+/** A single item shows its amount; a meal of several items says how many it has. */
+export function servingLabel(items: readonly MeasuredItem[]): string {
+  return items.length === 1 ? formatItemAmount(items[0]) : `${items.length} items`;
+}
+
 /** "Roti × 2" or "Paneer sabji 200 g". */
 export function describeItem(item: NamedItem & MeasuredItem): string {
   return `${item.name} ${formatItemAmount(item)}`;
