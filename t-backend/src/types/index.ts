@@ -27,6 +27,20 @@ export interface AuthRequest extends Request {
 export interface TokenPayload {
   userId: string;
   email: string;
+  /** Session id shared by every access and refresh token of one sign-in, so logout can revoke them together. */
+  sid: string;
+}
+
+// Claims of a verified access token: the payload plus what jsonwebtoken adds.
+// `sid` is optional because tokens signed before session ids existed lack it.
+export interface AccessTokenClaims extends Omit<TokenPayload, 'sid'> {
+  sid?: string;
+  iat: number;
+  exp: number;
+}
+
+export interface RefreshTokenClaims extends AccessTokenClaims {
+  jti: string;
 }
 
 // JWT payload for email-related tokens (verification, password reset)

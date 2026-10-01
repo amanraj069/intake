@@ -11,3 +11,11 @@ export function formatAmount(value: number): string {
 export function formatWithUnit(value: number, unit: string): string {
   return `${formatAmount(value)} ${unit}`;
 }
+
+/**
+ * Micronutrient amounts are often fractions of a milligram (0.075 mg vitamin A),
+ * which one decimal place would round away, so they keep up to three.
+ */
+export function formatMicroAmount(value: number): string {
+  return value.toLocaleString("en-US", { maximumFractionDigits: 3 });
+}

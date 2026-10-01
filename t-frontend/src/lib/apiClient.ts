@@ -53,8 +53,54 @@ async function parseBody<TResponse>(response: Response): Promise<TResponse> {
   }
 }
 
-let isRefreshing = false;
 let refreshPromise: Promise<void> | null = null;
+
+/** The refresh and login calls answer 401 themselves; refreshing on them would loop. */
+function canRefreshAfter(endpoint: string): boolean {
+  return endpoint !== "/auth/refresh" && endpoint !== "/auth/login";
+}
+
+/** fetch only rejects on transport failure, so callers get one predictable error type instead of a bare TypeError. */
+async function fetchOrThrow(endpoint: string, config: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${API_URL}${endpoint}`, config);
+  } catch {
+    throw new ApiError("Could not reach the server. Check your connection and try again.", 0);
+  }
+}
+
+/**
+ * Exchanges the refresh cookie for new tokens. Requests that hit a 401 at the
+ * same time share one call, because each refresh retires the cookie it used.
+ */
+function refreshSession(): Promise<void> {
+  refreshPromise ??= fetchOrThrow("/auth/refresh", { method: "POST", credentials: "include" })
+    .then(async (res) => {
+      if (res.ok) return;
+      const body = await parseBody<ApiResponse>(res);
+      throw new ApiError(body.message || "Your session has expired.", res.status, undefined, body.code);
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
+}
+
+/**
+ * True when the session was renewed and the request is worth retrying, false
+ * when the server says the session is over (401). Anything else (offline, a
+ * restarting server, a 5xx) says nothing about the session, so it is thrown
+ * for the caller to offer a retry instead of signing the user out.
+ */
+async function tryRefreshSession(): Promise<boolean> {
+  try {
+    await refreshSession();
+    return true;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return false;
+    throw error;
+  }
+}
 
 async function send<TResponse extends ApiResponse<unknown>>(
   endpoint: string,
@@ -73,51 +119,21 @@ async function send<TResponse extends ApiResponse<unknown>>(
     ...options,
   };
 
-  let response: Response;
-  try {
-    response = await fetch(`${API_URL}${endpoint}`, config);
-  } catch {
-    // fetch only rejects on transport failure, so callers get one predictable
-    // error type instead of a bare TypeError.
-    throw new ApiError("Could not reach the server. Check your connection and try again.", 0);
-  }
+  const response = await fetchOrThrow(endpoint, config);
 
-  if (response.status === 401 && endpoint !== "/auth/refresh" && endpoint !== "/auth/login") {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      refreshPromise = fetch(`${API_URL}/auth/refresh`, {
-        method: "POST",
-        credentials: "include",
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("Refresh failed");
-        })
-        .finally(() => {
-          isRefreshing = false;
-          refreshPromise = null;
-        });
+  if (response.status === 401 && canRefreshAfter(endpoint) && (await tryRefreshSession())) {
+    const retryResponse = await fetchOrThrow(endpoint, config);
+    const retryBody = await parseBody<TResponse>(retryResponse);
+    if (!retryResponse.ok) {
+      throw new ApiError(
+        retryBody.message || "Something went wrong",
+        retryResponse.status,
+        retryBody.errors,
+        retryBody.code,
+        retryBody.details
+      );
     }
-
-    if (refreshPromise) {
-      try {
-        await refreshPromise;
-        // Retry the original request after successful refresh
-        const retryResponse = await fetch(`${API_URL}${endpoint}`, config);
-        const retryBody = await parseBody<TResponse>(retryResponse);
-        if (!retryResponse.ok) {
-          throw new ApiError(
-            retryBody.message || "Something went wrong",
-            retryResponse.status,
-            retryBody.errors,
-            retryBody.code,
-            retryBody.details
-          );
-        }
-        return retryBody;
-      } catch (e) {
-        // If refresh or retry fails, fall through to normal error handling below
-      }
-    }
+    return retryBody;
   }
 
   const body = await parseBody<TResponse>(response);
@@ -179,38 +195,10 @@ export async function requestStream<TData = undefined>(
     signal,
   };
 
-  let response: Response;
-  try {
-    response = await fetch(`${API_URL}${endpoint}`, config);
-  } catch {
-    throw new ApiError("Could not reach the server. Check your connection and try again.", 0);
-  }
+  const response = await fetchOrThrow(endpoint, config);
 
-  // 401 refresh for SSE — retry as standard JSON to avoid complexity.
-  if (response.status === 401 && endpoint !== "/auth/refresh" && endpoint !== "/auth/login") {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      refreshPromise = fetch(`${API_URL}/auth/refresh`, {
-        method: "POST",
-        credentials: "include",
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("Refresh failed");
-        })
-        .finally(() => {
-          isRefreshing = false;
-          refreshPromise = null;
-        });
-    }
-    if (refreshPromise) {
-      try {
-        await refreshPromise;
-        // Retry with streaming after refresh.
-        return requestStream<TData>(endpoint, options, onEvent, signal);
-      } catch {
-        // Fall through to error handling.
-      }
-    }
+  if (response.status === 401 && canRefreshAfter(endpoint) && (await tryRefreshSession())) {
+    return requestStream<TData>(endpoint, options, onEvent, signal);
   }
 
   if (!response.ok) {

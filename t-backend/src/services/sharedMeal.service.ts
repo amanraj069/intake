@@ -3,25 +3,28 @@ import { SharedItem } from '../models/SharedItem';
 import { User } from '../models/User';
 import { AppError } from '../middleware/errorHandler';
 import { PaginatedResult, buildPaginatedResult, toSkipCount } from '../lib/pagination';
-import { ListSharedMealsQuery, ShareMealInput } from '../schemas/sharedMeal.schema';
+import { ListSharedMealsQuery, MarkSharesSeenInput, ShareMealInput } from '../schemas/sharedMeal.schema';
 import { getFoodEntry } from './foodEntry.service';
 
-/** Who shared a meal, trimmed to what the recipient needs to recognise them. */
-export interface SharedBy {
+/** The other person on a share, trimmed to what is needed to recognise them. */
+export interface SharedUser {
   id: string;
   email: string;
   firstName: string | null;
   lastName: string | null;
 }
 
+/** A meal someone else shared with the current user. */
 export interface SharedMeal {
   id: string;
   sharedAt: Date;
-  sharedBy: SharedBy;
+  sharedBy: SharedUser;
+  /** False until the recipient has seen this share on their Shared page. */
+  seen: boolean;
   meal: IFoodEntryDocument;
 }
 
-interface SharerFields {
+export interface UserFields {
   _id: { toString(): string };
   email: string;
   firstName?: string;
@@ -62,12 +65,32 @@ export async function shareMeal(sharerId: string, input: ShareMealInput): Promis
   await SharedItem.create({ userIdSharing: sharerId, userIdShared: recipientId, mealId: input.mealId });
 }
 
-function toSharedBy(sharer: SharerFields): SharedBy {
+export function toSharedUser(user: UserFields): SharedUser {
   return {
-    id: sharer._id.toString(),
-    email: sharer.email,
-    firstName: sharer.firstName ?? null,
-    lastName: sharer.lastName ?? null,
+    id: user._id.toString(),
+    email: user.email,
+    firstName: user.firstName ?? null,
+    lastName: user.lastName ?? null,
+  };
+}
+
+interface PopulatedShare {
+  _id: { toString(): string };
+  createdAt: Date;
+  seenAt: Date | null;
+  mealId: IFoodEntryDocument | null;
+  userIdSharing: UserFields | null;
+}
+
+function toSharedMeal(item: PopulatedShare): SharedMeal | null {
+  if (!item.mealId || !item.userIdSharing) return null;
+
+  return {
+    id: item._id.toString(),
+    sharedAt: item.createdAt,
+    sharedBy: toSharedUser(item.userIdSharing),
+    seen: item.seenAt != null,
+    meal: item.mealId,
   };
 }
 
@@ -84,17 +107,51 @@ export async function listMealsSharedWith(
       .skip(toSkipCount(query))
       .limit(query.limit)
       .populate<{ mealId: IFoodEntryDocument | null }>('mealId')
-      .populate<{ userIdSharing: SharerFields | null }>('userIdSharing', 'email firstName lastName'),
+      .populate<{ userIdSharing: UserFields | null }>('userIdSharing', 'email firstName lastName'),
     SharedItem.countDocuments(filter),
   ]);
 
   // Deleting a meal removes its shares, but a share could still outlive its
   // meal or sharer if a delete fails part way; such a row has nothing to show.
-  const sharedMeals = sharedItems.flatMap((item) =>
-    item.mealId && item.userIdSharing
-      ? [{ id: item._id.toString(), sharedAt: item.createdAt, sharedBy: toSharedBy(item.userIdSharing), meal: item.mealId }]
-      : []
-  );
+  const sharedMeals = sharedItems.flatMap((item) => toSharedMeal(item) ?? []);
 
   return buildPaginatedResult(sharedMeals, total, query);
+}
+
+// `seenAt: null` also matches shares created before the field existed, so those count as new once.
+const UNSEEN = { seenAt: null };
+
+/** How many shares `recipientId` has not seen yet, for the sidebar badge. */
+export async function countUnseenShares(recipientId: string): Promise<number> {
+  return SharedItem.countDocuments({ userIdShared: recipientId, ...UNSEEN });
+}
+
+/**
+ * Marks the listed shares as seen. Scoped to the recipient, so ids of other
+ * people's shares are ignored rather than marked; already-seen ones keep their
+ * original time.
+ */
+export async function markSharesSeen(recipientId: string, input: MarkSharesSeenInput): Promise<number> {
+  const { modifiedCount } = await SharedItem.updateMany(
+    { _id: { $in: input.shareIds }, userIdShared: recipientId, ...UNSEEN },
+    { $set: { seenAt: new Date() } }
+  );
+  return modifiedCount;
+}
+
+/**
+ * One meal shared with `recipientId`, by share id. A share sent to someone else
+ * reads as missing rather than forbidden, so ids cannot be probed for existence.
+ */
+export async function getMealSharedWith(recipientId: string, shareId: string): Promise<SharedMeal> {
+  const item = await SharedItem.findOne({ _id: shareId, userIdShared: recipientId })
+    .populate<{ mealId: IFoodEntryDocument | null }>('mealId')
+    .populate<{ userIdSharing: UserFields | null }>('userIdSharing', 'email firstName lastName');
+
+  const sharedMeal = item && toSharedMeal(item);
+  if (!sharedMeal) {
+    throw new AppError('Shared meal not found', 404, 'SHARED_MEAL_NOT_FOUND');
+  }
+
+  return sharedMeal;
 }

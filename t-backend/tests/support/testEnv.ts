@@ -21,3 +21,6 @@ for (const [key, value] of Object.entries(PLACEHOLDER_ENV)) {
 
 // Suites fire many requests from one IP in seconds; throttling them would only test the limiter.
 process.env.RATE_LIMIT_ENABLED = 'false';
+
+// The suite must not depend on, or write into, a developer's Redis; every store falls back to memory.
+delete process.env.REDIS_URL;

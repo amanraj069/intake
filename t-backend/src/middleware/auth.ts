@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../lib/jwt';
 import { User } from '../models/User';
+import { isAccessTokenRevoked, SESSION_REVOKED_CODE } from '../services/sessionRevocation.service';
 
 /**
  * Auth middleware - reads the access token from the httpOnly cookie,
@@ -23,6 +24,15 @@ export async function requireAuth(
     }
 
     const payload = verifyAccessToken(token);
+    if (await isAccessTokenRevoked(payload)) {
+      res.status(401).json({
+        success: false,
+        message: 'Your session has ended. Please sign in again.',
+        code: SESSION_REVOKED_CODE,
+      });
+      return;
+    }
+
     const user = await User.findById(payload.userId).select('-password').lean();
 
     if (!user) {

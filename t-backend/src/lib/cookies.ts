@@ -1,5 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { Response } from 'express';
-import { generateAccessToken, generateRefreshToken } from './jwt';
+import {
+  ACCESS_TOKEN_TTL_SECONDS,
+  REFRESH_TOKEN_TTL_SECONDS,
+  generateAccessToken,
+  generateRefreshToken,
+} from './jwt';
 import { TokenPayload } from '../types';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -19,21 +25,26 @@ const cookieBase = {
 
 /**
  * Sets httpOnly, secure, sameSite cookies for both access and refresh tokens.
+ * Omitting `sessionId` starts a new session (a sign-in); a refresh passes the
+ * current one so the session can still be revoked as a whole.
  */
-export function setAuthCookies(res: Response, payload: TokenPayload): void {
+export function setAuthCookies(
+  res: Response,
+  user: Omit<TokenPayload, 'sid'>,
+  sessionId: string = randomUUID()
+): void {
+  const payload: TokenPayload = { ...user, sid: sessionId };
   const accessToken = generateAccessToken(payload);
   const refreshToken = generateRefreshToken(payload);
 
-  // Access token - short-lived (15 minutes)
   res.cookie('access_token', accessToken, {
     ...cookieBase,
-    maxAge: 15 * 60 * 1000, // 15 minutes
+    maxAge: ACCESS_TOKEN_TTL_SECONDS * 1000,
   });
 
-  // Refresh token - longer-lived (7 days)
   res.cookie('refresh_token', refreshToken, {
     ...cookieBase,
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: REFRESH_TOKEN_TTL_SECONDS * 1000,
   });
 }
 

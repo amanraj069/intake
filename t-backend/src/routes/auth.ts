@@ -55,6 +55,11 @@ router.post(
 );
 router.post('/login', credentialAttemptsRateLimit, validate(loginSchema), authController.login);
 router.post('/logout', authController.logout);
+router.post(
+  '/logout-other-devices',
+  handler(requireAuth),
+  handler(authController.logoutOtherDevices)
+);
 router.post('/refresh', authController.refresh);
 router.get('/me', handler(requireAuth), handler(authController.me));
 

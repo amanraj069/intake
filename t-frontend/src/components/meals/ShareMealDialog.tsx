@@ -79,7 +79,7 @@ export default function ShareMealDialog({ meal, onClose }: ShareMealDialogProps)
               Share meal
             </h2>
             <p className="mt-1.5 text-sm font-light leading-relaxed text-text-secondary dark:text-dark-text-secondary">
-              &quot;{meal.name}&quot; will appear on their dashboard under Shared meals.
+              &quot;{meal.name}&quot; will appear on their Shared page.
             </p>
           </div>
 

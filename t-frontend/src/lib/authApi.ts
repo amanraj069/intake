@@ -66,6 +66,9 @@ export const authApi = {
 
   logout: () => request("/auth/logout", { method: "POST" }),
 
+  /** Ends every other session of this account; this browser stays signed in. */
+  logoutOtherDevices: () => request("/auth/logout-other-devices", { method: "POST" }),
+
   refresh: () => request("/auth/refresh", { method: "POST" }),
 
   me: () => request<AuthData>("/auth/me"),

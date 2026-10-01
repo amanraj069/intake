@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import NotificationDot from "@/components/ui/NotificationDot";
+import { useUnseenShares } from "@/contexts/UnseenSharesContext";
 import { NAV_ITEMS, isNavItemActive } from "./navItems";
 import SidebarTooltip from "./SidebarTooltip";
 
@@ -24,12 +26,14 @@ interface SidebarNavProps {
 /** The sidebar's primary navigation, marking the section the user is in. */
 export default function SidebarNav({ expanded, onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
+  const { unseenCount } = useUnseenShares();
 
   return (
     <nav aria-label="Main" className="flex-1 flex flex-col gap-1 py-2 overflow-y-auto min-h-0">
       {NAV_ITEMS.map((item) => {
         const active = isNavItemActive(item, pathname);
         const { Icon } = item;
+        const showDot = Boolean(item.showsUnseenShares) && unseenCount > 0;
 
         return (
           <div key={item.href} className="group/item relative">
@@ -42,8 +46,14 @@ export default function SidebarNav({ expanded, onNavigate }: SidebarNavProps) {
                 active ? ACTIVE_LINK_CLASSES : INACTIVE_LINK_CLASSES
               }`}
             >
-              <Icon className="w-5 h-5 shrink-0" />
+              <span className="relative">
+                <Icon className="w-5 h-5 shrink-0" />
+                {showDot && !expanded && (
+                  <NotificationDot label="New" className="absolute -top-0.5 -right-0.5 ring-2 ring-bg-card dark:ring-dark-bg-card" />
+                )}
+              </span>
               {expanded && <span className="truncate">{item.label}</span>}
+              {showDot && expanded && <NotificationDot label="New shared meals" className="ml-auto" />}
             </Link>
 
             {!expanded && <SidebarTooltip>{item.label}</SidebarTooltip>}

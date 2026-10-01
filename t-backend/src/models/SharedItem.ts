@@ -10,6 +10,8 @@ export interface ISharedItemDocument extends Document {
   userIdSharing: mongoose.Types.ObjectId;
   userIdShared: mongoose.Types.ObjectId;
   mealId: mongoose.Types.ObjectId;
+  /** When the recipient first saw the share; null while it is still new to them. */
+  seenAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,6 +34,10 @@ const sharedItemSchema = new Schema<ISharedItemDocument>(
       required: true,
       index: true,
     },
+    seenAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -42,6 +48,9 @@ const sharedItemSchema = new Schema<ISharedItemDocument>(
 // recipient's "shared with me" list is the dominant read, so both lead with it.
 sharedItemSchema.index({ userIdShared: 1, mealId: 1 }, { unique: true });
 sharedItemSchema.index({ userIdShared: 1, createdAt: -1 });
+sharedItemSchema.index({ userIdSharing: 1, createdAt: -1 });
+// Backs the sidebar's unseen-share badge, which is polled.
+sharedItemSchema.index({ userIdShared: 1, seenAt: 1 });
 
 export const SharedItem = mongoose.model<ISharedItemDocument>(
   'SharedItem',

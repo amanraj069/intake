@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { User } from '../models/User';
-import { clearAuthCookies } from '../lib/cookies';
+import { clearAuthCookies, setAuthCookies } from '../lib/cookies';
 import { sendOtpEmail } from '../lib/email';
 import { hashPassword, verifyPassword } from '../lib/password';
 import { generateOtpCode, hashOtpCode, isOtpExpired, otpExpiresAt, verifyOtpCode } from '../lib/otp';
 import { AuthRequest } from '../types';
 import { AppError } from '../middleware/errorHandler';
+import { revokeAllSessions } from '../services/sessionRevocation.service';
 
 /**
  * Recovering or rotating a password with a credential already in hand: the OTP
@@ -86,7 +87,6 @@ export async function resetPassword(
     }
 
     user.password = await hashPassword(newPassword);
-    
     user.otpCode = undefined;
     user.otpExpiresAt = undefined;
     user.otpPurpose = undefined;
@@ -94,7 +94,8 @@ export async function resetPassword(
 
     await user.save();
 
-    // Clear any existing sessions by not setting new cookies
+    // Only after the save: a failed save must leave the old sessions untouched.
+    await revokeAllSessions(user._id.toString());
     clearAuthCookies(res);
 
     res.json({
@@ -134,6 +135,10 @@ export async function changePassword(
 
     user.password = await hashPassword(newPassword);
     await user.save();
+    await revokeAllSessions(user._id.toString());
+
+    // Every other session was just signed out; this one gets fresh tokens so it stays signed in.
+    setAuthCookies(res, { userId: user._id.toString(), email: user.email });
 
     res.json({
       success: true,

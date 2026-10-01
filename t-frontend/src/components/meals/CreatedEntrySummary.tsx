@@ -2,9 +2,10 @@
 
 import Card from "@/components/ui/Card";
 import DataPair from "@/components/ui/DataPair";
-import { formatItemAmount } from "@/lib/foodItems";
 import { formatLongDate, formatTime } from "@/lib/formatDate";
 import type { FoodEntry } from "@/types/nutrition";
+import MealItemList from "./MealItemList";
+import MicronutrientSummary from "./MicronutrientSummary";
 
 interface CreatedEntrySummaryProps {
   entry: FoodEntry;
@@ -12,8 +13,6 @@ interface CreatedEntrySummaryProps {
 
 /** Success state for the meal form: confirms exactly what was stored, item by item. */
 export default function CreatedEntrySummary({ entry }: CreatedEntrySummaryProps) {
-  const micronutrients = Object.entries(entry.micros ?? {});
-
   return (
     <Card className="bg-bg-card dark:bg-dark-bg-card space-y-4 sm:space-y-8 p-4 sm:p-8">
       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
@@ -46,21 +45,7 @@ export default function CreatedEntrySummary({ entry }: CreatedEntrySummaryProps)
         </div>
       </div>
 
-      <ul className="divide-y divide-black/5 dark:divide-white/10">
-        {entry.items.map((item, index) => (
-          <li key={`${item.name}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-3 first:pt-0">
-            <p className="text-sm font-semibold text-text-primary dark:text-dark-text">
-              {item.name}
-              <span className="ml-2 font-light text-text-secondary dark:text-dark-text-secondary">
-                {formatItemAmount(item)}
-              </span>
-            </p>
-            <p className="text-xs tabular-nums text-text-secondary dark:text-dark-text-secondary">
-              {item.calories} kcal · P {item.macros.proteinG} · C {item.macros.carbG} · F {item.macros.fatG} g
-            </p>
-          </li>
-        ))}
-      </ul>
+      <MealItemList items={entry.items} />
 
       <div className="grid gap-8 grid-cols-2 sm:grid-cols-4 pt-6 border-t border-black/10 dark:border-white/10">
         <DataPair label="Total calories" value={`${entry.calories} kcal`} />
@@ -69,16 +54,7 @@ export default function CreatedEntrySummary({ entry }: CreatedEntrySummaryProps)
         <DataPair label="Fat" value={`${entry.macros.fatG} g`} />
       </div>
 
-      {micronutrients.length > 0 && (
-        <div className="pt-6 border-t border-black/10 dark:border-white/10">
-          <p className="text-[10px] font-bold text-text-secondary dark:text-dark-text-secondary">Micronutrients</p>
-          <div className="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-            {micronutrients.map(([name, data]) => (
-              <DataPair key={name} label={name} value={`${data.amount} ${data.unit}`} />
-            ))}
-          </div>
-        </div>
-      )}
+      <MicronutrientSummary micros={entry.micros} />
     </Card>
   );
 }

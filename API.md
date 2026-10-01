@@ -37,10 +37,21 @@ Requests are rate limited. A throttled request returns `429` with the standard `
 ```
 
 Stricter limits apply to login and OTP checks, sign-up, email-sending, AI and upload endpoints;
-the full table is in the README under [API Rate Limiting](./README.md#api-rate-limiting).
+the full table is in [REDIS.md](./REDIS.md#1-rate-limit-counters). Counters are shared across
+server instances when Redis is configured; if Redis is unreachable they continue in memory, so
+no endpoint fails or goes unthrottled because of Redis.
 Authenticated routes read the `access_token` httpOnly cookie and return `401` when it is
-missing, expired or invalid. Every request body is validated with zod before any business
+missing, expired or invalid, or with code `SESSION_REVOKED` when its session was signed out
+(logout, or a password change on another device). Every request body is validated with zod before any business
 logic runs, so a handler never sees an unchecked payload and a stack trace is never returned.
+
+---
+
+## Health
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/health` | - | Liveness check, never rate limited. Returns `{ redis: "connected" \| "unavailable" \| "disabled" }`. |
 
 ---
 
@@ -53,14 +64,15 @@ logic runs, so a handler never sees an unchecked payload and a stack trace is ne
 | `POST` | `/auth/signup/resend-otp` | yes | Mail a fresh signup code to the signed-in, unverified user. Returns `{ sentTo }`. `400` if already verified, `502` if mail delivery failed. |
 | `POST` | `/auth/signup/verify-otp` | yes | Body: `{ otp }`. Marks the email verified. Returns `{ user }`. `400` wrong/expired code, `429` after 5 wrong guesses. |
 | `POST` | `/auth/login` | - | Sign in. Body: `{ email, password }`. Returns `{ user }` and sets auth cookies. |
-| `POST` | `/auth/logout` | - | Clear auth cookies. No body. |
-| `POST` | `/auth/refresh` | - | Mint a new access token from the refresh cookie. |
+| `POST` | `/auth/logout` | - | Revoke the session, so its access and refresh tokens stop working immediately even if copied, and clear auth cookies. No body. Always `200`, even if the token was missing or the session store is down. |
+| `POST` | `/auth/logout-other-devices` | yes | End every other session of this account. No body. Sets fresh cookies, so this browser stays signed in. |
+| `POST` | `/auth/refresh` | - | Exchange the refresh cookie for new access and refresh cookies; the old refresh token is retired (reusable for 30 s by a concurrent tab; reused after that, the whole session is ended as a likely theft). `401` missing/invalid/expired token, or `SESSION_REVOKED` after logout or a password change; cookies are cleared. |
 | `GET` | `/auth/me` | yes | Current user. Returns `{ user }`. |
 | `GET` | `/auth/verify-email?token=` | - | Verify an email address from the link in the verification mail. |
 | `POST` | `/auth/resend-verification` | yes | Re-send the verification email. |
 | `POST` | `/auth/forgot-password` | - | Body: `{ email }`. Emails a 6-digit OTP. |
-| `POST` | `/auth/reset-password` | - | Body: `{ email, otp, newPassword }`. |
-| `PATCH` | `/auth/change-password` | yes | Body: `{ currentPassword, newPassword }`. Rotates the password using the old one instead of an OTP. |
+| `POST` | `/auth/reset-password` | - | Body: `{ email, otp, newPassword }`. Signs out every session (all refresh tokens issued before it are revoked) and clears cookies. |
+| `PATCH` | `/auth/change-password` | yes | Body: `{ currentPassword, newPassword }`. Rotates the password using the old one instead of an OTP. Signs out every other session and sets fresh cookies for this one. |
 | `POST` | `/auth/request-otp` | yes | Start an OTP-gated account change. See below. |
 | `POST` | `/auth/verify-otp` | yes | Redeem the code and commit the change. See below. |
 | `POST` | `/auth/avatar` | yes | Upload a profile picture. `multipart/form-data` with one file field `avatar` (JPEG/PNG/WebP, max 5MB). Returns `{ user }`. |
@@ -132,7 +144,8 @@ mail provider refused the message - the code is stored either way, so a retry re
 On success the change is committed, the code is discarded, auth cookies are reissued (the
 access token carries the email, so an email change would otherwise leave a stale session),
 and the updated `{ user }` is returned. A verified `change-email` also sets
-`emailVerified: true`: delivering the code to that inbox is itself proof of control.
+`emailVerified: true`: delivering the code to that inbox is itself proof of control. A verified `change-password` also signs out every other session: refresh tokens issued
+before the change are revoked, while the reissued cookies keep this browser signed in.
 
 Failures: `400` no code pending, an expired code, a wrong code, or a new password identical
 to the current one; `409` the address was claimed by someone else while the code was in
@@ -436,7 +449,52 @@ One page of the meals other users have shared with the current user, newest shar
 
 - Query: `page` (default 1), `limit` (default 20, max 100).
 - Response `200`: the pagination envelope, with `data: SharedMeal[]` where
-  `SharedMeal = { id, sharedAt, sharedBy: { id, email, firstName, lastName }, meal: FoodEntry }`.
+  `SharedMeal = { id, sharedAt, sharedBy: { id, email, firstName, lastName }, seen: boolean, meal: FoodEntry }`.
+  `seen` is false until the share is marked seen (see below).
+
+### `GET /api/shared-meals/received/:shareId` (authenticated)
+
+The full details of one meal shared with the current user, for its read-only page.
+
+- Params: `shareId` - the `id` of a `SharedMeal`, a 24-character ObjectId.
+- Response `200`: `{ success: true, data: SharedMeal }`, with the complete `FoodEntry` (items, macros,
+  micronutrients, photo).
+- `404` with `code: "SHARED_MEAL_NOT_FOUND"` if the share does not exist or was sent to someone else
+  (including when the caller is the owner), so share ids cannot be probed.
+
+### `GET /api/shared-meals/unseen-count` (authenticated)
+
+How many meals shared with the current user they have not seen yet. Drives the sidebar's red dot.
+
+- Response `200`: `{ success: true, data: { count: number } }`.
+
+### `PATCH /api/shared-meals/seen` (authenticated)
+
+Mark shares the current user received as seen.
+
+- Body: `{ shareIds: string[] }`, 1 to 100 share ids (the `id` of a `SharedMeal`).
+- Response `200`: `{ success: true, data: { markedCount: number } }`. Ids of shares sent to someone else,
+  or already seen, are skipped rather than rejected.
+
+### `GET /api/shared-meals/sent` (authenticated)
+
+One page of the current user's shared meals, one row per meal, most recently shared first.
+
+- Query: `page` (default 1), `limit` (default 20, max 100).
+- Response `200`: the pagination envelope, with `data: SentMeal[]` where
+  `SentMeal = { id, lastSharedAt, sharedWith: SharedUser[], meal: FoodEntry }` and
+  `SharedUser = { id, email, firstName, lastName }`. `sharedWith` is in the order the meal was shared.
+
+### `PATCH /api/shared-meals/:mealId/access` (authenticated)
+
+Revoke access to one of the current user's meals for some of the people it was shared with.
+
+- Params: `mealId` - a 24-character ObjectId.
+- Body: `{ revokeUserIds: string[] }`, 1 to 100 user ids. Ids that never had access are ignored.
+- Response `200`: `{ success: true, data: { revokedCount, sharedWith: SharedUser[] } }`, where
+  `sharedWith` is everyone who still has access.
+- `400` if `revokeUserIds` is empty or malformed, `404` if the meal does not exist, `403` if it belongs
+  to another user.
 
 ---
 

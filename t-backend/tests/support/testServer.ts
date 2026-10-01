@@ -98,5 +98,5 @@ export async function createTestUser(label: string): Promise<TestUser> {
     authProvider: 'local',
   });
   const id = user._id.toString();
-  return { id, email, accessToken: generateAccessToken({ userId: id, email }) };
+  return { id, email, accessToken: generateAccessToken({ userId: id, email, sid: randomUUID() }) };
 }

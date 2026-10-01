@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { describeItem, formatItemAmount } from "@/lib/foodItems";
+import RowActionsMenu, { MENU_ITEM_CLASSES } from "@/components/ui/RowActionsMenu";
+import { describeItem, servingLabel } from "@/lib/foodItems";
 import { formatNumericDate } from "@/lib/formatDate";
 import type { FoodEntry } from "@/types/nutrition";
 
@@ -20,38 +21,9 @@ interface FoodEntryRowProps {
   onClick: () => void;
 }
 
-/** A single item shows its amount; a meal of several items says how many it has. */
-function servingLabel(entry: FoodEntry): string {
-  return entry.items.length === 1 ? formatItemAmount(entry.items[0]) : `${entry.items.length} items`;
-}
-
 export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onShare, onClick }: FoodEntryRowProps) {
   const { proteinG, carbG, fatG } = entry.macros;
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [menuOpen]);
 
   return (
     <article
@@ -91,7 +63,7 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onSh
 
       <div>
         <p className="text-xs font-medium text-text-secondary dark:text-dark-text-secondary whitespace-nowrap">
-          {servingLabel(entry)}
+          {servingLabel(entry.items)}
         </p>
       </div>
 
@@ -131,47 +103,14 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onSh
         </span>
       </div>
 
-      <div ref={menuRef} className="relative flex items-center justify-end">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMenuOpen((prev) => !prev);
-          }}
-          className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary dark:text-dark-text-secondary hover:text-text-primary dark:hover:text-dark-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
-          aria-label="Actions"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="1.5" />
-            <circle cx="12" cy="5" r="1.5" />
-            <circle cx="12" cy="19" r="1.5" />
-          </svg>
-        </button>
-
-        {menuOpen && (
-          <div
-            role="menu"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute right-0 top-full mt-1.5 z-50 w-32 rounded-xl bg-white dark:bg-[#1E222B] border border-black/10 dark:border-white/15 shadow-2xl py-1 backdrop-blur-md"
-          >
+      <RowActionsMenu onOpenChange={setMenuOpen}>
+        {(closeMenu) => (
+          <>
             <Link
               href={`/meals/${entry._id}/edit`}
               onClick={(e) => {
                 e.stopPropagation();
-                setMenuOpen(false);
+                closeMenu();
               }}
               role="menuitem"
               className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-text-primary dark:text-dark-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
@@ -198,10 +137,10 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onSh
               role="menuitem"
               onClick={(e) => {
                 e.stopPropagation();
-                setMenuOpen(false);
+                closeMenu();
                 onShare();
               }}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold text-text-primary dark:text-dark-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+              className={MENU_ITEM_CLASSES}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -229,7 +168,7 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onSh
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                setMenuOpen(false);
+                closeMenu();
                 onDelete();
               }}
               disabled={disabled}
@@ -257,9 +196,9 @@ export default function FoodEntryRow({ entry, deleting, disabled, onDelete, onSh
                 </>
               )}
             </button>
-          </div>
+          </>
         )}
-      </div>
+      </RowActionsMenu>
     </article>
   );
 }
