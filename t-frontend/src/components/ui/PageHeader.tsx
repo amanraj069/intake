@@ -22,6 +22,8 @@ interface PageHeaderProps {
   stackOnMobile?: boolean;
   /** When true, keeps action directly on the same vertical level as the title row. */
   alignActionWithTitle?: boolean;
+  /** When true, a long title wraps onto a second line on mobile instead of being cut off, e.g. a meal's name. */
+  wrapTitle?: boolean;
 }
 
 /** The stark title block every signed-in page opens with. */
@@ -36,7 +38,15 @@ export default function PageHeader({
   hideDescriptionOnMobile = false,
   stackOnMobile = false,
   alignActionWithTitle = false,
+  wrapTitle = false,
 }: PageHeaderProps) {
+  // A title long enough to wrap (a meal's name) steps down a size on phones, so two lines do not dominate the screen.
+  const titleClassName = `font-extrabold text-text-primary dark:text-dark-text ${
+    wrapTitle
+      ? "text-xl leading-snug sm:text-3xl lg:text-4xl line-clamp-2 sm:line-clamp-1 break-words"
+      : "text-2xl sm:text-4xl truncate"
+  }`;
+
   if (alignActionWithTitle) {
     return (
       <header className="space-y-1.5 sm:space-y-2">
@@ -48,9 +58,7 @@ export default function PageHeader({
         <div className="flex items-center justify-between gap-3 sm:gap-6">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             {showBackButton && <BackButton size="md" className="pl-0 sm:pl-0" />}
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-text-primary dark:text-dark-text truncate">
-              {title}
-            </h1>
+            <h1 className={titleClassName}>{title}</h1>
           </div>
           {action && (
             <div className={`shrink-0 ${actionClassName ?? ""}`}>
@@ -83,7 +91,7 @@ export default function PageHeader({
           : "flex-row items-center"
       }`}
     >
-      <div className={stackOnMobile ? "w-full sm:w-auto" : ""}>
+      <div className={`min-w-0 ${stackOnMobile ? "w-full sm:w-auto" : "flex-1"}`}>
         {eyebrow && (
           <p className="mb-1 sm:mb-3 text-[10px] sm:text-xs font-bold text-text-secondary dark:text-dark-text-secondary">
             {eyebrow}
@@ -92,9 +100,7 @@ export default function PageHeader({
         <div className="flex items-center justify-between sm:justify-start gap-3 sm:gap-4 min-h-10">
           <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
             {showBackButton && <BackButton size="md" className="pl-0 sm:pl-0 shrink-0" />}
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-text-primary dark:text-dark-text truncate">
-              {title}
-            </h1>
+            <h1 className={titleClassName}>{title}</h1>
           </div>
           {mobileAction && <div className="sm:hidden shrink-0 flex items-center">{mobileAction}</div>}
         </div>

@@ -13,6 +13,7 @@ import { ImportPreviewRow, toPreviewRow } from '../lib/foodDiaryRows';
 import { splitCombinedDishes } from './dishSplit.service';
 import { fillMissingDishNutrition } from './dishNutritionFill.service';
 import { extractPdfText } from '../lib/pdfText';
+import type { ReportImportStage } from '../lib/foodDiaryImportJob';
 import { AppError } from '../middleware/errorHandler';
 import { FOOD_ITEM_UNITS } from '../models/FoodEntry';
 
@@ -82,6 +83,12 @@ const RESPONSE_SCHEMA: GeminiResponseSchema = {
   propertyOrdering: ['documentKind', 'notFoodDiaryReason', 'rows'],
 };
 
+/** A diary PDF's text, ready for the AI passes. */
+export interface DiaryText {
+  text: string;
+  pageCount: number;
+}
+
 export interface FoodDiaryPreview {
   pageCount: number;
   rows: ImportPreviewRow[];
@@ -149,22 +156,38 @@ function findDocumentWarnings(rows: readonly ImportPreviewRow[], foundCount: num
 }
 
 /**
- * Reads a food diary PDF into rows for the user to review. Nothing is saved.
+ * Pulls the text out of a diary PDF. This runs in the request rather than the
+ * job: it is fast, needs no AI, and its failures (PDF_UNREADABLE,
+ * PDF_ENCRYPTED, PDF_TOO_LONG, PDF_NO_TEXT) belong in the upload's response.
+ */
+export async function readFoodDiaryText(pdfBytes: Buffer): Promise<DiaryText> {
+  const { text, pageCount } = await extractPdfText(pdfBytes);
+  return { text, pageCount };
+}
+
+/**
+ * Reads a diary's text into rows for the user to review. Nothing is saved.
+ * `reportStage` is told as each AI pass starts, so a queued import can show progress.
  *
  * @throws AppError with a `code` for every failure the user can act on:
- *   PDF_UNREADABLE, PDF_ENCRYPTED, PDF_TOO_LONG, PDF_NO_TEXT, PDF_UNPROCESSABLE,
- *   NOT_A_FOOD_DIARY, NO_ENTRIES_FOUND, AI_UNAVAILABLE and AI_BAD_RESPONSE.
+ *   PDF_UNPROCESSABLE, NOT_A_FOOD_DIARY, NO_ENTRIES_FOUND, AI_UNAVAILABLE and AI_BAD_RESPONSE.
  */
-export async function previewFoodDiaryImport(pdfBytes: Buffer): Promise<FoodDiaryPreview> {
-  const { text, pageCount } = await extractPdfText(pdfBytes);
-  const reading = await requestDiaryReading(text, pageCount);
-
+export async function buildFoodDiaryPreview(
+  diary: DiaryText,
+  reportStage: ReportImportStage = () => undefined
+): Promise<FoodDiaryPreview> {
+  await reportStage('reading');
+  const reading = await requestDiaryReading(diary.text, diary.pageCount);
   assertHasDiaryRows(reading);
+
+  await reportStage('splitting');
   const split = await splitCombinedDishes(reading.rows.slice(0, MAX_IMPORT_ROWS));
+
+  await reportStage('filling');
   const filled = await fillMissingDishNutrition(split.rows);
+
   const rows = filled.rows.map(toPreviewRow);
   const warnings = findDocumentWarnings(rows, reading.rows.length);
-
   const extraWarnings = [split.warning, filled.warning].filter((w): w is string => Boolean(w));
-  return { pageCount, rows, warnings: [...warnings, ...extraWarnings] };
+  return { pageCount: diary.pageCount, rows, warnings: [...warnings, ...extraWarnings] };
 }

@@ -1,4 +1,5 @@
 import { request, requestPage, requestStream } from "./apiClient";
+import { chatConfirmationKey, idempotencyHeaders } from "./idempotency";
 import type { SSEEvent } from "./apiClient";
 import { nowAsTimeInputValue, todayAsInputValue } from "./formatDate";
 import { toQueryString } from "./queryString";
@@ -73,11 +74,16 @@ export const chatApi = {
       signal
     ),
 
-  /** `messageId` is the reply that proposed the action, which the server marks as confirmed. */
+  /**
+   * `messageId` is the reply that proposed the action, which the server marks
+   * as confirmed. Keyed by the proposal, so a retry after a lost response gets
+   * the original save back instead of an "already confirmed" error.
+   */
   confirmChatAction: (messageId: string, { tool, args }: PendingChatAction) =>
     request<ConfirmedChatAction>("/api/chat/confirm-action", {
       method: "POST",
       body: JSON.stringify({ messageId, tool, args }),
+      headers: idempotencyHeaders(chatConfirmationKey(messageId)),
     }),
 
   /** `messageId` is the reply that proposed the action, which the server marks as cancelled. */

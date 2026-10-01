@@ -18,6 +18,7 @@ The REST API is documented in [API.md](./API.md). Optional Redis-backed rate lim
 | Backend (`t-backend`) | Express 4, TypeScript, Zod validation |
 | Database | MongoDB with Mongoose 8 |
 | Cache / shared state | Redis via ioredis *(optional)*: rate-limit counters (`rate-limit-redis`) and refresh-token revocation |
+| Background jobs | BullMQ on Redis *(optional)*: PDF diary imports, with retries, backoff and a dead-letter queue |
 | Auth | JWT in `httpOnly` cookies, Passport.js Google OAuth 2.0, bcryptjs |
 | AI | Google Gemini API (photo extraction, PDF parsing, chat assistant) |
 | Media storage | Cloudinary |
@@ -82,6 +83,9 @@ cp t-frontend/.env.example t-frontend/.env
 | `GOOGLE_CALLBACK_URL` | No | Default `http://localhost:9000/auth/google/callback` |
 | `TRUST_PROXY` | No | Number of reverse proxies in front of the server. Keep `0` locally |
 | `RATE_LIMIT_ENABLED` | No | Set to `false` to disable rate limiting. Default `true` |
+| `IMPORT_WORKER_CONCURRENCY` | No | PDF imports one process runs at once. Default `2` |
+| `IMPORT_JOBS_PER_MINUTE` | No | PDF imports started per minute across all workers (BullMQ only). Default `10` |
+| `IMPORT_WORKER_IN_API` | No | Set to `false` to run the import worker as its own process with `npm run worker`. Default `true` |
 | `REDIS_URL` | No | e.g. `redis://localhost:6379`. Stores rate-limit counters and token revocations in Redis. Unset: in-memory. If Redis is unreachable (at startup or later) the backend keeps working on in-memory stores and switches back when it reconnects |
 
 Generate each JWT secret with:
@@ -145,6 +149,15 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+**Import worker.** With `REDIS_URL` set, PDF imports run on a BullMQ queue whose worker starts inside the backend process. To run it separately (so slow AI imports never share a process with API requests), set `IMPORT_WORKER_IN_API=false` and start it in a third terminal:
+
+```bash
+cd t-backend
+npm run worker
+```
+
+Without Redis, imports run on an in-memory queue inside the backend and no worker process is needed.
+
 **Production build**
 
 ```bash
@@ -207,6 +220,11 @@ The test suite never calls Gemini or Google, and fills in placeholder JWT and OA
 
 - **Text only.** The server extracts the PDF's text layer and sends only text to Gemini. Scanned PDFs without a text layer are not supported.
 - **Limits:** 5 MB, 10 pages, 50,000 characters and 100 rows per import.
+- **Imports run as background jobs.** The upload checks the PDF and extracts its text immediately, so a bad file is rejected in the upload's own response. The AI passes (reading, splitting combined dishes, filling missing nutrition) then run as a queued job the client polls every 2 seconds, showing which pass it is on. The job carries the extracted text, never the PDF.
+- **Only provider failures are retried.** A job gets 3 attempts with exponential backoff (5s, then 10s) when Gemini is unavailable or returns a malformed answer. A file problem (not a food diary, no entries) fails at once, since retrying cannot fix it. Jobs that fail every attempt for a service reason are copied to a dead-letter queue for 7 days; file problems are not.
+- **Concurrency is capped.** Each worker runs at most `IMPORT_WORKER_CONCURRENCY` imports, and BullMQ's limiter starts at most `IMPORT_JOBS_PER_MINUTE` across all workers, so a burst of uploads queues instead of exhausting the Gemini quota that photo and chat requests also need.
+- **Redis is still optional.** Without it, or when it cannot be reached at upload time, the same job contract (concurrency cap, retries, progress, one-hour retention) runs in memory. Those jobs are lost on a restart, and their cap applies per instance.
+- **Cancel stops waiting, not the job.** Cancelling in the UI stops polling; a job already running finishes and expires unread after an hour.
 - **Missing values are never guessed.** Rows with missing or unclear values are flagged for review and must be fixed or confirmed before saving.
 - **Duplicates** are detected against existing meals and earlier rows in the same file by date, item names (ignoring case and order) and total calories, and are skipped on save.
 
@@ -236,6 +254,14 @@ The test suite never calls Gemini or Google, and fills in placeholder JWT and OA
 - **OTPs** are 6 digits, stored hashed, expire after 10 minutes and are invalidated after 5 wrong attempts. Password changes need an OTP sent to the current email; email changes need an OTP sent to the new address.
 - **Google accounts** cannot change their password or email in the app.
 - **Data isolation.** The user is always taken from the session token, never from the request. Every query is scoped to that user, and accessing another user's meal returns `403`.
+
+### Idempotent writes
+
+- **Logging a meal, confirming a chat proposal and confirming a PDF import are idempotent.** The client sends an `Idempotency-Key` header; the server runs each key at most once per user and endpoint and replays the stored response to any repeat for 24 hours. A double tap or a "Try again" after a dropped connection therefore never saves a second copy.
+- **MongoDB holds the keys, not Redis.** A unique index on (user, endpoint, key) is the lock and a TTL index expires records, so the guarantee holds even with Redis optional or down.
+- **The client keeps one key per intended write.** Resubmitting the same values reuses the key; changing them or a success starts a new one. A chat confirmation is keyed by its proposal's id, since a proposal can only be saved once.
+- **Only successes are stored.** A failed attempt frees its key so it can be retried. A claim held by a request that crashed mid-write is taken over by a retry after 2 minutes.
+- **The response is stored before it is sent.** Once a client has seen a response, any retry gets that same response back.
 
 ### Rate limiting
 

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
+import { idempotent } from '../middleware/idempotency';
 import { aiRequestsRateLimit } from '../middleware/rateLimit';
 import { validate } from '../middleware/validate';
 import {
@@ -11,7 +12,7 @@ import {
   updateFoodEntrySchema,
 } from '../schemas/foodEntry.schema';
 import { uploadFoodDiaryPdf, uploadFoodImageFile } from '../middleware/upload';
-import { confirmFoodEntryImportSchema } from '../schemas/foodEntryImport.schema';
+import { confirmFoodEntryImportSchema, foodDiaryImportJobSchema } from '../schemas/foodEntryImport.schema';
 import * as foodEntryController from '../controllers/foodEntry.controller';
 import * as foodEntryImportController from '../controllers/foodEntryImport.controller';
 import { Request, Response, NextFunction } from 'express';
@@ -45,6 +46,7 @@ router.post(
   uploadFoodImageFile,
   parseMultipartMealData,
   validate(createFoodEntrySchema),
+  idempotent('create-food-entry'),
   foodEntryController.createFoodEntry
 );
 // The upload runs before any handler: the PDF only exists on `req.file` once multer has parsed the form.
@@ -54,9 +56,16 @@ router.post(
   uploadFoodDiaryPdf,
   foodEntryImportController.previewFoodEntryImport
 );
+// Polled every couple of seconds while an import runs, so it sits outside the AI rate limit.
+router.get(
+  '/import/jobs/:jobId',
+  validate(foodDiaryImportJobSchema),
+  foodEntryImportController.getFoodEntryImportJob
+);
 router.post(
   '/import/confirm',
   validate(confirmFoodEntryImportSchema),
+  idempotent('confirm-food-import'),
   foodEntryImportController.confirmFoodEntryImport
 );
 router.patch('/:id', validate(updateFoodEntrySchema), foodEntryController.updateFoodEntry);

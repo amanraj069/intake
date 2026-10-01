@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
+import { idempotent } from '../middleware/idempotency';
 import { aiRequestsRateLimit } from '../middleware/rateLimit';
 import { uploadFoodImageFile } from '../middleware/upload';
 import { validate } from '../middleware/validate';
@@ -43,7 +44,12 @@ router.post(
   validate(chatMessageIdSchema),
   chatController.restoreChatMessage
 );
-router.post('/confirm-action', validate(confirmChatActionSchema), chatController.confirmChatAction);
+router.post(
+  '/confirm-action',
+  validate(confirmChatActionSchema),
+  idempotent('confirm-chat-action'),
+  chatController.confirmChatAction
+);
 router.post('/cancel-action', validate(cancelChatActionSchema), chatController.cancelChatAction);
 
 export default router;
